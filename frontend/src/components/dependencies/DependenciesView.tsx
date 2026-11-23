@@ -1,8 +1,23 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { usePanelStamp } from "../../changes";
-import { api, errorMessage, MAX_DEPENDENCY_LIST_BYTES, type DependenciesView as View, type DependencyRow } from "../../api";
+import {
+  api,
+  errorMessage,
+  MAX_DEPENDENCY_LIST_BYTES,
+  type DependenciesView as View,
+  type DependencyRow,
+} from "../../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
-import { DataTable, DetailPanel, FilterSelect, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "../layout";
+import {
+  DataTable,
+  DetailPanel,
+  FilterSelect,
+  SearchInput,
+  SummaryCards,
+  TableWithPanel,
+  Toolbar,
+  type Column,
+} from "../layout";
 import { ViewInFixes } from "../migration/parts";
 import { FromOttoTag } from "../otto/ProposalCard";
 import { ErrorBox, NameText, SecondaryButton, SourceTag, StatusView, WhereFromTag } from "../ui";
@@ -133,7 +148,12 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
   const cards = [
     { key: "libraries", label: "Libraries", value: allRows.length, sub: "in the dependency list" },
     { key: "answered", label: "Answered", value: allRows.filter(isAnswered).length, sub: "libraries with a Yes or No" },
-    { key: "blockers", label: "Blockers", value: allRows.reduce((n, r) => n + r.blocks.length, 0), sub: "tracks a library blocks" },
+    {
+      key: "blockers",
+      label: "Blockers",
+      value: allRows.reduce((n, r) => n + r.blocks.length, 0),
+      sub: "tracks a library blocks",
+    },
   ];
   const needle = search.trim().toLowerCase();
   const matches = (row: DependencyRow) => {
@@ -170,22 +190,25 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
   );
   const columns: Column<DependencyRow>[] = [
     { key: "library", header: "Library", minWidth: 170, render: libraryCell },
-    ...current.questions.map(
-      (q, i): Column<DependencyRow> => ({
-        key: q.key,
-        minWidth: 150,
-        header: <AlgoName text={q.title.match(/ML-KEM-768|X25519MLKEM768|ML-DSA-65/)?.[0] ?? q.title} />,
-        render: (row) => {
-          const cell = row.cells[i];
-          return cell ? <AnswerChip cell={cell} /> : null;
-        },
-      }),
-    ),
+    ...current.questions.map((q, i): Column<DependencyRow> => ({
+      key: q.key,
+      minWidth: 150,
+      header: <AlgoName text={q.title.match(/ML-KEM-768|X25519MLKEM768|ML-DSA-65/)?.[0] ?? q.title} />,
+      render: (row) => {
+        const cell = row.cells[i];
+        return cell ? <AnswerChip cell={cell} /> : null;
+      },
+    })),
   ];
   // Beside the open panel: the library and version, its answers in short, and the Blocks marker.
   const compactColumns: Column<DependencyRow>[] = [
     { key: "library", header: "Library", minWidth: 150, render: libraryCell },
-    { key: "answers", header: "Answers", minWidth: 110, render: (row) => <span className="text-sm text-slate-200">{row.answers_short}</span> },
+    {
+      key: "answers",
+      header: "Answers",
+      minWidth: 110,
+      render: (row) => <span className="text-sm text-slate-200">{row.answers_short}</span>,
+    },
   ];
 
   const filterOptions: { value: RowFilter; label: string }[] = [
@@ -248,7 +271,13 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
   );
 
   const panel = (
-    <DetailPanel open={selected !== null} item={selected?.id ?? null} title={selected?.label ?? ""} subtitle={selected?.library ?? undefined} onClose={closePanel}>
+    <DetailPanel
+      open={selected !== null}
+      item={selected?.id ?? null}
+      title={selected?.label ?? ""}
+      subtitle={selected?.library ?? undefined}
+      onClose={closePanel}
+    >
       {selected ? (
         <DependencyDetail
           row={selected}
@@ -338,7 +367,12 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
       {current.systems.length > 0 ? (
         <div className="grid gap-3 md:grid-cols-2">
           {current.systems.map((s) => (
-            <div key={s.key} data-testid="dependency-system" data-system={s.key} className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+            <div
+              key={s.key}
+              data-testid="dependency-system"
+              data-system={s.key}
+              className="rounded-xl border border-slate-800 bg-slate-900/40 p-4"
+            >
               <p className="text-xs text-slate-400">{s.kind_label}</p>
               <p className="text-sm font-semibold text-slate-100">
                 <span className="font-mono">{s.name}</span>
@@ -361,7 +395,11 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
               {(s.otto_lines ?? []).length > 0 ? (
                 <ul data-testid="system-otto-lines" className="mt-2 space-y-1 text-sm text-slate-200">
                   {(s.otto_lines ?? []).map((line, i) => (
-                    <li key={i} data-testid="system-otto-line" className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <li
+                      key={i}
+                      data-testid="system-otto-line"
+                      className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1"
+                    >
                       <FromOttoTag testId="system-otto-line-label" />
                       <span className="min-w-0 break-words">{line}</span>
                     </li>
@@ -374,7 +412,6 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
           ))}
         </div>
       ) : null}
-
 
       {current.groups.length > 0 ? (
         <>

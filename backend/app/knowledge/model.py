@@ -16,6 +16,7 @@ Rules the model enforces (docs/SPEC.md section 7e):
   lines quoted and the date it was read. It says what the package file lists, nothing about what a system loads.
   A library that is not a package with such a file carries `no_package_file` with one sentence that says so.
 """
+
 from __future__ import annotations
 
 import re
@@ -109,7 +110,9 @@ class Need(Strict):
     """One package a version lists as needed when it runs, exactly as its package file writes it."""
 
     name: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9@][A-Za-z0-9@._/+-]*$")
-    wants: str = Field(max_length=120, description='The version range as written, e.g. "^4.11.9". Empty when the file gives none.')
+    wants: str = Field(
+        max_length=120, description='The version range as written, e.g. "^4.11.9". Empty when the file gives none.'
+    )
 
     @field_validator("wants")
     @classmethod
@@ -124,18 +127,26 @@ class Declared(Strict):
 
     version: str = Field(description="One released version, written in full.")
     needs: list[Need] = Field(max_length=500, description="Empty when the package file lists none.")
-    file: str = Field(min_length=3, max_length=200, description="The package file that was read, as it is named inside the package.")
+    file: str = Field(
+        min_length=3, max_length=200, description="The package file that was read, as it is named inside the package."
+    )
     file_sha256: str = Field(pattern=r"^[0-9a-f]{64}$", description="The SHA-256 of that file as it was read.")
     source: Source
-    note: str | None = Field(default=None, min_length=5, max_length=300,
-                             description="What the quoted lines cannot show, e.g. that the file has no line that lists a need.")
+    note: str | None = Field(
+        default=None,
+        min_length=5,
+        max_length=300,
+        description="What the quoted lines cannot show, e.g. that the file has no line that lists a need.",
+    )
 
     @model_validator(mode="after")
     def _rules(self) -> "Declared":
         if read_version(self.version) is None:
             raise ValueError(f"{self.version!r} is not a version the reader can read")
         if self.source.kind != "package_file":
-            raise ValueError("what a version declares is read from its package file: the source's kind must be package_file")
+            raise ValueError(
+                "what a version declares is read from its package file: the source's kind must be package_file"
+            )
         names = [n.name.lower() for n in self.needs]
         if len(set(names)) != len(names):
             raise ValueError("a package is listed twice among the needs of one version")
@@ -146,15 +157,25 @@ class LibraryFile(Strict):
     schema_: Literal["isogeny.knowledge/1"] = Field(alias="schema")
     library: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,40}$", description="Must equal the file name without .json.")
     label: str = Field(min_length=2, max_length=60)
-    roles: list[Role] = Field(min_length=1, description="tls: answers the hybrid TLS question; signatures and key_exchange as named.")
+    roles: list[Role] = Field(
+        min_length=1, description="tls: answers the hybrid TLS question; signatures and key_exchange as named."
+    )
     packages: list[Package] = Field(min_length=1)
-    match_names: list[str] = Field(default_factory=list, description="Bare names safe to match when a component has no purl.")
+    match_names: list[str] = Field(
+        default_factory=list, description="Bare names safe to match when a component has no purl."
+    )
     claims: list[Claim] = Field(default_factory=list)
     needs_your_environment: EnvironmentOnly | None = None
     notes: str | None = Field(default=None, max_length=600)
-    declared: list[Declared] = Field(default_factory=list, max_length=200, description="Phase 6e: what single versions declare they need.")
-    no_package_file: str | None = Field(default=None, min_length=10, max_length=300,
-                                        description="Phase 6e: one sentence, for a library that has no package file that declares what it needs.")
+    declared: list[Declared] = Field(
+        default_factory=list, max_length=200, description="Phase 6e: what single versions declare they need."
+    )
+    no_package_file: str | None = Field(
+        default=None,
+        min_length=10,
+        max_length=300,
+        description="Phase 6e: one sentence, for a library that has no package file that declares what it needs.",
+    )
 
     @model_validator(mode="after")
     def _rules(self) -> "LibraryFile":
@@ -164,8 +185,10 @@ class LibraryFile(Strict):
         seen: dict[tuple[str, str], int] = {}
         for c in self.claims:
             if c.answer == "no" and (c.capability, c.versions.before, c.source.url) not in yes:
-                raise ValueError(f'the "no" for {c.capability} before {c.versions.before} has no matching "yes" from '
-                                 "the same source: a no is allowed only below the version an official source says added it")
+                raise ValueError(
+                    f'the "no" for {c.capability} before {c.versions.before} has no matching "yes" from '
+                    "the same source: a no is allowed only below the version an official source says added it"
+                )
             key = (c.capability, c.answer)
             seen[key] = seen.get(key, 0) + 1
             if seen[key] > 1:

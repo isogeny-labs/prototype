@@ -49,10 +49,16 @@ export function SettingsPage({
 
   return (
     <div data-testid="settings-page" className="max-w-3xl">
-      <PageHeader title="Settings" description="Settings for this installation of Evidence Lab. They change no result." />
+      <PageHeader
+        title="Settings"
+        description="Settings for this installation of Evidence Lab. They change no result."
+      />
 
       <Section title="Organization">
-        <form onSubmit={save} className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-800 bg-slate-900/30 p-4">
+        <form
+          onSubmit={save}
+          className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-800 bg-slate-900/30 p-4"
+        >
           <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-xs text-slate-400">
             Organization name (shown in the sidebar and in every evidence file)
             <input
@@ -65,7 +71,10 @@ export function SettingsPage({
               className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100"
             />
           </label>
-          <button type="submit" className="rounded-lg bg-sky-500 px-3.5 py-1.5 text-sm font-semibold text-slate-950 hover:bg-sky-400">
+          <button
+            type="submit"
+            className="rounded-lg bg-sky-500 px-3.5 py-1.5 text-sm font-semibold text-slate-950 hover:bg-sky-400"
+          >
             Save
           </button>
           {saved ? (
@@ -94,10 +103,19 @@ export function SettingsPage({
             <label
               key={value}
               className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${
-                theme === value ? "border-sky-400/60 bg-sky-400/10 text-slate-50" : "border-slate-700 text-slate-300 hover:border-slate-500"
+                theme === value
+                  ? "border-sky-400/60 bg-sky-400/10 text-slate-50"
+                  : "border-slate-700 text-slate-300 hover:border-slate-500"
               }`}
             >
-              <input type="radio" name="theme" value={value} checked={theme === value} onChange={() => onTheme(value)} className="accent-sky-500" />
+              <input
+                type="radio"
+                name="theme"
+                value={value}
+                checked={theme === value}
+                onChange={() => onTheme(value)}
+                className="accent-sky-500"
+              />
               {label}
             </label>
           ))}
@@ -107,8 +125,9 @@ export function SettingsPage({
       <Section title="Demo projects">
         <div className="rounded-xl border border-slate-800 bg-slate-900/30 p-4 text-sm text-slate-300">
           <p>
-            Adds a Demo folder with one project for each demo file (Acme Pay, Migration demo, Multi-target, Lab nginx, Real libraries,
-            Real public servers), each with its first assessment and the file already imported. Running it again adds nothing.
+            Adds a Demo folder with one project for each demo file (Acme Pay, Migration demo, Multi-target, Lab nginx,
+            Real libraries, Real public servers), each with its first assessment and the file already imported. Running
+            it again adds nothing.
           </p>
           <div className="mt-3">
             <SecondaryButton onClick={onLoadDemo} disabled={loadingDemo}>
@@ -129,7 +148,9 @@ export function SettingsPage({
       <OttoSettings section={section} />
 
       <Section title="How software runs here">
-        <p className="rounded-xl border border-slate-800 bg-slate-900/30 p-4 text-sm text-slate-300">{session.mode_line}</p>
+        <p className="rounded-xl border border-slate-800 bg-slate-900/30 p-4 text-sm text-slate-300">
+          {session.mode_line}
+        </p>
       </Section>
     </div>
   );

@@ -24,10 +24,20 @@ describe("the address of a filtered table", () => {
     expect(failed).toBe("#/a/12/checks?result=Failed");
     expect(parseRoute(failed)).toMatchObject({ kind: "assessment", id: 12, page: "checks", result: "Failed" });
     expect(routeHref(parseRoute(failed))).toBe(failed);
-    const retests = routeHref({ kind: "assessment", id: 12, page: "checks", from: "retest", result: "Passed", group: "encryption" });
+    const retests = routeHref({
+      kind: "assessment",
+      id: 12,
+      page: "checks",
+      from: "retest",
+      result: "Passed",
+      group: "encryption",
+    });
     expect(parseRoute(retests)).toMatchObject({ from: "retest", result: "Passed", group: "encryption" });
     expect(routeHref(parseRoute(retests))).toBe(retests);
-    expect(parseRoute("#/a/3/advisories?decision=proposed")).toMatchObject({ page: "advisories", decision: "proposed" });
+    expect(parseRoute("#/a/3/advisories?decision=proposed")).toMatchObject({
+      page: "advisories",
+      decision: "proposed",
+    });
     // a value with a space or an apostrophe survives the address
     const odd = routeHref({ kind: "assessment", id: 1, page: "checks", result: "Couldn't check" });
     expect(parseRoute(odd)).toMatchObject({ result: "Couldn't check" });
@@ -35,7 +45,9 @@ describe("the address of a filtered table", () => {
 
   it("an address without a filter is exactly what it was before", () => {
     expect(routeHref({ kind: "assessment", id: 12, page: "checks", item: "test-5" })).toBe("#/a/12/checks?item=test-5");
-    expect(routeHref({ kind: "assessment", id: 12, page: "checks", result: null, from: null, decision: null })).toBe("#/a/12/checks");
+    expect(routeHref({ kind: "assessment", id: 12, page: "checks", result: null, from: null, decision: null })).toBe(
+      "#/a/12/checks",
+    );
     const plain = parseRoute("#/a/12/checks?item=test-5");
     expect("result" in plain || "from" in plain || "decision" in plain).toBe(false);
   });
@@ -60,7 +72,13 @@ describe("Checks, filtered from its address", () => {
         ? {
             ...g,
             rows: [
-              ...plan.tests.map((t, n) => ({ ...planRows[0]!, id: `test-${t.id}`, name: t.title, ...(t.id === failedId ? {} : { result: passed }), runs: n + 1 })),
+              ...plan.tests.map((t, n) => ({
+                ...planRows[0]!,
+                id: `test-${t.id}`,
+                name: t.title,
+                ...(t.id === failedId ? {} : { result: passed }),
+                runs: n + 1,
+              })),
               ...g.rows.filter((r) => !r.id.startsWith("test-")),
             ],
           }
@@ -70,9 +88,20 @@ describe("Checks, filtered from its address", () => {
 
   /** Checks with its filters held where the app holds them: in the address. `onFilters` is told of each change; the
    * button stands for Back (or a link) changing the address from outside the page. */
-  function Harness({ result = null, from = null, onFilters }: { result?: string | null; from?: string | null; onFilters?: (f: { result?: string | null; from?: string | null }) => void }) {
+  function Harness({
+    result = null,
+    from = null,
+    onFilters,
+  }: {
+    result?: string | null;
+    from?: string | null;
+    onFilters?: (f: { result?: string | null; from?: string | null }) => void;
+  }) {
     const [current, setCurrent] = useState<PlanView | null>(plan);
-    const [address, setAddress] = useState<{ result: string | null; from: string | null; group?: string | null }>({ result, from });
+    const [address, setAddress] = useState<{ result: string | null; from: string | null; group?: string | null }>({
+      result,
+      from,
+    });
     return (
       <LinkProvider assessmentId={101} planId={1}>
         <button type="button" onClick={() => setAddress({ result: null, from: "retest" })}>
@@ -98,7 +127,11 @@ describe("Checks, filtered from its address", () => {
       </LinkProvider>
     );
   }
-  const routes = { "GET /api/plans/1/checks": { body: view }, "GET /api/plans/1/lab": { body: lab }, "GET /api/import/7/plan": { body: plan } };
+  const routes = {
+    "GET /api/plans/1/checks": { body: view },
+    "GET /api/plans/1/lab": { body: lab },
+    "GET /api/import/7/plan": { body: plan },
+  };
 
   it("starts with the Result filter the address names: only the checks that read that way are listed, the plan's tests included", async () => {
     mockApi(routes);
@@ -106,7 +139,9 @@ describe("Checks, filtered from its address", () => {
     await screen.findAllByTestId("group-section");
     expect((screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement).value).toBe("Failed");
     // the test plan lists its one failed test, and no other card
-    await waitFor(() => expect(screen.getAllByTestId("test-card").map((c) => Number(c.getAttribute("data-test")))).toEqual([failedId]));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("test-card").map((c) => Number(c.getAttribute("data-test")))).toEqual([failedId]),
+    );
     expect(screen.getAllByTestId("plan-list-count").map((c) => c.textContent)).toEqual(["1"]);
     // taking the filter off lists every test again
     fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "all" } });
@@ -118,7 +153,9 @@ describe("Checks, filtered from its address", () => {
     render(<Harness result="Failed" />);
     await screen.findAllByTestId("group-section");
     const line = await screen.findByTestId("plan-narrowed");
-    expect(line.textContent).toBe(`1 of the plan's ${plan.tests.length} tests is listed (Result: Failed). Run all runs all ${plan.tests.length}.`);
+    expect(line.textContent).toBe(
+      `1 of the plan's ${plan.tests.length} tests is listed (Result: Failed). Run all runs all ${plan.tests.length}.`,
+    );
     // with the filter off the line is gone
     fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "all" } });
     await waitFor(() => expect(screen.queryByTestId("plan-narrowed")).toBeNull());
@@ -137,7 +174,9 @@ describe("Checks, filtered from its address", () => {
     // on Crypto tests no card of the plan is listed, and the part says so; + Add test and Run all are still there
     fireEvent.click(screen.getByRole("tab", { name: "Crypto tests" }));
     const line = await screen.findByTestId("plan-narrowed");
-    expect(line.textContent).toBe(`No test of the plan reads Couldn't check now. Run all runs all ${plan.tests.length}.`);
+    expect(line.textContent).toBe(
+      `No test of the plan reads Couldn't check now. Run all runs all ${plan.tests.length}.`,
+    );
     expect(screen.queryAllByTestId("test-card")).toHaveLength(0);
     expect(screen.getByRole("button", { name: "Run all" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "+ Add test" })).toBeTruthy();
@@ -157,7 +196,9 @@ describe("Checks, filtered from its address", () => {
     expect(onFilters).toHaveBeenLastCalledWith({ from: null, group: "verification" });
     expect((screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement).value).toBe("Failed");
     fireEvent.click(screen.getByRole("button", { name: "the address changes" })); // Back, or a link, changed the address
-    await waitFor(() => expect((screen.getByRole("combobox", { name: "Came from" }) as HTMLSelectElement).value).toBe("retest"));
+    await waitFor(() =>
+      expect((screen.getByRole("combobox", { name: "Came from" }) as HTMLSelectElement).value).toBe("retest"),
+    );
     expect((screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement).value).toBe("all");
   });
 
@@ -205,6 +246,10 @@ describe("the app, with a filter in the address", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?group=encryption&from=retest"));
     expect(screen.getByRole("tab", { name: "Crypto tests" }).getAttribute("aria-selected")).toBe("true");
     // the sidebar's link to the page is the page itself, with no filter
-    expect(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Checks" }).getAttribute("href")).toBe("#/a/101/checks");
+    expect(
+      within(screen.getByRole("navigation", { name: "Assessment" }))
+        .getByRole("link", { name: "Checks" })
+        .getAttribute("href"),
+    ).toBe("#/a/101/checks");
   });
 });

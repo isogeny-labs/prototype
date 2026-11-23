@@ -55,7 +55,15 @@ const compactColumns: Column<LibraryEvidenceRow>[] = [
 ];
 
 /** Phase 5b: Evidence's Dependencies group: one row per library of the list, with its answers as Dependencies words them. */
-export function LibraryTable({ libraries, selectedId, onOpen }: { libraries: LibraryEvidenceRow[]; selectedId: string | null; onOpen: (id: string) => void }) {
+export function LibraryTable({
+  libraries,
+  selectedId,
+  onOpen,
+}: {
+  libraries: LibraryEvidenceRow[];
+  selectedId: string | null;
+  onOpen: (id: string) => void;
+}) {
   return (
     <DataTable
       label="Libraries"
@@ -74,7 +82,13 @@ export function LibraryTable({ libraries, selectedId, onOpen }: { libraries: Lib
  * Open in Dependencies (where its measurement and its Details and evidence are). */
 export function LibraryPanel({ library, onClose }: { library: LibraryEvidenceRow | null; onClose: () => void }) {
   return (
-    <DetailPanel open={library !== null} item={library?.id ?? null} title={library?.name ?? ""} subtitle={library?.via_words} onClose={onClose}>
+    <DetailPanel
+      open={library !== null}
+      item={library?.id ?? null}
+      title={library?.name ?? ""}
+      subtitle={library?.via_words}
+      onClose={onClose}
+    >
       {library ? (
         <div data-testid="library-panel" className="space-y-4 text-sm">
           <Blocks library={library} />
@@ -82,14 +96,26 @@ export function LibraryPanel({ library, onClose }: { library: LibraryEvidenceRow
             {(library.cells ?? []).map((c) => (
               <li key={c.question} className="rounded-lg border border-slate-800 p-3">
                 <p className="text-xs text-slate-400">
-                  <AlgoName text={c.question === "ml_kem_768" ? "ML-KEM-768" : c.question === "x25519mlkem768" ? "X25519MLKEM768" : "ML-DSA-65"} />
+                  <AlgoName
+                    text={
+                      c.question === "ml_kem_768"
+                        ? "ML-KEM-768"
+                        : c.question === "x25519mlkem768"
+                          ? "X25519MLKEM768"
+                          : "ML-DSA-65"
+                    }
+                  />
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <ResultBadge label={c.answer_words} tone={c.tone} />
                   <WhereFromTag tag={c.source_tag} />
                   {c.label_words ? <ProofChip source={c.source_tag?.key ?? null}>{c.label_words}</ProofChip> : null}
                 </div>
-                {c.no_reason ? <p className="mt-1 text-slate-200">{c.no_reason}</p> : <p className="mt-1 text-slate-400">{c.reason}</p>}
+                {c.no_reason ? (
+                  <p className="mt-1 text-slate-200">{c.no_reason}</p>
+                ) : (
+                  <p className="mt-1 text-slate-400">{c.reason}</p>
+                )}
               </li>
             ))}
           </ul>
@@ -103,11 +129,18 @@ export function LibraryPanel({ library, onClose }: { library: LibraryEvidenceRow
                     <p className="text-slate-100">
                       {l.title} <SourceTag source="published">Release notes say</SourceTag>
                     </p>
-                    <blockquote className="mt-1 border-l-2 border-slate-700 pl-2 text-slate-300">“{l.quote}”</blockquote>
+                    <blockquote className="mt-1 border-l-2 border-slate-700 pl-2 text-slate-300">
+                      “{l.quote}”
+                    </blockquote>
                     <p className="mt-1 text-xs text-slate-400">
                       checked {l.checked} ·{" "}
                       {l.url.startsWith("https://") ? (
-                        <a href={l.url} target="_blank" rel="noreferrer noopener" className="underline hover:text-slate-100">
+                        <a
+                          href={l.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="underline hover:text-slate-100"
+                        >
                           {l.url}
                         </a>
                       ) : (

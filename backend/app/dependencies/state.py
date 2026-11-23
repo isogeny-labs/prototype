@@ -7,6 +7,7 @@ read from that review, through the same read gate as every result. Lookups, ties
 worked out again on every read and never stored. What IS stored, in tables that only accept new rows: the lists
 (dependency_lists) and the person's own ties (dependency_ties).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -33,8 +34,10 @@ from app.present import results as present
 
 ANSWERS = ("yes", "no")
 # Which question decides which track, and which kind of library a track looks at (docs/SPEC.md section 7e).
-TRACKS = {"server": {"kex": ("x25519mlkem768", "tls"), "auth": ("ml_dsa_65", "tls")},
-          "software": {"signatures": ("ml_dsa_65", "signatures")}}
+TRACKS = {
+    "server": {"kex": ("x25519mlkem768", "tls"), "auth": ("ml_dsa_65", "tls")},
+    "software": {"signatures": ("ml_dsa_65", "signatures")},
+}
 NEEDS_ISOLATED = "needs isolated mode"
 
 
@@ -67,8 +70,12 @@ class DependenciesMixin:
     # ---------------------------------------------------------------- the list, read and kept
 
     def _latest_list(self, db, import_id: int) -> DependencyListRow | None:
-        return db.scalars(select(DependencyListRow).where(DependencyListRow.import_id == import_id)
-                          .order_by(DependencyListRow.id.desc()).limit(1)).first()
+        return db.scalars(
+            select(DependencyListRow)
+            .where(DependencyListRow.import_id == import_id)
+            .order_by(DependencyListRow.id.desc())
+            .limit(1)
+        ).first()
 
     def _tree_of(self, row: DependencyListRow, programs: list[tuple[str, str]]) -> Tree:
         cache = self.__dict__.setdefault("_dependency_cache", {})
@@ -89,10 +96,17 @@ class DependenciesMixin:
             return None
         cap = real_libraries.capability_copy(*real_libraries.CAPABLE_CONTROL)
         inc = real_libraries.capability_copy(*real_libraries.INCAPABLE_CONTROL)
-        if cap is None or inc is None:      # (both are fixed in real_libraries.py)
+        if cap is None or inc is None:  # (both are fixed in real_libraries.py)
             return None
-        return {"name": name, "version": version, "label": copy["label"], "target_kind": "public_copy",
-                "tls": copy.get("tls_client") is not None, "capable": cap["label"], "incapable": inc["label"]}
+        return {
+            "name": name,
+            "version": version,
+            "label": copy["label"],
+            "target_kind": "public_copy",
+            "tls": copy.get("tls_client") is not None,
+            "capable": cap["label"],
+            "incapable": inc["label"],
+        }
 
     def _capability_spec(self, name: str, version: str) -> tuple[dict, str] | None:
         request = self._capability_request(name, version)
@@ -101,9 +115,15 @@ class DependenciesMixin:
         spec = self.engine.design_capability(request)
         return spec, hashlib.sha256(canonical_bytes(spec)).hexdigest()
 
-    def _ensure_capability_items(self, db, plan: PlanRow, copies: list[tuple[str, str]]) -> dict[tuple[str, str], PlanItemRow]:
-        have = {r.spec_hash: r for r in db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan.id,
-                                                                           PlanItemRow.origin == DEPENDENCY_ORIGIN)).all()}
+    def _ensure_capability_items(
+        self, db, plan: PlanRow, copies: list[tuple[str, str]]
+    ) -> dict[tuple[str, str], PlanItemRow]:
+        have = {
+            r.spec_hash: r
+            for r in db.scalars(
+                select(PlanItemRow).where(PlanItemRow.plan_id == plan.id, PlanItemRow.origin == DEPENDENCY_ORIGIN)
+            ).all()
+        }
         out = {}
         for n, (name, version) in enumerate(copies):
             made = self._capability_spec(name, version)
@@ -111,8 +131,13 @@ class DependenciesMixin:
                 continue
             spec, key = made
             if key not in have:
-                have[key] = PlanItemRow(plan_id=plan.id, spec_hash=self._lock_spec(db, spec), position=20_000 + n,
-                                        origin=DEPENDENCY_ORIGIN, removed=False)
+                have[key] = PlanItemRow(
+                    plan_id=plan.id,
+                    spec_hash=self._lock_spec(db, spec),
+                    position=20_000 + n,
+                    origin=DEPENDENCY_ORIGIN,
+                    removed=False,
+                )
                 db.add(have[key])
             out[(name, version)] = have[key]
         db.commit()
@@ -124,23 +149,34 @@ class DependenciesMixin:
         if made is None:
             return {}
         _, key = made
-        item = db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan.id, PlanItemRow.origin == DEPENDENCY_ORIGIN,
-                                                    PlanItemRow.spec_hash == key)).first()
+        item = db.scalars(
+            select(PlanItemRow).where(
+                PlanItemRow.plan_id == plan.id, PlanItemRow.origin == DEPENDENCY_ORIGIN, PlanItemRow.spec_hash == key
+            )
+        ).first()
         if item is None:
             return {}
         out: dict = {"item_id": item.id}
         job = self.jobs.get((item.id, DEPENDENCY_ORIGIN))
         if job is not None and job.status != "done":
-            out["job"] = present.status_view(job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel)
+            out["job"] = present.status_view(
+                job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel
+            )
         run = self._latest_run(db, item.id, DEPENDENCY_ORIGIN, None)
         result = self._result(db, run) if run is not None else None
         if result is not None:
             review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == run.id)).first()
-            stands = self._result_cache[run.id][2] and result["code"] == review.code   # the read gate
-            out.update(run_id=run.id, code=result["code"], result=result, finished_at=run.finished_at,
-                       reason=review.reason if stands else None, detail=dict(review.detail or {}) if stands else {},
-                       control=review.control_outcome if stands else None,
-                       target_kind=(read_target_kind(db, run.spec_hash)))
+            stands = self._result_cache[run.id][2] and result["code"] == review.code  # the read gate
+            out.update(
+                run_id=run.id,
+                code=result["code"],
+                result=result,
+                finished_at=run.finished_at,
+                reason=review.reason if stands else None,
+                detail=dict(review.detail or {}) if stands else {},
+                control=review.control_outcome if stands else None,
+                target_kind=(read_target_kind(db, run.spec_hash)),
+            )
         return out
 
     # ---------------------------------------------------------------- everything about the list, worked out now
@@ -156,8 +192,10 @@ class DependenciesMixin:
         systems = {s["key"]: s for s in self._systems(claims)}
         by_program = {(p["component"].casefold(), p["version"]): "software:" + p["ref"] for p in programs}
         ties = {}
-        for tie in db.scalars(select(DependencyTieRow).where(DependencyTieRow.list_id == row.id).order_by(DependencyTieRow.id)).all():
-            ties[tie.top_key] = tie            # the newest row of a top entry is the one in force
+        for tie in db.scalars(
+            select(DependencyTieRow).where(DependencyTieRow.list_id == row.id).order_by(DependencyTieRow.id)
+        ).all():
+            ties[tie.top_key] = tie  # the newest row of a top entry is the one in force
         kb = knowledge_base()
         isolated = self.mode.name == "isolated"
         tops: list[dict[str, Any]] = []
@@ -178,18 +216,48 @@ class DependenciesMixin:
             entry = kb.find(r.purl, r.name)
             looked = kb.look_up(r.purl, r.name, r.version)
             copy = real_libraries.capability_copy(entry.library if entry else None, r.version) if entry else None
-            measured = (self._measurement_of(db, plan, entry.library, r.version)
-                        if (copy and isolated and entry is not None and r.version is not None) else {})
-            spec_questions = (["ml_kem_768"] + (["x25519mlkem768"] if copy and copy.get("tls_client") else []) + ["ml_dsa_65"]) if copy else []
-            answers = {q: self._answer(q, looked[q], copy is not None, q in spec_questions, isolated, measured, entry, kb, r.version)
-                       for q in CAPABILITIES}
-            item: dict[str, Any] = {"key": r.key, "id": f"row-{n + 1}", "name": r.name, "version": r.version, "purl": r.purl, "label": label(r),
-                    "owner": r.owner, "via": r.via, "paths": r.paths, "library": entry.library if entry else None,
-                    "library_label": entry.label if entry else None, "roles": list(entry.roles) if entry else [],
-                    "measurable": copy is not None, "copy_label": copy["label"] if copy else None, "answers": answers,
-                    "measurement": {k: measured.get(k) for k in ("item_id", "run_id", "code", "control", "job", "finished_at", "target_kind", "result")}
-                    if measured else ({} if copy else None),
-                    "same_copy_as_control": (measured.get("detail") or {}).get("same_copy_as_control") if measured else None}
+            measured = (
+                self._measurement_of(db, plan, entry.library, r.version)
+                if (copy and isolated and entry is not None and r.version is not None)
+                else {}
+            )
+            spec_questions = (
+                (["ml_kem_768"] + (["x25519mlkem768"] if copy and copy.get("tls_client") else []) + ["ml_dsa_65"])
+                if copy
+                else []
+            )
+            answers = {
+                q: self._answer(
+                    q, looked[q], copy is not None, q in spec_questions, isolated, measured, entry, kb, r.version
+                )
+                for q in CAPABILITIES
+            }
+            item: dict[str, Any] = {
+                "key": r.key,
+                "id": f"row-{n + 1}",
+                "name": r.name,
+                "version": r.version,
+                "purl": r.purl,
+                "label": label(r),
+                "owner": r.owner,
+                "via": r.via,
+                "paths": r.paths,
+                "library": entry.library if entry else None,
+                "library_label": entry.label if entry else None,
+                "roles": list(entry.roles) if entry else [],
+                "measurable": copy is not None,
+                "copy_label": copy["label"] if copy else None,
+                "answers": answers,
+                "measurement": {
+                    k: measured.get(k)
+                    for k in ("item_id", "run_id", "code", "control", "job", "finished_at", "target_kind", "result")
+                }
+                if measured
+                else ({} if copy else None),
+                "same_copy_as_control": (measured.get("detail") or {}).get("same_copy_as_control")
+                if measured
+                else None,
+            }
             rows.append(item)
             if r.owner in top_of:
                 top_of[r.owner]["rows"].append(item["id"])
@@ -200,8 +268,17 @@ class DependenciesMixin:
             if not system_key:
                 continue
             kind = systems[system_key]["kind"]
-            slot = per_system.setdefault(system_key, {"key": system_key, "name": systems[system_key]["name"], "kind": kind,
-                                                      "blockers": {t: [] for t in TRACKS[kind]}, "without_answer": 0, "tops": []})
+            slot = per_system.setdefault(
+                system_key,
+                {
+                    "key": system_key,
+                    "name": systems[system_key]["name"],
+                    "kind": kind,
+                    "blockers": {t: [] for t in TRACKS[kind]},
+                    "without_answer": 0,
+                    "tops": [],
+                },
+            )
             slot["tops"].append(shown_top["label"])
             for row_id in shown_top["rows"]:
                 item = next(x for x in rows if x["id"] == row_id)
@@ -211,54 +288,109 @@ class DependenciesMixin:
                 for track, (question, role) in TRACKS[kind].items():
                     a = item["answers"][question]
                     if role in item["roles"] and a["answer"] == "no":
-                        slot["blockers"][track].append({"row": item["id"], "row_key": item["key"], "library": item["name"],
-                                                        "library_label": item["library_label"], "version": item["version"],
-                                                        "label": item["label"], "via": item["via"], "question": question,
-                                                        "answer_label": a["label"], "first_version": a["first_version"],
-                                                        "fix_id": fix_id_for(system_key, item["key"])})
-        return {"list": {"id": row.id, "filename": row.filename, "format": row.format, "sha256": row.sha256, "size": row.size,
-                         "at": iso(row.created_at)},
-                "described": present_deps.described_label(row.parsed), "tops": tops, "rows": rows, "systems": per_system,
-                "system_choices": [{"key": s["key"], "name": s["name"], "kind": s["kind"]} for s in systems.values()],
-                "not_libraries": tree.not_libraries, "isolated": isolated}
+                        slot["blockers"][track].append(
+                            {
+                                "row": item["id"],
+                                "row_key": item["key"],
+                                "library": item["name"],
+                                "library_label": item["library_label"],
+                                "version": item["version"],
+                                "label": item["label"],
+                                "via": item["via"],
+                                "question": question,
+                                "answer_label": a["label"],
+                                "first_version": a["first_version"],
+                                "fix_id": fix_id_for(system_key, item["key"]),
+                            }
+                        )
+        return {
+            "list": {
+                "id": row.id,
+                "filename": row.filename,
+                "format": row.format,
+                "sha256": row.sha256,
+                "size": row.size,
+                "at": iso(row.created_at),
+            },
+            "described": present_deps.described_label(row.parsed),
+            "tops": tops,
+            "rows": rows,
+            "systems": per_system,
+            "system_choices": [{"key": s["key"], "name": s["name"], "kind": s["kind"]} for s in systems.values()],
+            "not_libraries": tree.not_libraries,
+            "isolated": isolated,
+        }
 
     @staticmethod
-    def _answer(question: str, looked, has_copy: bool, asked: bool, isolated: bool, measured: dict, entry, kb,
-                version: str | None = None) -> dict:
+    def _answer(
+        question: str,
+        looked,
+        has_copy: bool,
+        asked: bool,
+        isolated: bool,
+        measured: dict,
+        entry,
+        kb,
+        version: str | None = None,
+    ) -> dict:
         lookup = looked.as_dict()
-        out = {"question": question, "lookup": lookup, "answer": lookup["answer"], "label": lookup["label"],
-               "first_version": lookup["first_version"], "state": "not_offered", "state_reason": None, "measured": None,
-               "agreement": None, "library_says": None}
+        out = {
+            "question": question,
+            "lookup": lookup,
+            "answer": lookup["answer"],
+            "label": lookup["label"],
+            "first_version": lookup["first_version"],
+            "state": "not_offered",
+            "state_reason": None,
+            "measured": None,
+            "agreement": None,
+            "library_says": None,
+        }
         if lookup["answer"] == "doesnt_apply" or not has_copy or not asked:
-            out["state_reason"] = ("this question is not asked of this kind of library" if lookup["answer"] == "doesnt_apply"
-                                   else "this version is not on the approved pinned list" if not has_copy
-                                   else "this question is not measured on this copy in this version")
+            out["state_reason"] = (
+                "this question is not asked of this kind of library"
+                if lookup["answer"] == "doesnt_apply"
+                else "this version is not on the approved pinned list"
+                if not has_copy
+                else "this question is not measured on this copy in this version"
+            )
         elif not isolated:
             out["state"], out["state_reason"] = "couldnt_check", NEEDS_ISOLATED
         elif not measured.get("code"):
             out["state"] = "not_measured"
         elif measured["code"] == "couldnt_trust":
-            out["state"], out["state_reason"] = "couldnt_trust", measured.get("reason") or "a control copy did not answer as it must"
+            out["state"], out["state_reason"] = (
+                "couldnt_trust",
+                measured.get("reason") or "a control copy did not answer as it must",
+            )
         elif measured["code"] != "measured":
             out["state"], out["state_reason"] = "couldnt_check", measured.get("reason") or "the check could not run"
         else:
             detail = measured.get("detail") or {}
             said = (detail.get("answers") or {}).get(question)
             if said in ANSWERS:
-                out.update(state="measured", measured=said, answer=said, label=label_of(measured.get("target_kind")) or "public_copy",
-                           library_says=(detail.get("library_says") or {}).get(question))
+                out.update(
+                    state="measured",
+                    measured=said,
+                    answer=said,
+                    label=label_of(measured.get("target_kind")) or "public_copy",
+                    library_says=(detail.get("library_says") or {}).get(question),
+                )
                 if said == "no":
                     known = kb.first_version(entry, question) if entry is not None else None
                     here = read_version(version)
                     if known and (here is None or at_least(here, known)):
-                        known = None    # already at or past the version the release notes name: no newer version is known to help
+                        known = None  # already at or past the version the release notes name: no newer version is known to help
                     out["first_version"] = known or "none_known"
                 else:
                     out["first_version"] = None
                 if lookup["answer"] in ANSWERS:
                     out["agreement"] = "agrees" if lookup["answer"] == said else "differs"
             else:
-                out["state"], out["state_reason"] = "couldnt_check", (detail.get("why") or {}).get(question) or "no clear answer"
+                out["state"], out["state_reason"] = (
+                    "couldnt_check",
+                    (detail.get("why") or {}).get(question) or "no clear answer",
+                )
         if out["answer"] == "no" and out["first_version"] is None:
             out["first_version"] = "none_known"
         return out
@@ -278,22 +410,31 @@ class DependenciesMixin:
             busy = self.jobs.busy((DEPENDENCY_ORIGIN, plan_id))
             state = self._dependency_state(db, plan)
             otto = self._dependency_otto(db, plan, state)
-            impact = self._dependency_impact(db, plan, state) if with_impact else {}     # type: ignore[attr-defined]
-            return present_deps.view(plan_id=plan.id, import_id=imp.id, is_demo=bool(imp.is_demo), state=state, busy=busy,
-                                     isolated=self.mode.name == "isolated", otto=otto, impact=impact)
+            impact = self._dependency_impact(db, plan, state) if with_impact else {}  # type: ignore[attr-defined]
+            return present_deps.view(
+                plan_id=plan.id,
+                import_id=imp.id,
+                is_demo=bool(imp.is_demo),
+                state=state,
+                busy=busy,
+                isolated=self.mode.name == "isolated",
+                otto=otto,
+                impact=impact,
+            )
 
     def _dependency_otto(self, db, plan: PlanRow, state: dict | None) -> dict:
         """Phase 5c: for each library row (by its key), the published advisories that name it with what this assessment
         measured, and Otto's proposals for it as the screen shows them. Worked out from the installed packs, the list
         and the results; nothing is stored by looking, and no existing answer changes."""
         from app.present import otto as present_otto
+
         if state is None:
             return {}
-        upto = self._closed_at(plan.id)                                       # type: ignore[attr-defined]
-        named = self._named_by(db, plan, state, upto)                         # type: ignore[attr-defined]
+        upto = self._closed_at(plan.id)  # type: ignore[attr-defined]
+        named = self._named_by(db, plan, state, upto)  # type: ignore[attr-defined]
         if not named:
             return {}
-        proposals = self._proposals(db, plan, ("dependency",), dependency_state=state)   # type: ignore[attr-defined]
+        proposals = self._proposals(db, plan, ("dependency",), dependency_state=state)  # type: ignore[attr-defined]
         out: dict[str, dict] = {}
         for row_key, entries in named.items():
             lines = []
@@ -301,13 +442,18 @@ class DependenciesMixin:
                 link = None
                 if n["fix"].get("kind") == "update":
                     item_id = n["measured"].get("item_id") if n["measured"]["state"] == "affected" else None
-                    fix_id = self._text_fix_id(db, plan, "advisory_cases", item_id) if item_id is not None else None   # type: ignore[attr-defined]
-                    link = {"page": "fixes", "item": fix_id} if fix_id else {"page": "advisories", "item": n["advisory"]}
+                    fix_id = self._text_fix_id(db, plan, "advisory_cases", item_id) if item_id is not None else None  # type: ignore[attr-defined]
+                    link = (
+                        {"page": "fixes", "item": fix_id} if fix_id else {"page": "advisories", "item": n["advisory"]}
+                    )
                 lines.append(present_otto.named_line(n, link))
             # (only what Otto proposes now for this very library and version: a decision on a proposal that is no longer
             # made stays on the record, in the evidence, and is never laid on whatever row stands in that place now)
-            mine = [present_otto.proposal_view(p, self.otto_ledger_about(plan.id, p.get("objective_id")))      # type: ignore[attr-defined]
-                    for p in proposals if p["current"] and row_key in (p["facts"].get("row_keys") or [])]
+            mine = [
+                present_otto.proposal_view(p, self.otto_ledger_about(plan.id, p.get("objective_id")))  # type: ignore[attr-defined]
+                for p in proposals
+                if p["current"] and row_key in (p["facts"].get("row_keys") or [])
+            ]
             out[row_key] = {"advisories": lines, "proposals": mine, "status": present_otto.dependency_status(mine)}
         return out
 
@@ -323,12 +469,20 @@ class DependenciesMixin:
     def add_dependency_list(self, plan_id: int, filename: str, data: bytes) -> dict:
         """Read a CycloneDX or SPDX file and keep it for this import. Refused with one plain sentence if it can't be read;
         a refused file leaves the earlier list in place. Nothing in the file is run."""
-        parsed = read_dependency_list(data)       # ImportFileError: shown as it is
+        parsed = read_dependency_list(data)  # ImportFileError: shown as it is
         name = (filename or "dependencies.json").replace("\\", "/").rsplit("/", 1)[-1][:200] or "dependencies.json"
         with self._plan_lock, self.db() as db:
             plan = self._plan(db, plan_id)
-            db.add(DependencyListRow(import_id=plan.import_id, filename=name, format=parsed.format, sha256=hashlib.sha256(data).hexdigest(),
-                                     size=len(data), parsed=to_store(parsed)))
+            db.add(
+                DependencyListRow(
+                    import_id=plan.import_id,
+                    filename=name,
+                    format=parsed.format,
+                    sha256=hashlib.sha256(data).hexdigest(),
+                    size=len(data),
+                    parsed=to_store(parsed),
+                )
+            )
             db.commit()
         return self.dependencies_view(plan_id)
 
@@ -359,9 +513,13 @@ class DependenciesMixin:
                     raise Conflict("Add a dependency list first.")
                 rows = [r for r in state["rows"] if r["measurable"] and (row_id is None or r["id"] == row_id)]
                 if row_id is not None and not rows:
-                    raise BadRequest("That library can't be measured: it is not on the approved pinned list.", field="row")
+                    raise BadRequest(
+                        "That library can't be measured: it is not on the approved pinned list.", field="row"
+                    )
                 if not rows:
-                    raise Conflict("No library in this list is on the approved pinned list, so there is nothing to measure.")
+                    raise Conflict(
+                        "No library in this list is on the approved pinned list, so there is nothing to measure."
+                    )
                 copies = list(dict.fromkeys((r["library"], r["version"]) for r in rows))
                 items = self._ensure_capability_items(db, plan, copies)
             for copy in copies:
@@ -385,11 +543,27 @@ class DependenciesMixin:
                     if b["fix_id"] in seen:
                         continue
                     seen.add(b["fix_id"])
-                    fixes.append({"id": b["fix_id"], "test_kind": "capability", "kind": "text", "status": "text_only",
-                                  "source_kind": "dependency", "answers": [], "component": None, "template_id": None,
-                                  "rerun_blocked": None, "connection": None, "change": None, "proofs": 0, "proof": None,
-                                  "pull_request": None, "merge": None, "actions": {},
-                                  "dependency": {"system": system["key"], "row_key": b["row_key"], "row": b["row"]}})
+                    fixes.append(
+                        {
+                            "id": b["fix_id"],
+                            "test_kind": "capability",
+                            "kind": "text",
+                            "status": "text_only",
+                            "source_kind": "dependency",
+                            "answers": [],
+                            "component": None,
+                            "template_id": None,
+                            "rerun_blocked": None,
+                            "connection": None,
+                            "change": None,
+                            "proofs": 0,
+                            "proof": None,
+                            "pull_request": None,
+                            "merge": None,
+                            "actions": {},
+                            "dependency": {"system": system["key"], "row_key": b["row_key"], "row": b["row"]},
+                        }
+                    )
         return fixes
 
     def _dependency_fix_view(self, db, plan: PlanRow, fix: dict, is_demo: bool) -> dict:
@@ -411,6 +585,7 @@ class DependenciesMixin:
 def read_target_kind(db, spec_hash: str) -> str | None:
     from app.db import TestSpecRow
     from app.lab.testlab import read_spec
+
     spec, _ = read_spec(db.get(TestSpecRow, spec_hash))
     return (spec.get("target") or {}).get("target_kind") if spec else None
 

@@ -15,11 +15,26 @@ function sent(fetchMock: ReturnType<typeof mockApi>, key: string): { body: unkno
 
 const SAY = "POST /api/plans/1/assistant/messages";
 const ASK = "If I update elliptic to 6.5.7, how does that affect my libraries and dependencies?";
-const PKG = { title: "The package.json of elliptic 6.5.7 (npm registry)", url: "https://registry.npmjs.org/elliptic/-/elliptic-6.5.7.tgz", quote: '"dependencies": {\n    "bn.js": "^4.11.9"\n  }', read_on: "2026-11-19" };
+const PKG = {
+  title: "The package.json of elliptic 6.5.7 (npm registry)",
+  url: "https://registry.npmjs.org/elliptic/-/elliptic-6.5.7.tgz",
+  quote: '"dependencies": {\n    "bn.js": "^4.11.9"\n  }',
+  read_on: "2026-11-19",
+};
 
-const group = (key: WhatIf["facts"][number]["key"], title: string, lines: WhatIf["facts"][number]["lines"], none: string | null = null) => ({ key, title, lines, none });
+const group = (
+  key: WhatIf["facts"][number]["key"],
+  title: string,
+  lines: WhatIf["facts"][number]["lines"],
+  none: string | null = null,
+) => ({ key, title, lines, none });
 type Line = WhatIf["facts"][number]["lines"][number];
-const line = (text_: string, label: string | null = null, link: Line["link"] = null, source: Line["source"] = null): Line => ({ text: text_, label, link, source });
+const line = (
+  text_: string,
+  label: string | null = null,
+  link: Line["link"] = null,
+  source: Line["source"] = null,
+): Line => ({ text: text_, label, link, source });
 
 const whatif: WhatIf = {
   plan_id: 1,
@@ -32,15 +47,53 @@ const whatif: WhatIf = {
   title: "What if elliptic is updated to 6.5.7?",
   facts_title: "What the app knows",
   facts: [
-    group("used", "Where the library is used", [line("elliptic 6.5.6 is in your dependency list, under acme-ledger 5.1.0 (direct).", "From your file", { page: "migration/dependencies", item: "row-5", group: null })]),
-    group("needs", "Dependencies added or removed by the new version", [line("elliptic 6.5.7 declares the same 7 packages as 6.5.6: nothing added, nothing removed, no range changed.", "Package file says", null, PKG)]),
-    group("advisories", "Published advisories and the new version", [
-      line("CVE-2024-42460 (Wrongly encoded signature accepted): its publisher names 6.5.7 as the fixed version. 6.5.7 is at or past it, so the update answers this advisory by the publisher's own statement.", "Test pack 2026.11.2", { page: "advisories", item: "CVE-2024-42460", group: null }, { title: "The publisher's line, as test pack 2026.11.2 holds it", url: null, quote: '"fixed": "6.5.7"', read_on: null }),
+    group("used", "Where the library is used", [
+      line("elliptic 6.5.6 is in your dependency list, under acme-ledger 5.1.0 (direct).", "From your file", {
+        page: "migration/dependencies",
+        item: "row-5",
+        group: null,
+      }),
     ]),
-    group("trial", "What the test pack's own trial showed on public copies", [line("CVE-2024-42460: Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.", "Test pack 2026.11.2", { page: "advisories", item: "CVE-2024-42460", group: null })]),
-    group("post_quantum", "Post-quantum support of both versions", [line("ML-KEM-768 key exchange. elliptic 6.5.6: Not in our knowledge base yet; elliptic 6.5.7: Not in our knowledge base yet.")]),
+    group("needs", "Dependencies added or removed by the new version", [
+      line(
+        "elliptic 6.5.7 declares the same 7 packages as 6.5.6: nothing added, nothing removed, no range changed.",
+        "Package file says",
+        null,
+        PKG,
+      ),
+    ]),
+    group("advisories", "Published advisories and the new version", [
+      line(
+        "CVE-2024-42460 (Wrongly encoded signature accepted): its publisher names 6.5.7 as the fixed version. 6.5.7 is at or past it, so the update answers this advisory by the publisher's own statement.",
+        "Test pack 2026.11.2",
+        { page: "advisories", item: "CVE-2024-42460", group: null },
+        {
+          title: "The publisher's line, as test pack 2026.11.2 holds it",
+          url: null,
+          quote: '"fixed": "6.5.7"',
+          read_on: null,
+        },
+      ),
+    ]),
+    group("trial", "What the test pack's own trial showed on public copies", [
+      line(
+        "CVE-2024-42460: Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.",
+        "Test pack 2026.11.2",
+        { page: "advisories", item: "CVE-2024-42460", group: null },
+      ),
+    ]),
+    group("post_quantum", "Post-quantum support of both versions", [
+      line(
+        "ML-KEM-768 key exchange. elliptic 6.5.6: Not in our knowledge base yet; elliptic 6.5.7: Not in our knowledge base yet.",
+      ),
+    ]),
     group("blocks", "The migration track it blocks today", [], "elliptic blocks no migration track today."),
-    group("own_results", "Your own results on this library", [], "Your scanner file does not name elliptic, so this assessment has no result of its own on it."),
+    group(
+      "own_results",
+      "Your own results on this library",
+      [],
+      "Your scanner file does not name elliptic, so this assessment has no result of its own on it.",
+    ),
   ],
   test_copy: {
     title: "A try on a test copy",
@@ -49,17 +102,28 @@ const whatif: WhatIf = {
     reason: "Your scanner file does not name elliptic, so there is no locked test of this assessment to rerun on it.",
     component: null,
     version: "6.5.7",
-    changes: ["It reruns this assessment's locked tests for that library on the public copy of the new version, on this computer.", "“Proven in this assessment” then reads this run."],
+    changes: [
+      "It reruns this assessment's locked tests for that library on the public copy of the new version, on this computer.",
+      "“Proven in this assessment” then reads this run.",
+    ],
   },
   explanation: "Live Otto is off. This is what the app knows.",
   hypotheses_title: "Hypothesis",
-  hypotheses_note: "What the facts above do not show. Turning one of these into a test, or adding it to Change watch, is not part of this version yet.",
-  hypotheses: [{ text: "Whether your system really loads this library needs your environment." }, { text: "The app has tested the library's public copy, not the programs of yours that use it." }],
+  hypotheses_note:
+    "What the facts above do not show. Turning one of these into a test, or adding it to Change watch, is not part of this version yet.",
+  hypotheses: [
+    { text: "Whether your system really loads this library needs your environment." },
+    { text: "The app has tested the library's public copy, not the programs of yours that use it." },
+  ],
 };
 
 async function ask(reply: ReturnType<typeof answer>, routes: Parameters<typeof mockApi>[0] = {}) {
   const view = panel("migration/dependencies");
-  const fetchMock = mockApi({ "GET /api/assessments/101/assistant?page=migration%2Fdependencies": { body: view }, [SAY]: { body: reply }, ...routes });
+  const fetchMock = mockApi({
+    "GET /api/assessments/101/assistant?page=migration%2Fdependencies": { body: view },
+    [SAY]: { body: reply },
+    ...routes,
+  });
   render(
     <ReadOnlyProvider readOnly={false}>
       <LinkProvider assessmentId={101} planId={1}>
@@ -78,7 +142,14 @@ beforeEach(() => window.localStorage.clear());
 
 describe("a what-if in the Otto panel (phase 6e, first half)", () => {
   it("draws what the app knows in its four parts, each fact with where it comes from and where it is shown, and has nothing to press where the try is off", async () => {
-    const { fetchMock, shown } = await ask(answer("whatif", whatif.title, { thread: "fixing", label: "From what the app knows", whatif, facts: [{ text: "Where the library is used: ...", link: null, label: null }] }));
+    const { fetchMock, shown } = await ask(
+      answer("whatif", whatif.title, {
+        thread: "fixing",
+        label: "From what the app knows",
+        whatif,
+        facts: [{ text: "Where the library is used: ...", link: null, label: null }],
+      }),
+    );
     expect(calls(fetchMock)).toEqual([SAY]);
     expect(sent(fetchMock, SAY)?.body).toEqual({ text: ASK, page: "migration/dependencies", item: null });
     expect(shown.getAttribute("data-kind")).toBe("whatif");
@@ -86,7 +157,15 @@ describe("a what-if in the Otto panel (phase 6e, first half)", () => {
     expect(text(within(shown).getByTestId("otto-reply-label"))).toBe("From what the app knows");
     const card = within(within(shown).getByTestId("whatif-card"));
     // part 1: the seven kinds of fact, in order; a kind with nothing says so in one sentence
-    expect(card.getAllByTestId("whatif-group").map((g) => g.getAttribute("data-group"))).toEqual(["used", "needs", "advisories", "trial", "post_quantum", "blocks", "own_results"]);
+    expect(card.getAllByTestId("whatif-group").map((g) => g.getAttribute("data-group"))).toEqual([
+      "used",
+      "needs",
+      "advisories",
+      "trial",
+      "post_quantum",
+      "blocks",
+      "own_results",
+    ]);
     expect(card.getAllByTestId("whatif-none").map((n) => text(n))).toEqual([
       "elliptic blocks no migration track today.",
       "Your scanner file does not name elliptic, so this assessment has no result of its own on it.",
@@ -103,11 +182,15 @@ describe("a what-if in the Otto panel (phase 6e, first half)", () => {
     // a line quoted from a test pack has no address: it is named, not linked
     const advisories = within(card.getAllByTestId("whatif-group")[2]!);
     expect(advisories.queryByTestId("whatif-source-link")).toBeNull();
-    expect(text(advisories.getByTestId("whatif-source"))).toContain("The publisher's line, as test pack 2026.11.2 holds it");
+    expect(text(advisories.getByTestId("whatif-source"))).toContain(
+      "The publisher's line, as test pack 2026.11.2 holds it",
+    );
     // part 2: the try is off, with the reason; there is no button
     const tried = card.getByTestId("whatif-try");
     expect(tried.getAttribute("data-offered")).toBe("no");
-    expect(text(card.getByTestId("whatif-try-reason"))).toBe("Retest new version is not offered for this. Your scanner file does not name elliptic, so there is no locked test of this assessment to rerun on it.");
+    expect(text(card.getByTestId("whatif-try-reason"))).toBe(
+      "Retest new version is not offered for this. Your scanner file does not name elliptic, so there is no locked test of this assessment to rerun on it.",
+    );
     expect(within(tried).queryAllByRole("button")).toHaveLength(0);
     // part 3 and part 4
     expect(text(card.getByTestId("whatif-explanation"))).toBe("Live Otto is off. This is what the app knows.");
@@ -118,10 +201,27 @@ describe("a what-if in the Otto panel (phase 6e, first half)", () => {
   });
 
   it("where the page offers the retest, the try is that button's own card: what a retest changes is said first, and nothing is sent before Confirm", async () => {
-    const step = nextStep("next:retest", "Retest new version", "Evidence", { type: "retest", plan_id: 1, version: "1.4.3", component: "acme-sign" });
-    const offered: WhatIf = { ...whatif, title: "What if acme-sign is updated to 1.4.3?", test_copy: { ...whatif.test_copy, offered: true, reason: null, component: "acme-sign", version: "1.4.3" } };
+    const step = nextStep("next:retest", "Retest new version", "Evidence", {
+      type: "retest",
+      plan_id: 1,
+      version: "1.4.3",
+      component: "acme-sign",
+    });
+    const offered: WhatIf = {
+      ...whatif,
+      title: "What if acme-sign is updated to 1.4.3?",
+      test_copy: { ...whatif.test_copy, offered: true, reason: null, component: "acme-sign", version: "1.4.3" },
+    };
     const RETEST = "POST /api/plans/1/retest";
-    const { fetchMock, shown } = await ask(answer("whatif", offered.title, { thread: "fixing", label: "From what the app knows", whatif: offered, entry: step }), { [RETEST]: { body: {} } });
+    const { fetchMock, shown } = await ask(
+      answer("whatif", offered.title, {
+        thread: "fixing",
+        label: "From what the app knows",
+        whatif: offered,
+        entry: step,
+      }),
+      { [RETEST]: { body: {} } },
+    );
     const tried = within(within(shown).getByTestId("whatif-try"));
     expect(within(shown).getByTestId("whatif-try").getAttribute("data-offered")).toBe("yes");
     expect(tried.getAllByRole("listitem").map((li) => text(li))).toEqual(offered.test_copy.changes);
@@ -130,7 +230,9 @@ describe("a what-if in the Otto panel (phase 6e, first half)", () => {
     expect(text(within(card).getByTestId("otto-entry-title"))).toBe("Retest new version");
     expect(calls(fetchMock)).toEqual([SAY]);
     fireEvent.click(within(card).getByRole("button", { name: "Retest new version" }));
-    expect(text(within(card).getByTestId("otto-confirm-names"))).toBe("This is the Retest new version button on Evidence.");
+    expect(text(within(card).getByTestId("otto-confirm-names"))).toBe(
+      "This is the Retest new version button on Evidence.",
+    );
     expect(calls(fetchMock)).toEqual([SAY]); // nothing before Confirm
     fireEvent.click(within(card).getByTestId("otto-confirm-button"));
     await waitFor(() => expect(calls(fetchMock)).toContain(RETEST));
@@ -143,7 +245,11 @@ describe("a what-if in the Otto panel (phase 6e, first half)", () => {
     expect(within(after).queryByTestId("whatif-try-reason")).toBeNull();
     expect(after.textContent).not.toContain("is not offered");
     expect(within(after).queryByTestId("otto-entry")).toBeNull();
-    expect(within(after).getAllByRole("listitem").map((li) => text(li))).toEqual(offered.test_copy.changes);
+    expect(
+      within(after)
+        .getAllByRole("listitem")
+        .map((li) => text(li)),
+    ).toEqual(offered.test_copy.changes);
   });
 
   it("a library the app knows nothing about still gets its four parts, and says so", async () => {
@@ -159,6 +265,8 @@ describe("a what-if in the Otto panel (phase 6e, first half)", () => {
     expect(card.getAttribute("data-known")).toBe("no");
     expect(within(card).getAllByTestId("whatif-none")).toHaveLength(7);
     expect(within(card).queryAllByTestId("whatif-line")).toHaveLength(0);
-    expect(text(within(card).getByTestId("whatif-hypothesis"))).toBe("The app holds nothing about this library, so everything about the update is open.");
+    expect(text(within(card).getByTestId("whatif-hypothesis"))).toBe(
+      "The app holds nothing about this library, so everything about the update is open.",
+    );
   });
 });

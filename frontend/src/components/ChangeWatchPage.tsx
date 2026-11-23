@@ -49,7 +49,24 @@ export function ChangeWatchPage({ planId, openItem = null, section = null }: Pro
   }, [planId]);
 
   if (!watch?.on) return <ChangeWatchScreen planId={planId} openItem={openItem} />;
-  const tabs = <GroupTabs groups={VIEWS} active={which} onChoose={(key) => setWhich(key as Which)} idBase="change-watch-view" label="Views of Change watch" />;
-  if (which === "changes") return <ChangeWatchScreen planId={planId} openItem={openItem?.includes("~") ? null : openItem} tabs={tabs} />;
-  return <WatchListScreen planId={planId} view={watch} onView={setWatch} openItem={openItem?.includes("~") ? openItem : null} tabs={tabs} />;
+  const tabs = (
+    <GroupTabs
+      groups={VIEWS}
+      active={which}
+      onChoose={(key) => setWhich(key as Which)}
+      idBase="change-watch-view"
+      label="Views of Change watch"
+    />
+  );
+  if (which === "changes")
+    return <ChangeWatchScreen planId={planId} openItem={openItem?.includes("~") ? null : openItem} tabs={tabs} />;
+  return (
+    <WatchListScreen
+      planId={planId}
+      view={watch}
+      onView={setWatch}
+      openItem={openItem?.includes("~") ? openItem : null}
+      tabs={tabs}
+    />
+  );
 }

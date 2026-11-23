@@ -10,8 +10,9 @@ type check stays `npm run typecheck` with its own TypeScript.
 ```sh
 npm --prefix lint ci                                    # once
 npm --prefix lint run lint -- frontend e2e lint         # ESLint (what the check runs)
-python3 tools/ci_style.py origin/mvp/crypto-simple       # code style of the files you added or edited
-python3 tools/ci_style.py origin/mvp/crypto-simple --fix # format those files
+npm --prefix lint run style                             # Prettier: is every file formatted?
+npm --prefix lint run style:write                       # format them
+(cd backend && .venv/bin/ruff format --check)           # the same for Python (ruff format, without --check, formats)
 ```
 
 - **ESLint** (`lint/eslint.config.js`): recommended JavaScript, TypeScript and React hooks rules. The findings that
@@ -19,6 +20,7 @@ python3 tools/ci_style.py origin/mvp/crypto-simple --fix # format those files
   After a real fix, run `npm --prefix lint run lint -- --prune-suppressions frontend e2e lint` to shrink the baseline.
   Never change what code does just to satisfy a rule.
 - **Code style** (`.prettierrc.json` for TypeScript, JavaScript and CSS; `backend/ruff.toml` and `ruff format` for
-  Python): a file a change **adds** must be formatted, or the check fails. A file a change **edits** that is not
-  formatted gets a warning only. The code that was there before is not held to the style yet; reformatting it all at
-  once is the owner's decision. Formatting changes layout only.
+  Python): every file must be formatted, or the check fails. The code was reformatted once on 22 November 2026, in a
+  commit of its own that `.git-blame-ignore-revs` names. The files named by their fingerprint are left as they are
+  (`[format]` in `backend/ruff.toml`). Formatting changes layout only. A `# noqa` or `# type: ignore` must stay on the
+  line it excuses: where the formatter would split such a line, add `# fmt: skip` after it.

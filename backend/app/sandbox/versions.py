@@ -8,6 +8,7 @@ Three questions:
     form (">=1.9.0,<2") and one for npm's ("^1.2.3", "~1.2", "1.x", ">=1.0.0 <2.0.0", "a || b"). What they can't read
     is said to be unreadable (None), never guessed.
 """
+
 from __future__ import annotations
 
 import re
@@ -16,7 +17,7 @@ from typing import cast
 from app.knowledge.versions import key as version_key
 from app.knowledge.versions import read_version
 
-MAX_MORE = 2                                  # further versions on each side of a trial
+MAX_MORE = 2  # further versions on each side of a trial
 
 
 def order(version: object) -> tuple | None:
@@ -44,7 +45,9 @@ def choose(ranges: list[dict], releases: list[dict], yours: list[str]) -> dict:
     "after_last_affected": bool}. `ranges` are the advisory's own ([{"introduced", "fixed", "last_affected"}]), `releases`
     the registry's list, `yours` the versions the assessment names. Raises NoVersions with the reason."""
     listed = released(releases)
-    keys = cast("list[tuple]", [order(r["version"]) for r in listed])         # (released() keeps only versions that have a key)
+    keys = cast(
+        "list[tuple]", [order(r["version"]) for r in listed]
+    )  # (released() keeps only versions that have a key)
     mine = cast("list[tuple]", [order(v) for v in yours if order(v) is not None])
 
     def holds(r: dict, key: tuple) -> bool:
@@ -57,7 +60,7 @@ def choose(ranges: list[dict], releases: list[dict], yours: list[str]) -> dict:
         if r.get("last_affected"):
             top = order(r["last_affected"])
             return top is not None and key <= top
-        return True                                   # no end is named
+        return True  # no end is named
 
     ended = [r for r in ranges if r.get("fixed") or r.get("last_affected")]
     if not ended:
@@ -73,7 +76,9 @@ def choose(ranges: list[dict], releases: list[dict], yours: list[str]) -> dict:
             raise NoVersions("the last affected version the source names could not be read")
         later = [r for r, k in zip(listed, keys, strict=True) if k > last]
         if not later:
-            raise NoVersions(f"no version after {chosen['last_affected']} is published, so there is no fixed version to try")
+            raise NoVersions(
+                f"no version after {chosen['last_affected']} is published, so there is no fixed version to try"
+            )
         fixed = later[0]["version"]
     else:
         fixed = next((r["version"] for r, k in zip(listed, keys, strict=True) if k == order(chosen["fixed"])), None)
@@ -84,17 +89,26 @@ def choose(ranges: list[dict], releases: list[dict], yours: list[str]) -> dict:
     inside = [r["version"] for r, k in zip(listed, keys, strict=True) if k < fixed_key and holds(chosen, k)]
     if not inside:
         raise NoVersions(f"no affected version is published before {fixed}")
-    affected = inside[-1]                               # the last release before the fix: the closest pair
+    affected = inside[-1]  # the last release before the fix: the closest pair
     # (the file's own affected versions, each once. All of them go into the copy set, so an accepted check can run on
     #  each; the trial itself has room for MAX_MORE further versions, the file's own first: see ottolab/sandbox.register)
     own = [v for v in dict.fromkeys(yours) if v in inside and v != affected]
-    more_affected = [v for v in reversed(inside[:-1]) if v not in own][:max(0, MAX_MORE - len(own))]
+    more_affected = [v for v in reversed(inside[:-1]) if v not in own][: max(0, MAX_MORE - len(own))]
     still_affected = [r for r in ranges if r is not chosen]
-    after = [r["version"] for r, k in zip(listed, keys, strict=True)
-             if k > fixed_key and not any(holds(r2, k) for r2 in still_affected)]
+    after = [
+        r["version"]
+        for r, k in zip(listed, keys, strict=True)
+        if k > fixed_key and not any(holds(r2, k) for r2 in still_affected)
+    ]
     more_fixed = list(dict.fromkeys(after[:1] + after[-1:]))[:MAX_MORE]
-    return {"fixed": fixed, "affected": affected, "yours": own, "more_affected": more_affected, "more_fixed": more_fixed,
-            "after_last_affected": after_last}
+    return {
+        "fixed": fixed,
+        "affected": affected,
+        "yours": own,
+        "more_affected": more_affected,
+        "more_fixed": more_fixed,
+        "after_last_affected": after_last,
+    }
 
 
 # ---------------------------------------------------------------- does a version fit what a library says it needs?
@@ -118,7 +132,7 @@ def fits_pypi(specifier: str, version: str) -> bool | None:
             return None
         numbers = [int(n) for n in re.findall(r"\d+", text[:-2] if star else text)]
         if op in ("==", "!=") and star:
-            same = list(mine[0][:len(numbers)]) == numbers
+            same = list(mine[0][: len(numbers)]) == numbers
             ok = same if op == "==" else not same
         elif op == "==":
             ok = mine == base
@@ -127,7 +141,7 @@ def fits_pypi(specifier: str, version: str) -> bool | None:
         elif op == "~=":
             if len(numbers) < 2:
                 return None
-            ok = mine >= base and list(mine[0][:len(numbers) - 1]) == numbers[:-1]
+            ok = mine >= base and list(mine[0][: len(numbers) - 1]) == numbers[:-1]
         else:
             ok = {"<": mine < base, "<=": mine <= base, ">": mine > base, ">=": mine >= base}[op]
         if not ok:
@@ -153,7 +167,7 @@ def _npm_one(part: str, mine: tuple) -> bool | None:
 
     def upper(keep: int) -> tuple:
         """The first version that no longer fits: the part at `keep` goes up by one."""
-        head = numbers[:keep + 1] if len(numbers) > keep else numbers
+        head = numbers[: keep + 1] if len(numbers) > keep else numbers
         head = head[:-1] + [head[-1] + 1] if head else []
         return tuple(head + [0] * (3 - len(head)))
 
@@ -173,7 +187,7 @@ def _npm_one(part: str, mine: tuple) -> bool | None:
         return here >= upper(len(numbers) - 1) if len(numbers) < 3 else here > low
     if op == "<":
         return here < low
-    return here < upper(len(numbers) - 1) if len(numbers) < 3 else here <= low       # <=
+    return here < upper(len(numbers) - 1) if len(numbers) < 3 else here <= low  # <=
 
 
 def fits_npm(range_text: str, version: str) -> bool | None:
@@ -188,7 +202,7 @@ def fits_npm(range_text: str, version: str) -> bool | None:
     result = False
     for alternative in text.split("||"):
         words = alternative.split()
-        if len(words) == 3 and words[1] == "-":                       # "1.2.3 - 2.3.4"
+        if len(words) == 3 and words[1] == "-":  # "1.2.3 - 2.3.4"
             words = [">=" + words[0], "<=" + words[2]]
         if not words:
             return None

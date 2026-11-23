@@ -90,7 +90,11 @@ export function SandboxSettings({
               {sw.label}
             </label>
             {sw.blocked_reasons.length > 0 ? (
-              <ul id="sandbox-switch-reasons" data-testid="sandbox-switch-reasons" className={`mt-1 space-y-1 ${SMALL}`}>
+              <ul
+                id="sandbox-switch-reasons"
+                data-testid="sandbox-switch-reasons"
+                className={`mt-1 space-y-1 ${SMALL}`}
+              >
                 {sw.blocked_reasons.map((reason) => (
                   <li key={reason} className="break-words">
                     {reason}
@@ -111,7 +115,8 @@ export function SandboxSettings({
             onChange={(e) => {
               // A switch that is off and can't be turned on changes nothing, however the event got here.
               if (switchOff || busy) return;
-              if (e.target.checked) setAsking(true); // turning it on: the box first; nothing is sent yet
+              if (e.target.checked)
+                setAsking(true); // turning it on: the box first; nothing is sent yet
               else void call(() => api.setSandbox({ on: false }));
             }}
             className="mt-0.5 h-5 w-5 shrink-0 accent-indigo-500 disabled:opacity-50"
@@ -127,7 +132,11 @@ export function SandboxSettings({
               {tick.line}
             </p>
             {tick.blocked_reason ? (
-              <p id="sandbox-by-itself-reason" data-testid="sandbox-by-itself-reason" className={`mt-1 break-words ${SMALL}`}>
+              <p
+                id="sandbox-by-itself-reason"
+                data-testid="sandbox-by-itself-reason"
+                className={`mt-1 break-words ${SMALL}`}
+              >
                 {tick.blocked_reason}
               </p>
             ) : null}

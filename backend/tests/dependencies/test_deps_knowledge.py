@@ -1,5 +1,6 @@
 """Phase 4d: the knowledge base (every file against the schema and the rules), the version reader on real version
 strings, and the lookup."""
+
 import json
 from pathlib import Path
 
@@ -30,7 +31,15 @@ def test_the_schema_file_is_up_to_date():
 
 def test_the_whole_knowledge_base_loads():
     kb = load()
-    assert set(kb.files) == {"boringssl", "elliptic", "go-stdlib", "openjdk", "openssl", "python-ecdsa", "starkbank-ecdsa"}
+    assert set(kb.files) == {
+        "boringssl",
+        "elliptic",
+        "go-stdlib",
+        "openjdk",
+        "openssl",
+        "python-ecdsa",
+        "starkbank-ecdsa",
+    }
 
 
 def _base():
@@ -40,7 +49,7 @@ def _base():
 def test_a_no_without_its_mirror_yes_is_refused():
     data = _base()
     data["claims"] = [c for c in data["claims"] if not (c["capability"] == "ml_dsa_65" and c["answer"] == "yes")]
-    with pytest.raises(ValidationError, match="matching \"yes\""):
+    with pytest.raises(ValidationError, match='matching "yes"'):
         LibraryFile.model_validate(data)
 
 
@@ -82,22 +91,48 @@ def test_a_broken_file_stops_the_load_naming_it(tmp_path):
         load(tmp_path)
 
 
-@pytest.mark.parametrize("text, want", [
-    ("3.0.22", ((3, 0, 22), "")), ("3.0.22-1~deb12u2", ((3, 0, 22), "")), ("3.5.9-r0", ((3, 5, 9), "")),
-    ("1:3.0.13-0ubuntu3.5", ((3, 0, 13), "")), ("3.0.13-0ubuntu3.5", ((3, 0, 13), "")), ("v1.2.3", ((1, 2, 3), "")),
-    ("go1.23.4", ((1, 23, 4), "")), ("1.1.1w", ((1, 1, 1), "w")), ("17.0.2+8", ((17, 0, 2), "")), ("24", ((24,), "")),
-    ("17.0.2+8-Debian-1deb12u1", ((17, 0, 2), "")), ("6.5.6", ((6, 5, 6), "")),
-    ("devel", None), ("4c8b1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c", None), ("3.0.x", None), ("3.5.0-alpha1", None),
-    ("17-ea", None), ("1.24rc1", None), ("", None), (None, None), ("latest", None), ("3.0.22 or newer", None),
-])
+@pytest.mark.parametrize(
+    "text, want",
+    [
+        ("3.0.22", ((3, 0, 22), "")),
+        ("3.0.22-1~deb12u2", ((3, 0, 22), "")),
+        ("3.5.9-r0", ((3, 5, 9), "")),
+        ("1:3.0.13-0ubuntu3.5", ((3, 0, 13), "")),
+        ("3.0.13-0ubuntu3.5", ((3, 0, 13), "")),
+        ("v1.2.3", ((1, 2, 3), "")),
+        ("go1.23.4", ((1, 23, 4), "")),
+        ("1.1.1w", ((1, 1, 1), "w")),
+        ("17.0.2+8", ((17, 0, 2), "")),
+        ("24", ((24,), "")),
+        ("17.0.2+8-Debian-1deb12u1", ((17, 0, 2), "")),
+        ("6.5.6", ((6, 5, 6), "")),
+        ("devel", None),
+        ("4c8b1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c", None),
+        ("3.0.x", None),
+        ("3.5.0-alpha1", None),
+        ("17-ea", None),
+        ("1.24rc1", None),
+        ("", None),
+        (None, None),
+        ("latest", None),
+        ("3.0.22 or newer", None),
+    ],
+)
 def test_the_version_reader(text, want):
     assert read_version(text) == want
 
 
-@pytest.mark.parametrize("purl, want", [
-    ("pkg:deb/debian/libssl3@3.0.22-1~deb12u2?arch=amd64", "pkg:deb/debian/libssl3"),
-    ("pkg:apk/alpine/libssl3@3.5.9-r0?arch=x86_64&upstream=openssl", "pkg:apk/alpine/libssl3"),
-    ("pkg:Generic/OpenSSL@3.0.22", "pkg:generic/openssl"), ("not a purl", None), ("pkg:", None), (None, None)])
+@pytest.mark.parametrize(
+    "purl, want",
+    [
+        ("pkg:deb/debian/libssl3@3.0.22-1~deb12u2?arch=amd64", "pkg:deb/debian/libssl3"),
+        ("pkg:apk/alpine/libssl3@3.5.9-r0?arch=x86_64&upstream=openssl", "pkg:apk/alpine/libssl3"),
+        ("pkg:Generic/OpenSSL@3.0.22", "pkg:generic/openssl"),
+        ("not a purl", None),
+        ("pkg:", None),
+        (None, None),
+    ],
+)
 def test_purl_base(purl, want):
     assert purl_base(purl) == want
 
@@ -107,15 +142,25 @@ def _answers(purl, name, version):
 
 
 def test_lookup_before_and_from_the_version_that_added_it():
-    assert _answers("pkg:generic/openssl@3.0.22", "openssl", "3.0.22") == {q: ("no", "release_notes", "3.5.0") for q in
-                                                                         ("ml_kem_768", "x25519mlkem768", "ml_dsa_65")}
-    assert _answers("pkg:generic/openssl@3.5.0", "openssl", "3.5.0") == {q: ("yes", "release_notes", None) for q in
-                                                                       ("ml_kem_768", "x25519mlkem768", "ml_dsa_65")}
+    assert _answers("pkg:generic/openssl@3.0.22", "openssl", "3.0.22") == {
+        q: ("no", "release_notes", "3.5.0") for q in ("ml_kem_768", "x25519mlkem768", "ml_dsa_65")
+    }
+    assert _answers("pkg:generic/openssl@3.5.0", "openssl", "3.5.0") == {
+        q: ("yes", "release_notes", None) for q in ("ml_kem_768", "x25519mlkem768", "ml_dsa_65")
+    }
 
 
 def test_lookup_reads_a_distro_package_by_its_upstream_version():
-    assert _answers("pkg:deb/debian/libssl3@3.0.22-1~deb12u2", "libssl3", "3.0.22-1~deb12u2")["ml_kem_768"] == ("no", "release_notes", "3.5.0")
-    assert _answers("pkg:apk/alpine/libcrypto3@3.5.9-r0", "libcrypto3", "3.5.9-r0")["x25519mlkem768"] == ("yes", "release_notes", None)
+    assert _answers("pkg:deb/debian/libssl3@3.0.22-1~deb12u2", "libssl3", "3.0.22-1~deb12u2")["ml_kem_768"] == (
+        "no",
+        "release_notes",
+        "3.5.0",
+    )
+    assert _answers("pkg:apk/alpine/libcrypto3@3.5.9-r0", "libcrypto3", "3.5.9-r0")["x25519mlkem768"] == (
+        "yes",
+        "release_notes",
+        None,
+    )
 
 
 def test_lookup_first_versions_per_question():
@@ -126,9 +171,15 @@ def test_lookup_first_versions_per_question():
 
 
 def test_the_order_of_the_answers_without_a_yes_or_no():
-    assert set(_answers("pkg:generic/wolfssl@5.7.2", "wolfssl", "5.7.2").values()) == {("not_in_knowledge_base", None, None)}
-    assert set(_answers("pkg:generic/boringssl@abc", "boringssl", "abc").values()) == {("needs_your_environment", None, None)}
-    assert set(_answers("pkg:golang/stdlib@devel", "Go standard library", "devel").values()) == {("couldnt_tell_version", None, None)}
+    assert set(_answers("pkg:generic/wolfssl@5.7.2", "wolfssl", "5.7.2").values()) == {
+        ("not_in_knowledge_base", None, None)
+    }
+    assert set(_answers("pkg:generic/boringssl@abc", "boringssl", "abc").values()) == {
+        ("needs_your_environment", None, None)
+    }
+    assert set(_answers("pkg:golang/stdlib@devel", "Go standard library", "devel").values()) == {
+        ("couldnt_tell_version", None, None)
+    }
     ecdsa = _answers("pkg:pypi/ecdsa@0.13.2", "ecdsa", "0.13.2")
     assert ecdsa["x25519mlkem768"][0] == "doesnt_apply" and ecdsa["ml_kem_768"][0] == "not_in_knowledge_base"
 
@@ -139,14 +190,19 @@ def test_a_name_is_matched_only_without_a_purl():
 
 
 def test_every_answer_has_a_reason_and_every_yes_or_no_its_source():
-    for purl, name, version in (("pkg:generic/openssl@3.0.22", "openssl", "3.0.22"), ("pkg:golang/stdlib@devel", "x", "devel"),
-                                ("pkg:generic/wolfssl@5", "wolfssl", "5")):
+    for purl, name, version in (
+        ("pkg:generic/openssl@3.0.22", "openssl", "3.0.22"),
+        ("pkg:golang/stdlib@devel", "x", "devel"),
+        ("pkg:generic/wolfssl@5", "wolfssl", "5"),
+    ):
         for a in knowledge_base().look_up(purl, name, version).values():
             assert a.reason and (a.source is not None) == (a.answer in ("yes", "no")) == (a.label == "release_notes")
 
 
 def test_the_knowledge_base_has_no_word_it_must_not_use():
-    words = " ".join(p.read_text(encoding="utf-8").lower() for p in [*FILES, SCHEMA_FILE, KNOWLEDGE_DIR.parent / "README.md"])
+    words = " ".join(
+        p.read_text(encoding="utf-8").lower() for p in [*FILES, SCHEMA_FILE, KNOWLEDGE_DIR.parent / "README.md"]
+    )
     assert "score" not in words and "secure" not in words.replace("secure channel", "")
 
 

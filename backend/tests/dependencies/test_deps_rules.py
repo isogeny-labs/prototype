@@ -1,6 +1,7 @@
 """Phase 4d: the rules the answer key relies on, on the Lab itself in demo mode: tying a top entry, the blocker rule,
 the label rule, the Fixes entry, the records that only accept new rows, and that an import with no list is exactly as
 it was before this phase."""
+
 import json
 from pathlib import Path
 
@@ -59,7 +60,7 @@ def test_the_persons_tie_overrides_and_none_of_these_unties(lab):
 
 def test_an_untied_entry_answers_but_blocks_nothing(lab):
     _, _, view = _start(lab)
-    assert [s["name"] for s in view["systems"]] == ["acme-sign 1.4.2"]      # only the tie the app made itself
+    assert [s["name"] for s in view["systems"]] == ["acme-sign 1.4.2"]  # only the tie the app made itself
     assert all(r["blocks"] == [] for g in view["groups"] for r in g["rows"])
     ledger = _group(view, "acme-ledger 5.1.0")
     assert ledger["tie_words"] == "Not tied to a system in your file: its libraries are answered and block nothing."
@@ -94,10 +95,11 @@ def test_a_signing_program_is_blocked_only_by_a_signatures_library(lab):
 
 def test_the_label_rule_your_environment_is_never_produced():
     assert label_of("public_copy") == "public_copy" and label_of(None) is None and label_of("anything else") is None
-    assert LABELS["your_environment"] == "your_environment"        # defined for Level 3 ...
+    assert LABELS["your_environment"] == "your_environment"  # defined for Level 3 ...
     from app.real_libraries import CAPABILITY_COPIES
+
     copies = [c for versions in CAPABILITY_COPIES.values() for c in versions.values()]
-    assert copies and all("target_kind" not in c for c in copies)        # ... and no copy is anything but a public one
+    assert copies and all("target_kind" not in c for c in copies)  # ... and no copy is anything but a public one
 
 
 def test_the_label_rule_on_every_answer_of_the_demo_list(lab):
@@ -110,7 +112,7 @@ def test_the_label_rule_on_every_answer_of_the_demo_list(lab):
                 assert c["label"] in ("release_notes", "public_copy") and c["label_words"] and c["reason"]
             else:
                 assert c["label"] is None and c["reason"]
-            assert c["tone"] == "neutral" or c["state"] == "measured"      # a lookup is never a pass
+            assert c["tone"] == "neutral" or c["state"] == "measured"  # a lookup is never a pass
     assert "Measured in your environment" not in text_of_everything
     for word in ("secure", "score", "time to hack", "safe"):
         assert word not in text_of_everything.lower().replace("doesn't prove a system secure", "")
@@ -123,9 +125,13 @@ def test_one_fixes_entry_per_blocking_library_and_system(lab):
     fixes = [f for f in lab.fixes_view(pid)["fixes"] if f["id"].startswith("dependency-")]
     row = next(r for r in _group(view, "acme-pay-server 1.0.0")["rows"] if r["label"] == "openssl 3.0.22")
     assert [f["title"] for f in fixes] == ["Update OpenSSL to 3.5.0 or later"] and fixes[0]["kind"] == "text"
-    assert fixes[0]["actions"]["buttons"] == [] and fixes[0]["pull_request"] is None       # text only: no code, no pull request
-    assert {b["fix_id"] for b in row["blocks"]} == {fixes[0]["id"]}                         # one entry for both tracks
-    assert fixes[0]["id"] == dep_state.fix_id_for(server, next(r["key"] for r in _rows_of(lab, pid) if r["label"] == "openssl 3.0.22"))
+    assert (
+        fixes[0]["actions"]["buttons"] == [] and fixes[0]["pull_request"] is None
+    )  # text only: no code, no pull request
+    assert {b["fix_id"] for b in row["blocks"]} == {fixes[0]["id"]}  # one entry for both tracks
+    assert fixes[0]["id"] == dep_state.fix_id_for(
+        server, next(r["key"] for r in _rows_of(lab, pid) if r["label"] == "openssl 3.0.22")
+    )
 
 
 def _rows_of(lab, pid):
@@ -181,13 +187,35 @@ def test_view_in_fixes_works_before_anything_is_measured(lab):
 def test_a_measured_no_never_names_a_first_version_the_copy_is_already_past():
     from app.dependencies.state import DependenciesMixin
     from app.knowledge.base import knowledge_base
+
     kb = knowledge_base()
     entry = kb.find("pkg:generic/openssl", "openssl")
-    measured = {"code": "measured", "target_kind": "public_copy",
-                "detail": {"answers": {"ml_dsa_65": "no"}, "library_says": {"ml_dsa_65": "unsupported"}}}
-    newer = DependenciesMixin._answer("ml_dsa_65", kb.look_up("pkg:generic/openssl@3.5.9", "openssl", "3.5.9")["ml_dsa_65"],
-                                      True, True, True, measured, entry, kb, "3.5.9")
+    measured = {
+        "code": "measured",
+        "target_kind": "public_copy",
+        "detail": {"answers": {"ml_dsa_65": "no"}, "library_says": {"ml_dsa_65": "unsupported"}},
+    }
+    newer = DependenciesMixin._answer(
+        "ml_dsa_65",
+        kb.look_up("pkg:generic/openssl@3.5.9", "openssl", "3.5.9")["ml_dsa_65"],
+        True,
+        True,
+        True,
+        measured,
+        entry,
+        kb,
+        "3.5.9",
+    )
     assert (newer["answer"], newer["first_version"], newer["agreement"]) == ("no", "none_known", "differs")
-    older = DependenciesMixin._answer("ml_dsa_65", kb.look_up("pkg:generic/openssl@3.0.22", "openssl", "3.0.22")["ml_dsa_65"],
-                                      True, True, True, measured, entry, kb, "3.0.22")
+    older = DependenciesMixin._answer(
+        "ml_dsa_65",
+        kb.look_up("pkg:generic/openssl@3.0.22", "openssl", "3.0.22")["ml_dsa_65"],
+        True,
+        True,
+        True,
+        measured,
+        entry,
+        kb,
+        "3.0.22",
+    )
     assert (older["answer"], older["first_version"], older["agreement"]) == ("no", "3.5.0", "agrees")

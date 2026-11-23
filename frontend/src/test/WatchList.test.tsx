@@ -5,7 +5,17 @@ import { ChangeWatchPage } from "../components/ChangeWatchPage";
 import { LinkProvider } from "../components/related";
 import { prefs } from "../prefs";
 import { calls, mockApi } from "./fixtures";
-import { FIXED_ITEM, ITEM, QUOTE_TAG, watchClosed, watchEmpty, watchOff, watchOne, watchStopped, watchTwo } from "./watchFixtures";
+import {
+  FIXED_ITEM,
+  ITEM,
+  QUOTE_TAG,
+  watchClosed,
+  watchEmpty,
+  watchOff,
+  watchOne,
+  watchStopped,
+  watchTwo,
+} from "./watchFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
 const CHANGES = "GET /api/plans/1/change-watch";
@@ -17,18 +27,30 @@ const AGAIN = "POST /api/plans/1/watch-list/watch";
 const changes: ChangeWatchView = {
   plan_id: 1,
   title: "Change watch",
-  subline: "A developer's change in the connected demo repository, the tests picked for it, and what they show once you run them. Nothing runs by itself.",
-  code: { state: "connected", line: null, link: null, connected_line: "Connected: the demo repository acme-sign, branch main." },
+  subline:
+    "A developer's change in the connected demo repository, the tests picked for it, and what they show once you run them. Nothing runs by itself.",
+  code: {
+    state: "connected",
+    line: null,
+    link: null,
+    connected_line: "Connected: the demo repository acme-sign, branch main.",
+  },
   menu: { button: "Bring in a demo change", note: "It runs nothing.", items: [] },
   changes: [],
   empty: "No developer's change is in the connected repository yet.",
   busy: false,
 };
 
-function open(list: WatchListView | "fails", routes: Routes = {}, props: { openItem?: string | null; section?: string | null } = {}) {
+function open(
+  list: WatchListView | "fails",
+  routes: Routes = {},
+  props: { openItem?: string | null; section?: string | null } = {},
+) {
   const fetchMock = mockApi({
     [CHANGES]: { body: changes },
-    ...(list === "fails" ? { [LIST]: { status: 500, body: { error: { message: "Not now.", line: null, field: null } } } } : { [LIST]: { body: list } }),
+    ...(list === "fails"
+      ? { [LIST]: { status: 500, body: { error: { message: "Not now.", line: null, field: null } } } }
+      : { [LIST]: { body: list } }),
     ...routes,
   });
   render(
@@ -106,9 +128,15 @@ describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
     expect(within(row!).getByTestId("watch-status-line").textContent).toBe("No fix published for 670 days.");
     expect(within(row!).getByTestId("watch-new").textContent).toBe("New");
     expect(within(row!).getByTestId("source-tag").textContent).toContain("Published");
-    expect(screen.getByTestId("watch-count-line").textContent).toBe("1 published weakness in your libraries has no fix yet.");
-    expect(screen.getByTestId("watch-looked-line").textContent).toContain("Looked on 22 November 2026, 09:12 UTC by You.");
-    expect(screen.getByTestId("watch-next-line").textContent).toBe("It is looked at again by itself, about once a day.");
+    expect(screen.getByTestId("watch-count-line").textContent).toBe(
+      "1 published weakness in your libraries has no fix yet.",
+    );
+    expect(screen.getByTestId("watch-looked-line").textContent).toContain(
+      "Looked on 22 November 2026, 09:12 UTC by You.",
+    );
+    expect(screen.getByTestId("watch-next-line").textContent).toBe(
+      "It is looked at again by itself, about once a day.",
+    );
     expect(screen.getByTestId("watch-note").textContent).toContain("It is not a result.");
     expect(posts(fetchMock)).toEqual([]);
   });
@@ -126,7 +154,11 @@ describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
     expect(screen.getByTestId("watch-panel").getAttribute("data-item")).toBe(FIXED_ITEM);
     expect(panel.getByTestId("watch-panel-status").textContent).toContain("Fix published");
     expect(panel.getByTestId("source-note").textContent).toContain("it does not say that the fix works");
-    expect(within(panel.getByTestId("watch-versions")).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+    expect(
+      within(panel.getByTestId("watch-versions"))
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual([
       "Every version before 2.0.1. Fixed in 2.0.1.",
       "Your version is named: starkbank-ecdsa 2.0.0, which your file lists. Fixed in 2.0.1.",
     ]);
@@ -137,7 +169,9 @@ describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
     fireEvent.click(rowsOf("watch-table")[1]!);
     const other = within(await screen.findByTestId("watch-panel"));
     expect(other.getByTestId("watch-quote-tag").textContent).toBe(QUOTE_TAG);
-    expect(within(other.getByTestId("watch-quote")).getAllByRole("blockquote", { hidden: true }).length).toBeGreaterThan(0);
+    expect(
+      within(other.getByTestId("watch-quote")).getAllByRole("blockquote", { hidden: true }).length,
+    ).toBeGreaterThan(0);
     expect(other.queryByTestId("watch-test")).toBeNull();
   });
 
@@ -196,7 +230,22 @@ describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
   });
 
   it("a look that is refused closes the box and says why on the page", async () => {
-    open(watchEmpty, { [LOOK]: { status: 409, body: { error: { message: "OSV (osv.dev) could not be reached (TimeoutError). Nothing was changed.", line: null, field: null } } } }, { section: "watch-list" });
+    open(
+      watchEmpty,
+      {
+        [LOOK]: {
+          status: 409,
+          body: {
+            error: {
+              message: "OSV (osv.dev) could not be reached (TimeoutError). Nothing was changed.",
+              line: null,
+              field: null,
+            },
+          },
+        },
+      },
+      { section: "watch-list" },
+    );
     await screen.findByTestId("watch-list-page");
     fireEvent.click(screen.getByTestId("watch-look"));
     fireEvent.click(within(await screen.findByTestId("watch-look-box")).getByTestId("watch-look-confirm"));
@@ -205,7 +254,11 @@ describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
   });
 
   it("Stop watching asks for an optional reason and sends it; the item moves to Not watched; Watch again brings it back", async () => {
-    const { fetchMock } = open(watchOne, { [STOP]: { body: watchStopped }, [AGAIN]: { body: watchOne } }, { openItem: ITEM });
+    const { fetchMock } = open(
+      watchOne,
+      { [STOP]: { body: watchStopped }, [AGAIN]: { body: watchOne } },
+      { openItem: ITEM },
+    );
     const panel = () => within(screen.getByTestId("watch-panel"));
     await screen.findByTestId("watch-panel");
     fireEvent.click(panel().getByTestId("watch-stop"));
@@ -217,10 +270,14 @@ describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
     fireEvent.click(panel().getByTestId("watch-stop-confirm"));
     await waitFor(() => expect(rowsOf("watch-stopped-table")).toHaveLength(1));
     expect(rowsOf("watch-table")).toHaveLength(0);
-    expect(sent(fetchMock, "/api/plans/1/watch-list/stop")).toEqual([{ item: ITEM, reason: "We do not sign with it." }]);
+    expect(sent(fetchMock, "/api/plans/1/watch-list/stop")).toEqual([
+      { item: ITEM, reason: "We do not sign with it." },
+    ]);
     expect(within(rowsOf("watch-stopped-table")[0]!).getByTestId("watch-status").textContent).toContain("Not watched");
     expect(panel().queryByTestId("watch-stop")).toBeNull();
-    expect(panel().getByTestId("watch-history").textContent).toContain("You stopped watching it (We do not sign with it.).");
+    expect(panel().getByTestId("watch-history").textContent).toContain(
+      "You stopped watching it (We do not sign with it.).",
+    );
     fireEvent.click(panel().getByTestId("watch-again"));
     await waitFor(() => expect(rowsOf("watch-table")).toHaveLength(1));
     expect(sent(fetchMock, "/api/plans/1/watch-list/watch")).toEqual([{ item: ITEM }]);
@@ -255,6 +312,7 @@ describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
     open(watchTwo, {}, { openItem: FIXED_ITEM });
     await screen.findByTestId("watch-panel");
     const words = (screen.getByTestId("watch-list-page").textContent ?? "").toLowerCase();
-    for (const word of ["secure", "score", "severity", "critical", "otto wrote", "otto found", "otto proposes"]) expect(words).not.toContain(word);
+    for (const word of ["secure", "score", "severity", "critical", "otto wrote", "otto found", "otto proposes"])
+      expect(words).not.toContain(word);
   });
 });

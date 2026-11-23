@@ -52,7 +52,7 @@ async function expectBand(title: string, rows: [string, string][]): Promise<void
   for (const [system, trackName] of rows) {
     const row = trackName
       ? bandRow(title, system).filter({ has: page.getByTestId("roadmap-track").getByText(trackName, { exact: true }) })
-      : bandRow(title, system);   // a system that wasn't measured has no track to name
+      : bandRow(title, system); // a system that wasn't measured has no track to name
     await expect(row).toHaveCount(1);
   }
 }
@@ -88,7 +88,9 @@ test("Import: the file's claims, its five test servers start, and its system set
   ]);
   const settings = page.getByTestId("import-setting");
   await expect(settings).toHaveCount(6);
-  await expect(settings.filter({ hasText: "localhost:8454" })).toContainText("Exposure: internal. Data lifespan: long-lived. Can it be changed: no.");
+  await expect(settings.filter({ hasText: "localhost:8454" })).toContainText(
+    "Exposure: internal. Data lifespan: long-lived. Can it be changed: no.",
+  );
   await expect(stepLink(page, "6. Migration")).toBeEnabled();
   await expectPageOpen(page, "5. Fixes");
   const ticks = page.getByTestId("address-confirm");
@@ -100,13 +102,22 @@ test("Import: the file's claims, its five test servers start, and its system set
 });
 
 test("Verify: the post-quantum claims are checked, and the planted false one is found", async () => {
-  await expect(page.getByTestId("result-row").getByTestId("result-badge")).toHaveText(
-    ["True", "False", "True", "True", "True", "True", "Couldn't check"]);
+  await expect(page.getByTestId("result-row").getByTestId("result-badge")).toHaveText([
+    "True",
+    "False",
+    "True",
+    "True",
+    "True",
+    "True",
+    "Couldn't check",
+  ]);
   const wrong = page.getByTestId("result-row").filter({ hasText: "localhost:8452" });
   await expect(wrong.getByTestId("verify-summary")).toHaveText(
-    "It refused every post-quantum key exchange we offered and completed a classical handshake, so it is Classical. The file says Hybrid, so the claim is not true.");
-  await expect(page.getByTestId("result-row").filter({ hasText: "localhost:8455" }).getByTestId("verify-summary")).toContainText(
-    "so it is Post-quantum only");
+    "It refused every post-quantum key exchange we offered and completed a classical handshake, so it is Classical. The file says Hybrid, so the claim is not true.",
+  );
+  await expect(
+    page.getByTestId("result-row").filter({ hasText: "localhost:8455" }).getByTestId("verify-summary"),
+  ).toContainText("so it is Post-quantum only");
   await shot("02-verify-post-quantum-claims.png");
 });
 
@@ -118,7 +129,9 @@ test("Tests: a program that can't run has no cards, only its line under Not test
   await expect(page.getByTestId("test-card").filter({ hasText: "Post-quantum readiness" })).toHaveCount(5);
   await expect(page.getByText("Puts acme-sign through an outside exam", { exact: false })).toBeVisible();
   await expect(page.getByText("Signing program: acme-sign 9.9", { exact: true })).toHaveCount(0);
-  await expect(page.getByTestId("not-tested")).toContainText("acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.");
+  await expect(page.getByTestId("not-tested")).toContainText(
+    "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.",
+  );
   await shot("03-tests-no-cards-for-a-program-that-cannot-run.png");
 });
 
@@ -127,7 +140,9 @@ test("Migration: nothing is measured until the button is pressed", async () => {
   await expect(page.getByRole("heading", { name: "Migration plan", level: 1 })).toBeVisible();
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   await expect(page.getByTestId("system-card")).toHaveCount(7);
-  await expect(page.getByTestId("system-card").getByTestId("migration-status")).toContainText(Array(7).fill("Not measured yet"));
+  await expect(page.getByTestId("system-card").getByTestId("migration-status")).toContainText(
+    Array(7).fill("Not measured yet"),
+  );
   await expect(page.getByRole("button", { name: "Measure status" })).toBeEnabled();
   await expect(page.getByTestId("migration-options")).toHaveCount(0);
   await shot("04-migration-before-measuring.png");
@@ -138,8 +153,19 @@ test("Measure status: each system gets its measured status and its plan", async 
   await expect(page.getByRole("button", { name: "Measure again" })).toBeEnabled({ timeout: 120_000 });
   // Phase 4b: a server shows two tracks (key exchange, authentication), a signing program one.
   await expect(page.getByTestId("system-card").getByTestId("migration-status")).toContainText([
-    "Hybrid (interim)", "Classical", "Classical", "Classical", "Classical", "Classical", "Classical", "Classical",
-    "Post-quantum only", "Post-quantum", "Classical", "Couldn't check"]);
+    "Hybrid (interim)",
+    "Classical",
+    "Classical",
+    "Classical",
+    "Classical",
+    "Classical",
+    "Classical",
+    "Classical",
+    "Post-quantum only",
+    "Post-quantum",
+    "Classical",
+    "Couldn't check",
+  ]);
   await expect(card("localhost:8451")).toContainText("Next: authentication · Phase 2");
   await expect(card("localhost:8452")).toContainText("Next: hybrid key exchange · Phase 1");
   await expect(card("localhost:8453")).toContainText("Kept classical · review");
@@ -148,7 +174,7 @@ test("Measure status: each system gets its measured status and its plan", async 
   await expect(card("acme-sign 1.4.2")).toContainText("Next: sign with both · Phase 2");
   await expect(card("acme-sign 9.9")).toContainText("No plan yet: couldn't check");
   await expect(page.getByText(/already there/i)).toHaveCount(0);
-  await expect(stepLink(page, "5. Fixes")).toBeEnabled();   // without a page refresh
+  await expect(stepLink(page, "5. Fixes")).toBeEnabled(); // without a page refresh
 });
 
 test("A classical server: today, measured; the cost with every number's source; the recommendation and its reasons", async () => {
@@ -156,9 +182,12 @@ test("A classical server: today, measured; the cost with every number's source; 
   // Phase 4b: two tracks, each with its status, its facts, its Next step and its Why.
   const kex = track(detail, "kex");
   await expect(kex.getByTestId("track-sentence")).toHaveText(
-    "It refused every post-quantum key exchange we offered and completed a classical handshake, so it is Classical.");
+    "It refused every post-quantum key exchange we offered and completed a classical handshake, so it is Classical.",
+  );
   await expect(kex).toContainText("Refused: X25519MLKEM768 and two others");
-  await expect(detail.getByTestId("file-note")).toHaveText("The file says: this server is Hybrid. Verify marked that claim False.");
+  await expect(detail.getByTestId("file-note")).toHaveText(
+    "The file says: this server is Hybrid. Verify marked that claim False.",
+  );
   await expect(detail.getByTestId("today-facts")).toContainText("1.3 and 1.2");
   await expect(detail.getByTestId("today-control")).toContainText("as expected");
   const sources = detail.getByTestId("setting-source");
@@ -166,8 +195,12 @@ test("A classical server: today, measured; the cost with every number's source; 
   const cost = costTable(detail);
   await expect(cost).toContainText("Classical (today)");
   await expect(cost.getByRole("row").filter({ hasText: "Key share, client to server" })).toContainText("32 bytes");
-  await expect(cost.getByRole("row").filter({ hasText: "Key share, client to server" })).toContainText("published: FIPS 203 + X25519");
-  await expect(cost.getByRole("row").filter({ hasText: "First handshake message" })).toContainText("measured on our test server");
+  await expect(cost.getByRole("row").filter({ hasText: "Key share, client to server" })).toContainText(
+    "published: FIPS 203 + X25519",
+  );
+  await expect(cost.getByRole("row").filter({ hasText: "First handshake message" })).toContainText(
+    "measured on our test server",
+  );
   await expect(detail.getByRole("heading", { name: "Recommended: Hybrid", exact: true })).toBeVisible();
   await expect(detail.getByText("from fixed rules, no AI model")).toBeVisible();
   const reasons = detail.getByTestId("recommendation-reason");
@@ -184,18 +217,26 @@ test("A classical server: today, measured; the cost with every number's source; 
 test("The four options: hybrid is the change itself, with no blocker; every option says cost, blockers and what to manage", async () => {
   const detail = page.getByTestId("migration-system");
   await expect(detail.getByTestId("option-card")).toHaveCount(4);
-  await expect(detail.getByTestId("option-card").getByRole("heading", { level: 4 })).toHaveText(
-    ["Keep classical for now", "Hybrid", "Full post-quantum", "Wrap the connection"]);
+  await expect(detail.getByTestId("option-card").getByRole("heading", { level: 4 })).toHaveText([
+    "Keep classical for now",
+    "Hybrid",
+    "Full post-quantum",
+    "Wrap the connection",
+  ]);
   const hybrid = option("Hybrid");
   await expect(hybrid).toContainText("Recommended");
   await expect(hybrid.getByTestId("option-section").filter({ hasText: "Blockers" })).toContainText("None measured.");
   await expect(hybrid.getByTestId("option-section").filter({ hasText: "To do" })).toContainText(
-    "Turn on hybrid key exchange. This is the change itself, not a blocker.");
+    "Turn on hybrid key exchange. This is the change itself, not a blocker.",
+  );
   await expect(hybrid.getByTestId("option-section").filter({ hasText: "To manage" })).toContainText("Algorithms 3");
   await expect(option("Keep classical for now")).toContainText("never “forever”");
   await expect(option("Full post-quantum").getByTestId("option-section").filter({ hasText: "To do" })).toContainText(
-    "Check that every client supports it. This app can't see your clients");
-  await expect(option("Full post-quantum").getByTestId("option-section").filter({ hasText: "Blockers" })).toContainText("None measured.");
+    "Check that every client supports it. This app can't see your clients",
+  );
+  await expect(option("Full post-quantum").getByTestId("option-section").filter({ hasText: "Blockers" })).toContainText(
+    "None measured.",
+  );
   await expect(option("Wrap the connection")).toContainText("It protects the connection only");
   await hybrid.scrollIntoViewIfNeeded();
   await shot("06-migration-four-options.png");
@@ -203,29 +244,44 @@ test("The four options: hybrid is the change itself, with no blocker; every opti
 
 test("The other statuses: Hybrid and Post-quantum only in place, a signing program, and Couldn't check", async () => {
   let detail = await open("localhost:8451");
-  await expect(track(detail, "kex").getByTestId("track-sentence")).toContainText("so it is Hybrid. A classical-only client still connects.");
+  await expect(track(detail, "kex").getByTestId("track-sentence")).toContainText(
+    "so it is Hybrid. A classical-only client still connects.",
+  );
   await expect(detail.getByRole("heading", { name: "Recommended: Hybrid (in place today)" })).toBeVisible();
   await expect(costTable(detail)).toContainText("Hybrid (today)");
   await expect(option("Hybrid")).toContainText("In place today");
-  await expect(option("Keep classical for now").getByTestId("not-offered")).toHaveText("Doesn't apply: this server is already Hybrid.");
+  await expect(option("Keep classical for now").getByTestId("not-offered")).toHaveText(
+    "Doesn't apply: this server is already Hybrid.",
+  );
   await shot("07-migration-hybrid-server.png");
 
   detail = await open("localhost:8454");
-  await expect(track(detail, "kex").getByTestId("track-sentence")).toContainText("It doesn't accept TLS 1.3, which post-quantum key exchange needs.");
+  await expect(track(detail, "kex").getByTestId("track-sentence")).toContainText(
+    "It doesn't accept TLS 1.3, which post-quantum key exchange needs.",
+  );
   await expect(detail.getByRole("heading", { name: "Recommended: Wrap the connection" })).toBeVisible();
-  await expect(option("Hybrid").getByTestId("option-section").filter({ hasText: "Blockers" })).toContainText("It doesn't accept TLS 1.3");
+  await expect(option("Hybrid").getByTestId("option-section").filter({ hasText: "Blockers" })).toContainText(
+    "It doesn't accept TLS 1.3",
+  );
 
   detail = await open("localhost:8455");
-  await expect(track(detail, "kex").getByTestId("track-sentence")).toContainText("so it is Post-quantum only. A classical-only client can't connect.");
+  await expect(track(detail, "kex").getByTestId("track-sentence")).toContainText(
+    "so it is Post-quantum only. A classical-only client can't connect.",
+  );
   await expect(track(detail, "auth")).toContainText("ML-DSA-65");
   await shot("08-migration-post-quantum-only-server.png");
 
   detail = await open("acme-sign 1.4.2");
-  await expect(track(detail, "signatures").getByTestId("track-sentence")).toContainText("ECDSA P-256 is a classical algorithm, so it is Classical.");
+  await expect(track(detail, "signatures").getByTestId("track-sentence")).toContainText(
+    "ECDSA P-256 is a classical algorithm, so it is Classical.",
+  );
   await expect(detail.getByRole("heading", { name: "Recommended: Hybrid: sign with both" })).toBeVisible();
-  await expect(option("Hybrid: sign with both").getByTestId("option-section").filter({ hasText: "Blockers" })).toContainText(
-    "it can't make post-quantum signatures");
-  await expect(option("Wrap the connection").getByTestId("not-offered")).toContainText("wrapping protects a connection, not signatures");
+  await expect(
+    option("Hybrid: sign with both").getByTestId("option-section").filter({ hasText: "Blockers" }),
+  ).toContainText("it can't make post-quantum signatures");
+  await expect(option("Wrap the connection").getByTestId("not-offered")).toContainText(
+    "wrapping protects a connection, not signatures",
+  );
   await shot("09-migration-signing-program.png");
 
   detail = await open("acme-sign 9.9");
@@ -246,17 +302,33 @@ test("The roadmap: built from the recommendations, each system in its phase", as
   await expect(page.getByTestId("migration-roadmap")).not.toHaveAttribute("data-compact", "true");
   await expect(page.getByTestId("roadmap-intro")).toContainText("0 of 7 chosen, so the rest use the recommendation");
   // Phase 4b: every track has its own row, so a server can sit in two bands.
-  await expect(page.getByTestId("roadmap-band").getByRole("heading", { level: 2 })).toHaveText(
-    ["At the target", "Done for now", "Phase 1", "Phase 2", "Later", "Wrapped", "Not placed yet"]);
-  await expectBand("At the target", [["localhost:8455", "Key exchange"], ["localhost:8455", "Authentication"]]);
+  await expect(page.getByTestId("roadmap-band").getByRole("heading", { level: 2 })).toHaveText([
+    "At the target",
+    "Done for now",
+    "Phase 1",
+    "Phase 2",
+    "Later",
+    "Wrapped",
+    "Not placed yet",
+  ]);
+  await expectBand("At the target", [
+    ["localhost:8455", "Key exchange"],
+    ["localhost:8455", "Authentication"],
+  ]);
   await expectBand("Done for now", [["localhost:8451", "Key exchange"]]);
   await expectBand("Phase 1", [["localhost:8452", "Key exchange"]]);
-  await expectBand("Phase 2", [["localhost:8451", "Authentication"], ["localhost:8452", "Authentication"], ["acme-sign 1.4.2", "Signatures"]]);
+  await expectBand("Phase 2", [
+    ["localhost:8451", "Authentication"],
+    ["localhost:8452", "Authentication"],
+    ["acme-sign 1.4.2", "Signatures"],
+  ]);
   await expectBand("Later", [["localhost:8453", "Both tracks"]]);
   await expectBand("Wrapped", [["localhost:8454", "Both tracks"]]);
   await expectBand("Not placed yet", [["acme-sign 9.9", ""]]);
   await expect(band("Phase 1").getByTestId("roadmap-note")).toContainText("To do: turn on hybrid key exchange.");
-  await expect(bandRow("Phase 2", "acme-sign 1.4.2").getByTestId("roadmap-note")).toContainText("Blocker: it signs with ECDSA P-256 only");
+  await expect(bandRow("Phase 2", "acme-sign 1.4.2").getByTestId("roadmap-note")).toContainText(
+    "Blocker: it signs with ECDSA P-256 only",
+  );
   await expect(band("Later").getByTestId("roadmap-note")).toContainText("assumed: 12 months");
   await expect(page.getByText("recommended, not yet chosen by you")).toHaveCount(7);
   await expect(page.getByText(/\bsecure\b/i).filter({ hasNotText: DISCLAIMER })).toHaveCount(0);
@@ -272,10 +344,16 @@ test("Fixes: the change for Phase 1 has its change box (Ready to try); the block
   await expect(list).toHaveCount(2);
   const fix = page.getByTestId("fix-summary");
   // (phase 5a follow-up: the open fix's title is the detail panel's heading)
-  await expect(page.getByTestId("detail-panel").getByRole("heading", { name: "Turn on hybrid key exchange on localhost:8452", level: 2 })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("detail-panel")
+      .getByRole("heading", { name: "Turn on hybrid key exchange on localhost:8452", level: 2 }),
+  ).toBeVisible();
   // Since phase 4b the status word is the change box's badge.
   await expect(fix.getByTestId("fix-status")).toHaveText("Ready to try");
-  await expect(fix.getByTestId("fix-proof")).toContainText("The change box below shows its try on a test copy, its approvals, and Apply.");
+  await expect(fix.getByTestId("fix-proof")).toContainText(
+    "The change box below shows its try on a test copy, its approvals, and Apply.",
+  );
   const box = page.getByTestId("change-box");
   await expect(box.getByTestId("change-badge")).toContainText("Ready to try");
   await expect(box).toContainText("It adds the hybrid key exchange next to the classical ones");
@@ -302,7 +380,7 @@ test("Your own choice: a reason is needed when it differs, the review date is ne
   const keep = option("Keep classical for now");
   await keep.getByRole("button", { name: "Choose this option" }).click();
   const box = keep.getByTestId("choose-box");
-  await expect(box.getByRole("button", { name: "Save choice" })).toBeDisabled();            // differs from the recommendation: say why
+  await expect(box.getByRole("button", { name: "Save choice" })).toBeDisabled(); // differs from the recommendation: say why
   await expect(box.getByLabel("Review date")).toHaveAttribute("max", "2030-12-31");
   await box.getByLabel(/Your reason/).fill("Server is replaced in Q2 2027; upgrading it first isn't worth it.");
   await box.getByLabel("Review date").fill("2027-06-30");
@@ -311,12 +389,14 @@ test("Your own choice: a reason is needed when it differs, the review date is ne
   await expect(detail.getByTestId("migration-choice")).toContainText("Your choice: Keep classical for now");
   await expect(detail.getByTestId("migration-choice")).toContainText("Review date: 30 Jun 2027.");
   await expect(card("localhost:8452")).toContainText("Kept classical · review 30 Jun 2027");
-  await expect(detail.getByRole("heading", { name: "Recommended: Hybrid", exact: true })).toBeVisible();   // the recommendation is not rewritten
+  await expect(detail.getByRole("heading", { name: "Recommended: Hybrid", exact: true })).toBeVisible(); // the recommendation is not rewritten
   await expect(option("Keep classical for now")).toContainText("Your choice");
   await page.getByRole("button", { name: "Roadmap", exact: true }).click();
   await expect(page.getByTestId("roadmap-intro")).toContainText("1 of 7 chosen");
   await expect(band("Later").getByTestId("roadmap-row")).toHaveCount(2);
-  await expect(band("Later").getByTestId("roadmap-row").filter({ hasText: "localhost:8452" })).toContainText("chosen by you");
+  await expect(band("Later").getByTestId("roadmap-row").filter({ hasText: "localhost:8452" })).toContainText(
+    "chosen by you",
+  );
   await expect(band("Phase 1")).toHaveCount(0);
   await shot("15-migration-roadmap-follows-your-choice.png");
 });
@@ -340,15 +420,24 @@ test("A setting changes the recommendation at once; measuring again never change
 
 test("Download evidence from the roadmap: the plan is in the signed file and the report", async () => {
   await page.getByRole("button", { name: "Roadmap", exact: true }).click();
-  const created = page.waitForResponse((r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST");
+  const created = page.waitForResponse(
+    (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Download evidence" }).click();
   const made = await created;
   expect(made.status()).toBe(200);
   const info = await made.json();
   const json = await (await page.request.get(info.json.url)).json();
   const migration = json.evidence.migration;
-  expect(migration.systems.map((s: { status: string }) => s.status)).toEqual(
-    ["Hybrid", "Classical", "Classical", "Classical", "Post-quantum only", "Classical", "Couldn't check"]);
+  expect(migration.systems.map((s: { status: string }) => s.status)).toEqual([
+    "Hybrid",
+    "Classical",
+    "Classical",
+    "Classical",
+    "Post-quantum only",
+    "Classical",
+    "Couldn't check",
+  ]);
   const chosen = migration.systems.find((s: { system: string }) => s.system === "localhost:8452");
   expect(chosen.your_choice.option).toBe("Keep classical for now");
   expect(chosen.your_choice.review_date).toBe("2027-06-30");

@@ -28,7 +28,10 @@ function withProposal(view: AdvisoriesView, next: OttoProposal): AdvisoriesView 
       ...row,
       panel: {
         ...row.panel,
-        here: { ...row.panel.here, rows: row.panel.here.rows.map((here) => (here.proposal?.id === next.id ? { ...here, proposal: next } : here)) },
+        here: {
+          ...row.panel.here,
+          rows: row.panel.here.rows.map((here) => (here.proposal?.id === next.id ? { ...here, proposal: next } : here)),
+        },
       },
     })),
   };
@@ -132,7 +135,9 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
     (r) =>
       (testFilter === "all" || r.test.key === testFilter) &&
       // A row whose check fits several programs can stand in more than one state: it matches each of them.
-      (decisionFilter === "all" || r.proposal.key === decisionFilter || (r.proposal.keys ?? []).includes(decisionFilter)) &&
+      (decisionFilter === "all" ||
+        r.proposal.key === decisionFilter ||
+        (r.proposal.keys ?? []).includes(decisionFilter)) &&
       (resultFilter === "all" || r.result.key === resultFilter) &&
       (!needle || r.search.toLowerCase().includes(needle)),
   );
@@ -143,7 +148,10 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
     <section data-testid="advisories-page" aria-label={view.title}>
       <PageHeader title={view.title} description={view.subline} />
 
-      <p data-testid="advisories-standing" className="mb-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+      <p
+        data-testid="advisories-standing"
+        className="mb-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300"
+      >
         {view.standing_line}
       </p>
 
@@ -162,7 +170,10 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
       <ul className="mb-5 space-y-1 text-xs text-slate-400">
         {/* The whole line is the link (to Settings, Test packs): the view sends the line and where it goes, no other words. */}
         <li data-testid="advisories-packs-line" className="w-fit max-w-full">
-          <ItemLinkView link={view.packs_link} className="block break-words text-sky-300 underline-offset-2 hover:underline">
+          <ItemLinkView
+            link={view.packs_link}
+            className="block break-words text-sky-300 underline-offset-2 hover:underline"
+          >
             {view.packs_line}
           </ItemLinkView>
         </li>
@@ -176,8 +187,15 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
 
       {/* Waiting for you: how many proposed checks nobody has decided yet. It has no button, on purpose: each proposal
           is decided by itself, in its advisory's panel. */}
-      <div data-testid="advisories-waiting" data-count={waiting.count} className="mb-5 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-        <p data-testid="advisories-waiting-line" className={`break-words text-sm ${waiting.count > 0 ? "font-medium text-slate-100" : "text-slate-200"}`}>
+      <div
+        data-testid="advisories-waiting"
+        data-count={waiting.count}
+        className="mb-5 rounded-xl border border-slate-800 bg-slate-900/40 p-4"
+      >
+        <p
+          data-testid="advisories-waiting-line"
+          className={`break-words text-sm ${waiting.count > 0 ? "font-medium text-slate-100" : "text-slate-200"}`}
+        >
           {waiting.line}
         </p>
         {waiting.blocked_reason && waiting.blocked_reason !== waiting.line ? (
@@ -209,7 +227,13 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
       ) : null}
 
       <Toolbar>
-        <SearchInput value={search} onChange={setSearch} label="Search advisories" placeholder="Search advisories" testId="advisories-search" />
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          label="Search advisories"
+          placeholder="Search advisories"
+          testId="advisories-search"
+        />
         <FilterSelect
           label="Test"
           value={testFilter}

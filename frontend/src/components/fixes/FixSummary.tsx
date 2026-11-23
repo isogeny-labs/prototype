@@ -3,7 +3,18 @@ import type { FixAction, FixApprovers, FixButton, FixDetail, FixProofRow, OttoPr
 import { LedgerView } from "../advisories/parts";
 import { ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
-import { DemoDataLabel, PrimaryButton, ResultBadge, SecondaryButton, Spinner, StatusChip as ToneChip, WhereFromLine, WhereFromTag, formatTime, saveFile } from "../ui";
+import {
+  DemoDataLabel,
+  PrimaryButton,
+  ResultBadge,
+  SecondaryButton,
+  Spinner,
+  StatusChip as ToneChip,
+  WhereFromLine,
+  WhereFromTag,
+  formatTime,
+  saveFile,
+} from "../ui";
 import { MergeDialog } from "./MergeDialog";
 import { DT, Rich, StatusChip } from "./parts";
 
@@ -132,7 +143,11 @@ function Approvers({
     <>
       {approvers.text ? <p className="text-slate-300">{approvers.text}</p> : null}
       {approvers.options ? (
-        <div role="group" aria-labelledby="fix-approvers-label" className="flex flex-wrap gap-x-5 gap-y-2 text-slate-200">
+        <div
+          role="group"
+          aria-labelledby="fix-approvers-label"
+          className="flex flex-wrap gap-x-5 gap-y-2 text-slate-200"
+        >
           {approvers.options.map((option) => (
             <label key={option.id} className="flex items-center gap-2">
               <input
@@ -287,7 +302,12 @@ export function FixSummary({ fix, busy, onRequest, planId, onProposalDecided }: 
           fix.proof_rows.map((row) => (
             <Fragment key={row.key}>
               <dt className={DT}>{row.label}</dt>
-              <dd data-testid="proof-row" data-key={row.key} data-tone={row.badge.tone} className="min-w-0 text-slate-200">
+              <dd
+                data-testid="proof-row"
+                data-key={row.key}
+                data-tone={row.badge.tone}
+                className="min-w-0 text-slate-200"
+              >
                 <ProofRowView row={row} />
               </dd>
             </Fragment>

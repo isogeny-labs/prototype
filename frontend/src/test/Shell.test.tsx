@@ -59,15 +59,36 @@ describe("sidebar", () => {
   it("marks the page that is open as current and links every open page to its address", async () => {
     await openAcme("checks");
     expect(assessmentNav().getByRole("link", { name: "Checks" }).getAttribute("aria-current")).toBe("page");
-    expect(assessmentNav().getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page")).toHaveLength(1);
+    expect(
+      assessmentNav()
+        .getAllByRole("link")
+        .filter((a) => a.getAttribute("aria-current") === "page"),
+    ).toHaveLength(1);
     expect(assessmentNav().getByRole("link", { name: "Evidence" }).getAttribute("href")).toBe("#/a/101/evidence");
-    expect(assessmentNav().getByRole("link", { name: "Dependencies" }).getAttribute("href")).toBe("#/a/101/migration/dependencies");
+    expect(assessmentNav().getByRole("link", { name: "Dependencies" }).getAttribute("href")).toBe(
+      "#/a/101/migration/dependencies",
+    );
     expect(workspaceNav().getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("#/settings");
   });
 
   it("turns off pages that cannot open yet, each with aria-disabled and a reason, and no address", async () => {
     go("#/a/111/overview");
-    mockApi({ ...baseRoutes, "GET /api/assessments/111": { body: emptyAssessment }, "GET /api/projects/11": { body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [], next_name: "Assessment 2" } } } as Parameters<typeof mockApi>[0]);
+    mockApi({
+      ...baseRoutes,
+      "GET /api/assessments/111": { body: emptyAssessment },
+      "GET /api/projects/11": {
+        body: {
+          id: 11,
+          name: "Ledger",
+          folder_id: null,
+          archived: false,
+          is_demo: false,
+          path: [],
+          assessments: [],
+          next_name: "Assessment 2",
+        },
+      },
+    } as Parameters<typeof mockApi>[0]);
     render(<App />);
     await screen.findByRole("heading", { name: "Assessment 1" });
     const nav = assessmentNav();
@@ -90,10 +111,17 @@ describe("sidebar", () => {
   });
 
   it("lists the four work groups under the open page only (Checks, Evidence or Fixes), never when collapsed to icons", async () => {
-    await openAcme("evidence", { "GET /api/plans/1/lab": { body: lab }, "GET /api/plans/1/checks": { body: checksView } });
+    await openAcme("evidence", {
+      "GET /api/plans/1/lab": { body: lab },
+      "GET /api/plans/1/checks": { body: checksView },
+    });
     const groups = await screen.findByTestId("sidebar-groups");
     expect(groups.getAttribute("aria-label")).toBe("Evidence groups");
-    expect(within(groups).getAllByRole("link").map((a) => a.getAttribute("aria-label"))).toEqual([
+    expect(
+      within(groups)
+        .getAllByRole("link")
+        .map((a) => a.getAttribute("aria-label")),
+    ).toEqual([
       "Verification on Evidence",
       "Crypto tests on Evidence",
       "Migration on Evidence",
@@ -158,7 +186,11 @@ describe("top bar", () => {
 
   it("shows Folder / Project / Assessment / Page as breadcrumbs, folders nested", async () => {
     await openAcme();
-    expect(crumbs().getAllByRole("listitem").map((li) => text(li).replace(/^\/\s*/, ""))).toEqual(["Payments", "EU", "Acme Pay", "Assessment 2", "Overview"]);
+    expect(
+      crumbs()
+        .getAllByRole("listitem")
+        .map((li) => text(li).replace(/^\/\s*/, "")),
+    ).toEqual(["Payments", "EU", "Acme Pay", "Assessment 2", "Overview"]);
     expect(crumbs().getByText("Overview").getAttribute("aria-current")).toBe("page");
     // The project's crumb opens its Project overview.
     expect(crumbs().getByRole("link", { name: "Acme Pay" }).getAttribute("href")).toBe("#/p/10");
@@ -166,14 +198,28 @@ describe("top bar", () => {
 
   it("adds the section for pages inside Inventory and Migration", async () => {
     await openAcme("inventory/verify");
-    expect(crumbs().getAllByRole("listitem").map((li) => text(li).replace(/^\/\s*/, "")).slice(-3)).toEqual(["Assessment 2", "Inventory", "Verify"]);
+    expect(
+      crumbs()
+        .getAllByRole("listitem")
+        .map((li) => text(li).replace(/^\/\s*/, ""))
+        .slice(-3),
+    ).toEqual(["Assessment 2", "Inventory", "Verify"]);
   });
 
   it("names Advisories as a page of its own, with no section before it (phase 5c)", async () => {
     await openAcme("advisories", { "GET /api/plans/1/advisories": { body: advisoriesTwoPacks } });
-    expect(crumbs().getAllByRole("listitem").map((li) => text(li).replace(/^\/\s*/, "")).slice(-2)).toEqual(["Assessment 2", "Advisories"]);
+    expect(
+      crumbs()
+        .getAllByRole("listitem")
+        .map((li) => text(li).replace(/^\/\s*/, ""))
+        .slice(-2),
+    ).toEqual(["Assessment 2", "Advisories"]);
     expect(assessmentNav().getByRole("link", { name: "Advisories" }).getAttribute("aria-current")).toBe("page");
-    expect(assessmentNav().getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page")).toHaveLength(1);
+    expect(
+      assessmentNav()
+        .getAllByRole("link")
+        .filter((a) => a.getAttribute("aria-current") === "page"),
+    ).toHaveLength(1);
     expect(assessmentNav().getByRole("link", { name: "Advisories" }).getAttribute("href")).toBe("#/a/101/advisories");
   });
 
@@ -181,7 +227,11 @@ describe("top bar", () => {
     mockApi({ ...baseRoutes } as Parameters<typeof mockApi>[0]);
     render(<App />);
     await screen.findByTestId("projects-page");
-    expect(crumbs().getAllByRole("listitem").map((li) => text(li))).toEqual(["Projects"]);
+    expect(
+      crumbs()
+        .getAllByRole("listitem")
+        .map((li) => text(li)),
+    ).toEqual(["Projects"]);
   });
 
   it("shows Open for an open assessment", async () => {
@@ -195,7 +245,9 @@ describe("top bar", () => {
     mockApi({
       ...baseRoutes,
       "GET /api/assessments/100": { body: closedAssessment },
-      "GET /api/projects/10": { body: { id: 10, name: "Acme Pay", folder_id: 2, archived: false, is_demo: true, path: [], assessments: [] } },
+      "GET /api/projects/10": {
+        body: { id: 10, name: "Acme Pay", folder_id: 2, archived: false, is_demo: true, path: [], assessments: [] },
+      },
     } as Parameters<typeof mockApi>[0]);
     render(<App />);
     const chip = await screen.findByTestId("assessment-status");
@@ -213,7 +265,10 @@ describe("top bar", () => {
   it("shows the mode badge with the backend's sentence as its reason", async () => {
     const line = "Isolated mode: our demo software runs in a locked-down container with no network.";
     go("#/projects");
-    mockApi({ ...baseRoutes, "GET /api/session": { body: { ...session, mode: "isolated", mode_line: line } } } as Parameters<typeof mockApi>[0]);
+    mockApi({
+      ...baseRoutes,
+      "GET /api/session": { body: { ...session, mode: "isolated", mode_line: line } },
+    } as Parameters<typeof mockApi>[0]);
     render(<App />);
     await screen.findByTestId("projects-page");
     expect(text(screen.getByTestId("mode-badge"))).toBe("Isolated mode");
@@ -267,7 +322,10 @@ describe("project switcher", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Switch project/ }));
     return screen.getByTestId("project-switcher");
   };
-  const options = () => within(screen.getByRole("listbox", { name: "Projects" })).queryAllByRole("option").map((o) => text(o));
+  const options = () =>
+    within(screen.getByRole("listbox", { name: "Projects" }))
+      .queryAllByRole("option")
+      .map((o) => text(o));
 
   it("shows the folder tree with nested folders, and hides archived projects and folders", async () => {
     const box = await open();
@@ -321,7 +379,11 @@ describe("project switcher", () => {
 describe("shell routes", () => {
   it("shows a loading note, not a crash, when the assessment is not found", async () => {
     go("#/a/999/overview");
-    mockApi({ "GET /api/session": { body: session }, "GET /api/workspace": { body: workspace }, "GET /api/assessments/999": notFound });
+    mockApi({
+      "GET /api/session": { body: session },
+      "GET /api/workspace": { body: workspace },
+      "GET /api/assessments/999": notFound,
+    });
     render(<App />);
     expect(text(await screen.findByRole("alert"))).toContain("Not found");
   });
@@ -329,10 +391,22 @@ describe("shell routes", () => {
 
 describe("addresses, phase 5c", () => {
   it("reads and writes the Advisories page of an assessment, with the advisory to open", () => {
-    expect(parseRoute("#/a/101/advisories")).toMatchObject({ kind: "assessment", id: 101, page: "advisories", item: null });
-    expect(parseRoute("#/a/101/advisories?item=CVE-2022-21449")).toMatchObject({ kind: "assessment", id: 101, page: "advisories", item: "CVE-2022-21449" });
+    expect(parseRoute("#/a/101/advisories")).toMatchObject({
+      kind: "assessment",
+      id: 101,
+      page: "advisories",
+      item: null,
+    });
+    expect(parseRoute("#/a/101/advisories?item=CVE-2022-21449")).toMatchObject({
+      kind: "assessment",
+      id: 101,
+      page: "advisories",
+      item: "CVE-2022-21449",
+    });
     // A link the backend sends to an advisory opens it in the open assessment.
-    expect(routeHref(linkRoute({ page: "advisories", item: "CVE-2022-21449" }, 101))).toBe("#/a/101/advisories?item=CVE-2022-21449");
+    expect(routeHref(linkRoute({ page: "advisories", item: "CVE-2022-21449" }, 101))).toBe(
+      "#/a/101/advisories?item=CVE-2022-21449",
+    );
   });
 
   it("reads and writes Settings with and without a section, and sends a backend link to Settings there", () => {
@@ -340,7 +414,10 @@ describe("addresses, phase 5c", () => {
     expect(parseRoute("#/settings?section=test-packs")).toEqual({ kind: "settings", section: "test-packs" });
     expect(routeHref({ kind: "settings" })).toBe("#/settings");
     expect(routeHref({ kind: "settings", section: "test-packs" })).toBe("#/settings?section=test-packs");
-    expect(linkRoute({ page: "settings", item: null, section: "test-packs" }, 101)).toEqual({ kind: "settings", section: "test-packs" });
+    expect(linkRoute({ page: "settings", item: null, section: "test-packs" }, 101)).toEqual({
+      kind: "settings",
+      section: "test-packs",
+    });
     expect(linkRoute({ page: "settings", item: null }, 101)).toEqual({ kind: "settings" });
   });
 
@@ -360,7 +437,9 @@ describe("sidebar, phase 5b", () => {
   it("links the open project's overview, and its assessment picker lists the project's assessments and New assessment", async () => {
     await openAcme();
     // In the sidebar (the Overview page has its own link too).
-    expect(within(screen.getByTestId("sidebar")).getByRole("link", { name: "Project overview" }).getAttribute("href")).toBe("#/p/10");
+    expect(
+      within(screen.getByTestId("sidebar")).getByRole("link", { name: "Project overview" }).getAttribute("href"),
+    ).toBe("#/p/10");
     const picker = screen.getByTestId("assessment-picker");
     expect(picker.getAttribute("aria-label")).toBe("Assessment: Assessment 2, Open");
     fireEvent.click(picker);
@@ -368,7 +447,11 @@ describe("sidebar, phase 5b", () => {
     // they arrive, so the list is waited for (read at once, it can hold only New assessment on a slow computer).
     const menu = () => within(screen.getByRole("menu", { name: "Assessments" }));
     await waitFor(() =>
-      expect(menu().getAllByRole("menuitem").map((m) => text(m))).toEqual(["Assessment 2Open", "Assessment 1Closed", "New assessment"]),
+      expect(
+        menu()
+          .getAllByRole("menuitem")
+          .map((m) => text(m)),
+      ).toEqual(["Assessment 2Open", "Assessment 1Closed", "New assessment"]),
     );
     expect(menu().getAllByRole("menuitem")[1]!.getAttribute("href")).toBe("#/a/100/overview");
     expect(menu().getAllByRole("menuitem")[0]!.getAttribute("aria-current")).toBe("true");
@@ -381,7 +464,10 @@ describe("sidebar, phase 5b", () => {
 describe("sidebar on the Project overview (phase 5b)", () => {
   it("says to open an assessment, not a project, when a project is open", async () => {
     go("#/p/10");
-    mockApi({ ...baseRoutes, "GET /api/projects/10/overview": { body: { id: 10, rows: [], compare: null, shared: [], choices: [] } } } as Parameters<typeof mockApi>[0]);
+    mockApi({
+      ...baseRoutes,
+      "GET /api/projects/10/overview": { body: { id: 10, rows: [], compare: null, shared: [], choices: [] } },
+    } as Parameters<typeof mockApi>[0]);
     render(<App />);
     await screen.findByTestId("project-overview");
     expect(within(screen.getByTestId("sidebar")).getByText("Open an assessment to see its pages here.")).not.toBeNull();

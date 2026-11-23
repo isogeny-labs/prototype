@@ -1,4 +1,5 @@
 """The research engine socket: proposing and designing tests, who may review, and Dig deeper."""
+
 import ast
 from pathlib import Path
 
@@ -16,16 +17,29 @@ from test_records import DEMO_CLAIMS
 
 def test_the_five_tests_are_proposed_in_order_for_the_demo_claims():
     plan = RuleEngine().propose_tests(DEMO_CLAIMS)
-    assert [t["kind"] for t in plan["tests"]] == ["tls_versions", "certificate", "official_vectors", "bad_signatures", "speed_size"]
-    assert [t["title"] for t in plan["tests"]] == ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)",
-                                                    "Attacker tricks (our short list)", "Speed and size"]
+    assert [t["kind"] for t in plan["tests"]] == [
+        "tls_versions",
+        "certificate",
+        "official_vectors",
+        "bad_signatures",
+        "speed_size",
+    ]
+    assert [t["title"] for t in plan["tests"]] == [
+        "Old TLS versions",
+        "Certificate strength",
+        "Independent exam (Wycheproof)",
+        "Attacker tricks (our short list)",
+        "Speed and size",
+    ]
     assert plan["notes"] == []
     assert plan["tests"][0]["control"]["accepts"] == "TLS 1.2"  # just below the oldest claimed version
 
 
 def test_fewer_tests_for_a_file_that_claims_less():
     only_server = RuleEngine().propose_tests(DEMO_CLAIMS[:2])
-    assert [t["kind"] for t in only_server["tests"]] == ["tls_versions", "certificate"] and len(only_server["notes"]) == 3
+    assert [t["kind"] for t in only_server["tests"]] == ["tls_versions", "certificate"] and len(
+        only_server["notes"]
+    ) == 3
     only_software = RuleEngine().propose_tests(DEMO_CLAIMS[2:])
     assert [t["kind"] for t in only_software["tests"]] == ["official_vectors", "bad_signatures", "speed_size"]
     assert RuleEngine().propose_tests([])["tests"] == []
@@ -34,7 +48,10 @@ def test_fewer_tests_for_a_file_that_claims_less():
 def test_the_control_server_is_derived_from_the_claim():
     claims = [dict(DEMO_CLAIMS[0], detail={"host": "localhost", "port": 8443, "versions": ["TLS 1.2", "TLS 1.3"]})]
     spec = RuleEngine().propose_tests(claims)["tests"][0]
-    assert spec["control"]["accepts"] == "TLS 1.1" and spec["control"]["must"] == {"verdict": "failed", "accepted": "TLS 1.1"}
+    assert spec["control"]["accepts"] == "TLS 1.1" and spec["control"]["must"] == {
+        "verdict": "failed",
+        "accepted": "TLS 1.1",
+    }
 
 
 def test_design_test_gives_a_complete_locked_test_for_both_catalog_ids():
@@ -58,9 +75,16 @@ def test_the_engine_that_proposes_never_reviews():
 def test_the_reviewer_refuses_a_test_it_proposed_and_proposes_nothing():
     spec = RuleEngine().propose_tests(DEMO_CLAIMS)["tests"][0]
     with pytest.raises(ReviewNotAllowed):
-        RuleReviewer().review({"spec": spec, "spec_hash": sha256_hex(spec), "proposed_by": RuleReviewer.engine_id, "run": {}})
+        RuleReviewer().review(
+            {"spec": spec, "spec_hash": sha256_hex(spec), "proposed_by": RuleReviewer.engine_id, "run": {}}
+        )
     assert RuleReviewer.engine_id != RuleEngine.engine_id
-    for call in (lambda r: r.propose_tests([]), lambda r: r.design_test({}), lambda r: r.dig_deeper({}), lambda r: r.propose_change({})):
+    for call in (
+        lambda r: r.propose_tests([]),
+        lambda r: r.design_test({}),
+        lambda r: r.dig_deeper({}),
+        lambda r: r.propose_change({}),
+    ):
         with pytest.raises(NotImplementedError):
             call(RuleReviewer())
 
@@ -85,7 +109,13 @@ def test_the_reviewer_imports_nothing_from_the_engine_or_the_runner():
     must = {"app.engine.vectors", "app.engine.pq_vectors", "app.canonical", "app.checks.tls_names"}
     assert must <= app_modules <= must | {"app.engine.guidance"}, app_modules
     assert imported - app_modules <= {"__future__", "math", "re", "statistics"}, imported
-    assert "import" not in (Path(reviewer.__file__).parent.parent / "checks" / "tls_names.py").read_text().replace('"""', "").split("\n\n", 1)[1]
+    assert (
+        "import"
+        not in (Path(reviewer.__file__).parent.parent / "checks" / "tls_names.py")
+        .read_text()
+        .replace('"""', "")
+        .split("\n\n", 1)[1]
+    )
 
 
 def test_only_the_reviewer_holds_verdict_logic():
@@ -99,6 +129,7 @@ def test_only_the_reviewer_holds_verdict_logic():
 
 def test_every_reviewed_run_was_reviewed_by_the_separate_reviewer(demo_flow):
     from app.db import ReviewRow, TestRunRow
+
     with demo_flow.lab.db() as db:
         runs, reviews = db.query(TestRunRow).all(), db.query(ReviewRow).all()
         assert len(runs) == len(reviews) == 14

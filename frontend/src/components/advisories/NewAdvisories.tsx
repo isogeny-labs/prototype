@@ -15,7 +15,15 @@ type Dialog = Lookup["look"]["dialog"];
  * are sent), and **Design and prove tests** starts the research step for the new advisories that can be tried here.
  * A check is proposed only after its test was proven on public copies; an advisory with no proven test says why.
  * Every word, every state and every reason is the backend's. Looking at this block sends nothing. */
-export function NewAdvisories({ planId, lookup, onView }: { planId: number; lookup: Lookup; onView: (next: AdvisoriesView) => void }) {
+export function NewAdvisories({
+  planId,
+  lookup,
+  onView,
+}: {
+  planId: number;
+  lookup: Lookup;
+  onView: (next: AdvisoriesView) => void;
+}) {
   const [box, setBox] = useState<"look" | "research" | null>(null);
   const [busy, setBusy] = useState<"look" | "research" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +46,11 @@ export function NewAdvisories({ planId, lookup, onView }: { planId: number; look
   const progress = research.progress;
   const dialog: Dialog | null = box === "look" ? lookup.look.dialog : box === "research" ? research.dialog : null;
   return (
-    <section data-testid="new-advisories" aria-label={lookup.title} className="mb-5 rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm">
+    <section
+      data-testid="new-advisories"
+      aria-label={lookup.title}
+      className="mb-5 rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 max-w-3xl">
           <h2 className="text-sm font-semibold text-slate-100">{lookup.title}</h2>
@@ -48,12 +60,20 @@ export function NewAdvisories({ planId, lookup, onView }: { planId: number; look
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <SecondaryButton testId="look-for-advisories" disabled={!lookup.look.can || busy !== null} onClick={() => setBox("look")}>
+          <SecondaryButton
+            testId="look-for-advisories"
+            disabled={!lookup.look.can || busy !== null}
+            onClick={() => setBox("look")}
+          >
             {busy === "look" ? <Spinner className="h-3.5 w-3.5" /> : null}
             {lookup.look.label}
           </SecondaryButton>
           {research.shown ? (
-            <PrimaryButton testId="design-and-prove" disabled={!research.can || busy !== null} onClick={() => setBox("research")}>
+            <PrimaryButton
+              testId="design-and-prove"
+              disabled={!research.can || busy !== null}
+              onClick={() => setBox("research")}
+            >
               {research.label}
             </PrimaryButton>
           ) : null}
@@ -76,7 +96,11 @@ export function NewAdvisories({ planId, lookup, onView }: { planId: number; look
       ) : null}
 
       {progress ? (
-        <div data-testid="research-progress" data-running={progress.running} className="mt-3 rounded-lg border border-slate-800 bg-slate-950/50 p-3">
+        <div
+          data-testid="research-progress"
+          data-running={progress.running}
+          className="mt-3 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
+        >
           <p role="status" className="flex items-start gap-2 break-words text-slate-200">
             {progress.running ? <Spinner className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : null}
             <span data-testid="research-line">{progress.line}</span>
@@ -84,7 +108,10 @@ export function NewAdvisories({ planId, lookup, onView }: { planId: number; look
           {progress.lines.length > 0 ? (
             <details className="mt-2">
               <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-200">{progress.title}</summary>
-              <ol data-testid="research-lines" className="mt-2 max-h-56 space-y-0.5 overflow-auto font-mono text-xs text-slate-300">
+              <ol
+                data-testid="research-lines"
+                className="mt-2 max-h-56 space-y-0.5 overflow-auto font-mono text-xs text-slate-300"
+              >
                 {progress.lines.map((line, i) => (
                   <li key={i} className="break-words">
                     {line}
@@ -153,7 +180,13 @@ export function NewAdvisories({ planId, lookup, onView }: { planId: number; look
                         {row.watch.label}
                       </ItemLinkView>
                     ) : null}
-                    <a href={row.url} target="_blank" rel="noopener noreferrer" data-testid="found-source" className="text-sky-300 underline-offset-2 hover:underline">
+                    <a
+                      href={row.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="found-source"
+                      className="text-sky-300 underline-offset-2 hover:underline"
+                    >
                       {row.publisher} ↗
                     </a>
                   </p>
@@ -169,7 +202,10 @@ export function NewAdvisories({ planId, lookup, onView }: { planId: number; look
           {lookup.sandbox_line}
         </p>
       ) : null}
-      <p data-testid="new-advisories-covers" className="mt-3 break-words border-t border-slate-800 pt-3 text-xs text-slate-500">
+      <p
+        data-testid="new-advisories-covers"
+        className="mt-3 break-words border-t border-slate-800 pt-3 text-xs text-slate-500"
+      >
         {lookup.covers}
       </p>
 

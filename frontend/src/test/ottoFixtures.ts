@@ -36,10 +36,12 @@ import { labCopy } from "./sourceFixtures";
 
 // ---- Words and parts the answers share
 
-const SUBLINE: string = "Every published advisory in the installed test packs. Where one has a test that fits a signing program of this assessment, its check is proposed: you accept or reject it. A result shown here is the reviewer's, in its words.";
+const SUBLINE: string =
+  "Every published advisory in the installed test packs. Where one has a test that fits a signing program of this assessment, its check is proposed: you accept or reject it. A result shown here is the reviewer's, in its words.";
 
 /** The standing line of the Advisories page: the only place the page says "secure". */
-export const STANDING_LINE: string = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
+export const STANDING_LINE: string =
+  "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
 
 // "Waiting for you" on Advisories: Otto proposes, a person decides each one by itself. There is no button for several.
 const WAITING_NOTE: string = "You decide each one by itself. Accepting adds a check to the test plan. It runs nothing.";
@@ -54,12 +56,21 @@ const ONE_WAITING: AdvisoriesView["waiting"] = {
 /** Where nothing can be decided (closed, or Otto not installed) the line counts and asks for no decision. */
 const ONE_UNDECIDED: string = "1 proposed check has no decision.";
 
-const NONE_WAITING: AdvisoriesView["waiting"] = { count: 0, blocked_reason: null, line: "No proposed check is waiting for a decision.", note: WAITING_NOTE };
+const NONE_WAITING: AdvisoriesView["waiting"] = {
+  count: 0,
+  blocked_reason: null,
+  line: "No proposed check is waiting for a decision.",
+  note: WAITING_NOTE,
+};
 
 /** What every Otto screen says when Otto's harness is not on this computer. */
-export const NOT_INSTALLED_LINE: string = "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. Advisory checks can't be added or run, because their runs could not be recorded. Everything else works as before.";
+export const NOT_INSTALLED_LINE: string =
+  "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. Advisory checks can't be added or run, because their runs could not be recorded. Everything else works as before.";
 
-const OTTO_INSTALLED: OttoHarnessLine = { installed: true, line: "Otto harness: version 0.1.0, commit aa4a6fd (pinned)." };
+const OTTO_INSTALLED: OttoHarnessLine = {
+  installed: true,
+  line: "Otto harness: version 0.1.0, commit aa4a6fd (pinned).",
+};
 
 const OTTO_MISSING: OttoHarnessLine = { installed: false, line: NOT_INSTALLED_LINE };
 
@@ -113,26 +124,32 @@ const SOURCES: AdvisorySource[] = [
 
 const TEST_READY_REASON: string = "Test ready: tried on public copies before this pack was signed.";
 
-const CONTROL: string = "A deliberately broken checker that accepts every signature. It must get every must-reject case wrong, so the selection needs at least one must-reject case.";
+const CONTROL: string =
+  "A deliberately broken checker that accepts every signature. It must get every must-reject case wrong, so the selection needs at least one must-reject case.";
 
 const RULE: string = "Passed only if every answer is right. Any wrong answer means Failed.";
 
 const QUESTION: string = "Does the program reject the signatures that advisory CVE-2022-21449 describes?";
 
-const JUDGED_SUPPORTED: string = "Otto's harness judged the trial against thresholds fixed before the first run: supported. It was then run again as a separate replay step of the same build, on the same computer, and gave the same numbers.";
+const JUDGED_SUPPORTED: string =
+  "Otto's harness judged the trial against thresholds fixed before the first run: supported. It was then run again as a separate replay step of the same build, on the same computer, and gave the same numbers.";
 
 // Otto's research ledger entries of a test that is offered.
 const RESEARCH_LEDGER: AdvisoryLedger = {
   title: "Otto ledger entries",
   count: 1,
-  entries: [{ seq: 0, kind: "Asked", id: "111111111111", at: "2026-11-17T12:00:00+00:00", what: "Question asked: a test" }],
+  entries: [
+    { seq: 0, kind: "Asked", id: "111111111111", at: "2026-11-17T12:00:00+00:00", what: "Question asked: a test" },
+  ],
   note: "From Otto's research ledger, a hash chain kept with the Otto harness: the test was registered, tried and judged before the pack was signed.",
 };
 
 const RESEARCH_LEDGER_NO_TEST: AdvisoryLedger = {
   title: "Otto ledger entries",
   count: 1,
-  entries: [{ seq: 0, kind: "Asked", id: "111111111111", at: "2026-11-17T12:00:00+00:00", what: "Question asked: a test" }],
+  entries: [
+    { seq: 0, kind: "Asked", id: "111111111111", at: "2026-11-17T12:00:00+00:00", what: "Question asked: a test" },
+  ],
   note: "From Otto's research ledger, a hash chain kept with the Otto harness.",
 };
 
@@ -160,41 +177,73 @@ const FIX_STEP: AdvisoryStep = {
   answer_sha256: "7d8ea9fda9d522985404df642a608ddc4ba3c841075f150dbc6c3547deb1f7f4",
 };
 
-const CLAUDE_NOTE: string = "Every prompt and answer is in Otto's research ledger, with its SHA-256. What Claude writes is data: a quote must stand in the publisher's text, a design can only pick published cases, and a fix is offered only after its proof.";
+const CLAUDE_NOTE: string =
+  "Every prompt and answer is in Otto's research ledger, with its SHA-256. What Claude writes is data: a quote must stand in the publisher's text, a design can only pick published cases, and a fix is offered only after its proof.";
 
-const CLAUDE_THREE_STEPS: AdvisoryClaude = { title: "What Claude was asked", steps: [READ_STEP, DESIGN_STEP, FIX_STEP], note: CLAUDE_NOTE };
+const CLAUDE_THREE_STEPS: AdvisoryClaude = {
+  title: "What Claude was asked",
+  steps: [READ_STEP, DESIGN_STEP, FIX_STEP],
+  note: CLAUDE_NOTE,
+};
 
-const CLAUDE_TWO_STEPS: AdvisoryClaude = { title: "What Claude was asked", steps: [READ_STEP, DESIGN_STEP], note: CLAUDE_NOTE };
+const CLAUDE_TWO_STEPS: AdvisoryClaude = {
+  title: "What Claude was asked",
+  steps: [READ_STEP, DESIGN_STEP],
+  note: CLAUDE_NOTE,
+};
 
 const NO_FIX_REASON: string = "No fix is offered: there is no test for this advisory to prove one with.";
 
 const HERE_TITLE: string = "Otto's proposed check, in this assessment";
 
-const HERE_NOTE: string = "You decide for each program by itself. Accepting adds the check to the test plan and runs nothing.";
+const HERE_NOTE: string =
+  "You decide for each program by itself. Accepting adds the check to the test plan and runs nothing.";
 
 // The 5c fixes: the tag "New" beside an advisory that first arrived with the newest installed pack. With one pack
 // installed every advisory is new; once a second pack is in, only the ones it brought are.
 export const NEW_WITH_FIRST_PACK: AdvisoryRow["new"] = { label: "New", title: "Arrived with test pack 2026.11.1" };
 export const NEW_WITH_SECOND_PACK: AdvisoryRow["new"] = { label: "New", title: "Arrived with test pack 2026.11.2" };
 
-const NO_TEST_HERE: AdvisoryRow["panel"]["here"] = { title: HERE_TITLE, rows: [], note: null, empty: "This advisory has no test, so there is nothing to run here." };
+const NO_TEST_HERE: AdvisoryRow["panel"]["here"] = {
+  title: HERE_TITLE,
+  rows: [],
+  note: null,
+  empty: "This advisory has no test, so there is nothing to run here.",
+};
 
 // The Proposal cell of an advisory that has no test, or whose test fits no program here: Otto proposes nothing.
-const NOTHING_PROPOSED: AdvisoryRow["proposal"] = { key: "none", label: "Nothing proposed", tone: "neutral", text: null };
+const NOTHING_PROPOSED: AdvisoryRow["proposal"] = {
+  key: "none",
+  label: "Nothing proposed",
+  tone: "neutral",
+  text: null,
+};
 
-const NOT_IN_PLAN: AdvisoryRow["result"] = { key: "not_added", label: "Not in the test plan", tone: "neutral", text: null };
+const NOT_IN_PLAN: AdvisoryRow["result"] = {
+  key: "not_added",
+  label: "Not in the test plan",
+  tone: "neutral",
+  text: null,
+};
 
 /** Why no decision can be recorded in a closed assessment: every button's reason there. */
 export const CLOSED_REASON: string = "This assessment is closed. Start a new one to continue.";
 
 /** Why no decision can be recorded without Otto's harness: every button's reason there. */
-export const NO_OTTO_REASON: string = "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. A decision on a proposal is recorded in Otto's ledger, so nothing can be decided here.";
+export const NO_OTTO_REASON: string =
+  "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. A decision on a proposal is recorded in Otto's ledger, so nothing can be decided here.";
 
 const SENTENCE: string = "The program accepts a signature whose two numbers are zero or out of range.";
 
-const AFFECTED_ACME: NonNullable<AdvisoryRow["panel"]["affected"]> = { line: "Affected versions, in the publisher's terms: 1.4.2 and earlier", quote: QUOTE };
+const AFFECTED_ACME: NonNullable<AdvisoryRow["panel"]["affected"]> = {
+  line: "Affected versions, in the publisher's terms: 1.4.2 and earlier",
+  quote: QUOTE,
+};
 
-const AFFECTED_ELLIPTIC: NonNullable<AdvisoryRow["panel"]["affected"]> = { line: "Affected versions, in the publisher's terms: 6.5.6 and earlier", quote: QUOTE };
+const AFFECTED_ELLIPTIC: NonNullable<AdvisoryRow["panel"]["affected"]> = {
+  line: "Affected versions, in the publisher's terms: 6.5.6 and earlier",
+  quote: QUOTE,
+};
 
 // ---- The advisory whose check runs here: CVE-2022-21449, in each state of Otto's proposal and of its check
 
@@ -230,8 +279,20 @@ const CHECK_LEDGER: AdvisoryLedger = {
       at: "2026-11-17T19:57:06+00:00",
       what: "Lock entry: the test's fingerprint, its design and its pack, written before any run",
     },
-    { seq: 4, kind: "Recorded", id: "ea9d697236fb", at: "2026-11-17T19:57:17+00:00", what: "Run 6 (first run) bound to the locked test" },
-    { seq: 5, kind: "Record checked", id: "1b7d76ad81af", at: "2026-11-17T19:57:17+00:00", what: "The pinned checker: bound and consistent" },
+    {
+      seq: 4,
+      kind: "Recorded",
+      id: "ea9d697236fb",
+      at: "2026-11-17T19:57:17+00:00",
+      what: "Run 6 (first run) bound to the locked test",
+    },
+    {
+      seq: 5,
+      kind: "Record checked",
+      id: "1b7d76ad81af",
+      at: "2026-11-17T19:57:17+00:00",
+      what: "The pinned checker: bound and consistent",
+    },
   ],
   note: "The ledger shows that each run belongs to the test locked before it. It holds no result.",
 };
@@ -240,7 +301,8 @@ const CHECK_LEDGER: AdvisoryLedger = {
 const FAILED_RESULT: NonNullable<AdvisoryHereRow["result"]> = {
   label: "Failed",
   tone: "fail",
-  plain: "acme-sign 1.4.2 got 2 of the 64 published cases for advisory CVE-2022-21449 wrong: it accepted 2 signatures that must be rejected. One wrong answer is enough to fail.",
+  plain:
+    "acme-sign 1.4.2 got 2 of the 64 published cases for advisory CVE-2022-21449 wrong: it accepted 2 signatures that must be rejected. One wrong answer is enough to fail.",
   component: "acme-sign 1.4.2",
   finished_at: "2026-11-17T19:57:17.753Z",
   source_tag: labCopy("acme-sign 1.4.2"),
@@ -279,7 +341,13 @@ function decisionLedger(decisions: { id: string; at: string; what: string }[]): 
       },
       ...decisions.flatMap((d, i) => [
         { seq: 2 + 2 * i, kind: "Recorded", id: d.id, at: d.at, what: `Decision ${i + 1}: ${d.what} by You` },
-        { seq: 3 + 2 * i, kind: "Record checked", id: checked[i]!, at: d.at, what: "The pinned checker: the entry is whole and in order" },
+        {
+          seq: 3 + 2 * i,
+          kind: "Record checked",
+          id: checked[i]!,
+          at: d.at,
+          what: "The pinned checker: the entry is whole and in order",
+        },
       ]),
     ],
     note: "Each decision is written to this assessment's Otto ledger with who and when. The ledger holds no result.",
@@ -359,7 +427,9 @@ export const blankProposalReconsidered: OttoProposal = proposal({
 export const blankProposalRan: OttoProposal = acceptedProposal({
   ...BLANK_WORDS,
   effect: "It is in the test plan, on Checks.",
-  buttons: [{ key: "undo", label: "Undo", can: false, blocked_reason: "This check has run, so it stays in the test plan." }],
+  buttons: [
+    { key: "undo", label: "Undo", can: false, blocked_reason: "This check has run, so it stays in the test plan." },
+  ],
   note: null,
   history: { ...acceptedProposal().history, ledger: DECISION_LEDGER },
 });
@@ -392,7 +462,17 @@ export const blankNotAdded: AdvisoryRow = {
     no_test: null,
     here: {
       title: HERE_TITLE,
-      rows: [{ program: "acme-sign 1.4.2", status: "Proposed", proposal: blankProposal, result: null, checks_link: null, evidence_link: null, ledger: null }],
+      rows: [
+        {
+          program: "acme-sign 1.4.2",
+          status: "Proposed",
+          proposal: blankProposal,
+          result: null,
+          checks_link: null,
+          evidence_link: null,
+          ledger: null,
+        },
+      ],
       note: HERE_NOTE,
       empty: null,
     },
@@ -522,7 +602,10 @@ function blankFailedBlocked(reason: string, ledger: AdvisoryLedger | null): Advi
     buttons: [{ key: "undo", label: "Undo", can: false, blocked_reason: reason }],
     history: { ...blankProposalRan.history, ledger: ledger === null ? null : blankProposalRan.history.ledger },
   };
-  return { ...blankFailed, panel: { ...blankFailed.panel, here: { ...blankFailed.panel.here, rows: [{ ...row, proposal: blocked, ledger }] } } };
+  return {
+    ...blankFailed,
+    panel: { ...blankFailed.panel, here: { ...blankFailed.panel.here, rows: [{ ...row, proposal: blocked, ledger }] } },
+  };
 }
 
 /** The same once Otto's harness is gone from this computer: the result stays, the ledgers can't be read, and no
@@ -542,7 +625,12 @@ export const stopsNoTest: AdvisoryRow = {
   new: NEW_WITH_FIRST_PACK,
   fits: [],
   fits_text: "",
-  test: { key: "none", label: "No test yet", tone: "neutral", reason: "No test yet: no building block can show this weakness." },
+  test: {
+    key: "none",
+    label: "No test yet",
+    tone: "neutral",
+    reason: "No test yet: no building block can show this weakness.",
+  },
   proposal: NOTHING_PROPOSED,
   result: { key: "none", label: "No check", tone: "neutral", text: null },
   search: "cve-2019-14853 stops on a bad signature acme-sign",
@@ -554,9 +642,21 @@ export const stopsNoTest: AdvisoryRow = {
     also_known_as: [],
     sources: SOURCES,
     test: null,
-    no_test: { label: "No test yet", reason: "No test yet: no building block can show this weakness.", trial: null, ledger: RESEARCH_LEDGER_NO_TEST },
+    no_test: {
+      label: "No test yet",
+      reason: "No test yet: no building block can show this weakness.",
+      trial: null,
+      ledger: RESEARCH_LEDGER_NO_TEST,
+    },
     here: NO_TEST_HERE,
-    fix: { title: "Fix", label: null, state: "none", lines: ["The publisher names 1.4.3 as the fixed version.", NO_FIX_REASON], quote: QUOTE, here: null },
+    fix: {
+      title: "Fix",
+      label: null,
+      state: "none",
+      lines: ["The publisher names 1.4.3 as the fixed version.", NO_FIX_REASON],
+      quote: QUOTE,
+      here: null,
+    },
     claude: CLAUDE_TWO_STEPS,
     related_key: "advisory:CVE-2019-14853",
   },
@@ -621,7 +721,17 @@ export const zeroNotAdded: AdvisoryRow = {
     no_test: null,
     here: {
       title: HERE_TITLE,
-      rows: [{ program: "acme-sign 1.4.2", status: "Proposed", proposal: zeroProposal, result: null, checks_link: null, evidence_link: null, ledger: null }],
+      rows: [
+        {
+          program: "acme-sign 1.4.2",
+          status: "Proposed",
+          proposal: zeroProposal,
+          result: null,
+          checks_link: null,
+          evidence_link: null,
+          ledger: null,
+        },
+      ],
       note: HERE_NOTE,
       empty: null,
     },
@@ -652,7 +762,10 @@ function zeroBlocked(reason: string): AdvisoryRow {
       { key: "reject", label: "Reject", can: false, blocked_reason: reason },
     ],
   };
-  return { ...zeroNotAdded, panel: { ...zeroNotAdded.panel, here: { ...zeroNotAdded.panel.here, rows: [{ ...row, proposal: blocked }] } } };
+  return {
+    ...zeroNotAdded,
+    panel: { ...zeroNotAdded.panel, here: { ...zeroNotAdded.panel.here, rows: [{ ...row, proposal: blocked }] } },
+  };
 }
 
 /** From the second pack: a test that is not offered, because its design failed its own trial. Nothing is proposed. */
@@ -666,7 +779,12 @@ export const looseNotOffered: AdvisoryRow = {
   new: NEW_WITH_SECOND_PACK,
   fits: [],
   fits_text: "",
-  test: { key: "not_offered", label: "Not offered", tone: "warn", reason: "Not offered: the design failed its own trial." },
+  test: {
+    key: "not_offered",
+    label: "Not offered",
+    tone: "warn",
+    reason: "Not offered: the design failed its own trial.",
+  },
   proposal: NOTHING_PROPOSED,
   result: { key: "none", label: "No check", tone: "neutral", text: null },
   search: "cve-2024-42461 loose length accepted elliptic",
@@ -693,7 +811,14 @@ export const looseNotOffered: AdvisoryRow = {
       ledger: RESEARCH_LEDGER_NO_TEST,
     },
     here: NO_TEST_HERE,
-    fix: { title: "Fix", label: null, state: "none", lines: ["The publisher names 6.5.7 as the fixed version.", NO_FIX_REASON], quote: QUOTE, here: null },
+    fix: {
+      title: "Fix",
+      label: null,
+      state: "none",
+      lines: ["The publisher names 6.5.7 as the fixed version.", NO_FIX_REASON],
+      quote: QUOTE,
+      here: null,
+    },
     claude: CLAUDE_TWO_STEPS,
     related_key: "advisory:CVE-2024-42461",
   },
@@ -719,7 +844,8 @@ export const advisoriesNoPack: AdvisoriesView = {
   filters: FILTERS,
   columns: COLUMNS,
   rows: [],
-  empty: "No test pack is installed yet. In Settings, under Test packs, Check for updates looks in the updates folder on this computer.",
+  empty:
+    "No test pack is installed yet. In Settings, under Test packs, Check for updates looks in the updates folder on this computer.",
   assessment_id: 1,
 };
 
@@ -757,7 +883,10 @@ export const advisoriesRejected: AdvisoriesView = {
 /** The row with its one program's proposal as it stands after a later decision (the rest of the row is unchanged). */
 function blankOpenAgain(now: OttoProposal): AdvisoryRow {
   const row = blankNotAdded.panel.here.rows[0]!;
-  return { ...blankNotAdded, panel: { ...blankNotAdded.panel, here: { ...blankNotAdded.panel.here, rows: [{ ...row, proposal: now }] } } };
+  return {
+    ...blankNotAdded,
+    panel: { ...blankNotAdded.panel, here: { ...blankNotAdded.panel.here, rows: [{ ...row, proposal: now }] } },
+  };
 }
 
 /** After Undo of the accept: the check is out of the test plan, and its proposal waits for a decision again. */
@@ -792,8 +921,17 @@ export const advisoriesTwoPacks: AdvisoriesView = {
 export const advisoriesClosed: AdvisoriesView = {
   ...advisoriesTwoPacks,
   packs_line: "Test packs installed when this assessment was closed: 2026.11.1, 2026.11.2.",
-  waiting: { ...ONE_WAITING, line: ONE_UNDECIDED, blocked_reason: "This assessment is closed, so nothing more can be decided in it." },
-  rows: [older(blankFailedBlocked(CLOSED_REASON, CHECK_LEDGER)), older(stopsNoTest), zeroBlocked(CLOSED_REASON), looseNotOffered],
+  waiting: {
+    ...ONE_WAITING,
+    line: ONE_UNDECIDED,
+    blocked_reason: "This assessment is closed, so nothing more can be decided in it.",
+  },
+  rows: [
+    older(blankFailedBlocked(CLOSED_REASON, CHECK_LEDGER)),
+    older(stopsNoTest),
+    zeroBlocked(CLOSED_REASON),
+    looseNotOffered,
+  ],
 };
 
 /** The same on a computer without Otto's harness: a decision could not be recorded, so nothing can be decided. */
@@ -803,38 +941,56 @@ export const advisoriesOttoMissing: AdvisoriesView = {
   waiting: {
     ...ONE_WAITING,
     line: ONE_UNDECIDED,
-    blocked_reason: "Otto is not installed on this computer, so nothing can be decided: a decision is recorded in Otto's ledger.",
+    blocked_reason:
+      "Otto is not installed on this computer, so nothing can be decided: a decision is recorded in Otto's ledger.",
   },
   rows: [older(blankFailedNoLedger), older(stopsNoTest), zeroBlocked(NO_OTTO_REASON), looseNotOffered],
 };
 
 // ---- Settings: Test packs and Live Otto, state by state
 
-const PACKS_INTRO: string = "A test pack is a signed update, like an antivirus update: published advisories, a test for each one that has one, a proposed fix, and how each did when it was tried on public copies. Nothing in a pack runs.";
+const PACKS_INTRO: string =
+  "A test pack is a signed update, like an antivirus update: published advisories, a test for each one that has one, a proposed fix, and how each did when it was tried on public copies. Nothing in a pack runs.";
 
-const CHECK: OttoSettingsView["packs"]["check"] = { button: "Check for updates", note: "It looks in the updates folder on this computer, never on the internet." };
+const CHECK: OttoSettingsView["packs"]["check"] = {
+  button: "Check for updates",
+  note: "It looks in the updates folder on this computer, never on the internet.",
+};
 
 const ORDER_NOTE: string = "Packs install in order and are never removed.";
 
 const ANSWERS_RECORDED: OttoSettingsView["answers"] = { line: "Answers recorded during the build", live: false };
 
-const ANSWERS_FOR_A_TEST: OttoSettingsView["answers"] = { line: "Answers written for a test, 17 November 2026", live: false };
+const ANSWERS_FOR_A_TEST: OttoSettingsView["answers"] = {
+  line: "Answers written for a test, 17 November 2026",
+  live: false,
+};
 
-const LIVE_NOTE: string = "A run is one fix request in the app, or one research command. Each call's cost is added up from the tokens the API reports, and a request that could pass the limit is not sent.";
+const LIVE_NOTE: string =
+  "A run is one fix request in the app, or one research command. Each call's cost is added up from the tokens the API reports, and a request that could pass the limit is not sent.";
 
-const SENT_LINE: string = "What is sent to Claude when this is on: the advisory text and, for a fix to your own code, the source file of the failing program and the cases it got wrong. Nothing else leaves this computer.";
+const SENT_LINE: string =
+  "What is sent to Claude when this is on: the advisory text and, for a fix to your own code, the source file of the failing program and the cases it got wrong. Nothing else leaves this computer.";
 
-const PRICE_LINE: string = "Prices used to add up the cost: Anthropic price list, as of 3 November 2026. A price list can go out of date.";
+const PRICE_LINE: string =
+  "Prices used to add up the cost: Anthropic price list, as of 3 November 2026. A price list can go out of date.";
 
 // Live Otto on a computer with no API key: the switch is off and can't be turned on.
 const LIVE_NO_KEY: OttoLiveSection = {
   title: "Live Otto",
   key_present: false,
-  key_line: "No API key is set on this computer. Live Otto reads it from the ANTHROPIC_API_KEY environment variable; the key is never shown, stored or sent anywhere but to Claude.",
-  switch: { label: "Use live Claude", on: false, can_turn_on: false, blocked_reason: "This can be turned on only when an API key is present." },
+  key_line:
+    "No API key is set on this computer. Live Otto reads it from the ANTHROPIC_API_KEY environment variable; the key is never shown, stored or sent anywhere but to Claude.",
+  switch: {
+    label: "Use live Claude",
+    on: false,
+    can_turn_on: false,
+    blocked_reason: "This can be turned on only when an API key is present.",
+  },
   limit: { label: "Spending limit per run (US dollars)", value: "2.00", save: "Save", note: LIVE_NOTE },
   sent_line: SENT_LINE,
-  status_line: "Live Otto is off: no API key is set on this computer. Only the answers recorded during the build are used.",
+  status_line:
+    "Live Otto is off: no API key is set on this computer. Only the answers recorded during the build are used.",
   price_line: PRICE_LINE,
 };
 
@@ -973,7 +1129,8 @@ export const ottoLiveOn: OttoSettingsView = {
     key_line: "An API key is set on this computer.",
     switch: { label: "Use live Claude", on: true, can_turn_on: true, blocked_reason: null },
     limit: { label: "Spending limit per run (US dollars)", value: "3.50", save: "Save", note: LIVE_NOTE },
-    status_line: "Live Otto is on: when an answer is needed, Claude is asked through your key, within the spending limit.",
+    status_line:
+      "Live Otto is on: when an answer is needed, Claude is asked through your key, within the spending limit.",
   },
 };
 
@@ -1095,7 +1252,8 @@ export const advisoryCheckRow: LabRow = {
     code: "failed",
     label: "Failed",
     tone: "fail",
-    plain: "acme-sign 1.4.2 got 2 of the 64 published cases for advisory CVE-2022-21449 wrong: it accepted 2 signatures that must be rejected. One wrong answer is enough to fail.",
+    plain:
+      "acme-sign 1.4.2 got 2 of the 64 published cases for advisory CVE-2022-21449 wrong: it accepted 2 signatures that must be rejected. One wrong answer is enough to fail.",
     also_noticed: [],
     also_noticed_title: "Also noticed",
     summary: "2 of 64 advisory cases wrong. First: case 168, r=0 and s=0 (a signature made of zeros) was accepted.",
@@ -1139,7 +1297,7 @@ export const advisoryCheckRow: LabRow = {
       outputs: [
         {
           title: "Output summary",
-          text: "advisory: CVE-2022-21449   test pack: 2026.11.1   design fingerprint: 7b06a70535ac437d660e31e54dd0f01dedf7dc784d79ae0fc64cffc34e5384cc\ncases run: 64   right: 62   wrong: 2\ntcId 168  \"Signature with special case values r=0 and s=0\"  expected: invalid  got: valid  WRONG\ntcId 171  \"Signature with special case values r=0 and s=n\"  expected: invalid  got: valid  WRONG\ncontrol (broken signer): wrong on 64 of 64 invalid cases\nreference library: 64 of 64 right\nharness: python -I demo/components/harness/driver.py    (job on stdin: verify_batch: 64 cases, one verify call per case, on acme-sign-1.4.2, control-accept-all)\nSummary written by the app from the stored run. The full raw output is in the downloaded evidence JSON.",
+          text: 'advisory: CVE-2022-21449   test pack: 2026.11.1   design fingerprint: 7b06a70535ac437d660e31e54dd0f01dedf7dc784d79ae0fc64cffc34e5384cc\ncases run: 64   right: 62   wrong: 2\ntcId 168  "Signature with special case values r=0 and s=0"  expected: invalid  got: valid  WRONG\ntcId 171  "Signature with special case values r=0 and s=n"  expected: invalid  got: valid  WRONG\ncontrol (broken signer): wrong on 64 of 64 invalid cases\nreference library: 64 of 64 right\nharness: python -I demo/components/harness/driver.py    (job on stdin: verify_batch: 64 cases, one verify call per case, on acme-sign-1.4.2, control-accept-all)\nSummary written by the app from the stored run. The full raw output is in the downloaded evidence JSON.',
         },
       ],
       meta: [
@@ -1161,7 +1319,10 @@ export const advisoryCheckRow: LabRow = {
       title: "Test details, locked before the run",
       fields: [
         { label: "Question", lines: ["Does acme-sign reject the signatures that advisory CVE-2022-21449 describes?"] },
-        { label: "Method", lines: ["Run the verify command once per case and compare its answer with the published one."] },
+        {
+          label: "Method",
+          lines: ["Run the verify command once per case and compare its answer with the published one."],
+        },
         {
           label: "Inputs",
           lines: [
@@ -1169,7 +1330,10 @@ export const advisoryCheckRow: LabRow = {
             "Chosen for advisory CVE-2022-21449 by test pack 2026.11.1 (design fingerprint 7b06a70535ac), and tried on public copies before the pack was signed.",
           ],
         },
-        { label: "Control", lines: ["The same cases run against a deliberately broken signer, which must get every invalid case wrong."] },
+        {
+          label: "Control",
+          lines: ["The same cases run against a deliberately broken signer, which must get every invalid case wrong."],
+        },
         { label: "Pass/fail rule", lines: ["Passed only if all 64 answers are right. Any wrong answer means Failed."] },
       ],
       locked_at: "2026-11-17T19:57:06.696Z",
@@ -1188,7 +1352,8 @@ export const advisoryCheckRow: LabRow = {
           text: "\u2018accepts a signature whose two numbers are zero\u2019",
           link: "A made-up advisory for a test",
           href: "https://openjdk.org/groups/vulnerability/advisories/2022-04-19",
-          covered: "This check reruns the 64 published test cases that match it, from test pack 2026.11.1. The words above are the publisher's; the result comes only from the test.",
+          covered:
+            "This check reruns the 64 published test cases that match it, from test pack 2026.11.1. The words above are the publisher's; the result comes only from the test.",
         },
       ],
     },
@@ -1196,7 +1361,14 @@ export const advisoryCheckRow: LabRow = {
     suggested_fix: null,
     reviewed: null,
     research: null,
-    fix_line: { fix_id: "fix-ecdsa-range-check", lead: "Fix available,", rest: "code not connected", look: "plain", busy: false, button: "View in Fixes" },
+    fix_line: {
+      fix_id: "fix-ecdsa-range-check",
+      lead: "Fix available,",
+      rest: "code not connected",
+      look: "plain",
+      busy: false,
+      button: "View in Fixes",
+    },
   },
   result_status: null,
   after: null,
@@ -1219,7 +1391,8 @@ export const fixesWithTemplate: FixesView = {
       id: "fix-ecdsa-range-check",
       kind: "code",
       title: "acme-sign accepts out-of-range signatures",
-      list_source: "Came from 3 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list), Advisory check: Blank signature accepted (CVE-2022-21449)",
+      list_source:
+        "Came from 3 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list), Advisory check: Blank signature accepted (CVE-2022-21449)",
       source: [
         { t: "text", v: "Came from 3 failed tests on signing component " },
         { t: "mono", v: "acme-sign 1.4.2" },
@@ -1258,7 +1431,12 @@ export const fixesWithTemplate: FixesView = {
         text: "Not started. It starts by itself once the code is connected: every locked test in your plan is rerun on the changed code. This takes about a minute.",
       },
       pull_request: null,
-      approvers: { text: "You pick the reviewers once the proof has passed.", options: null, rows: null, footnote: null },
+      approvers: {
+        text: "You pick the reviewers once the proof has passed.",
+        options: null,
+        rows: null,
+        footnote: null,
+      },
       actions: {
         buttons: [{ action: "connect", label: "Connect demo code", primary: true, enabled: true }],
         note: "Connects a fresh copy of the small demo repository of acme-sign 1.4.2 that comes with the app (the source code and its history of changes, in git's format), for this imported file and every fix in it. The proof then starts by itself.",
@@ -1346,13 +1524,15 @@ export const fixesWithTemplate: FixesView = {
                 },
                 {
                   place: "Apache",
-                  setting: "the `SSLProtocol` line (in the main server config, or in every virtual host on the address)",
+                  setting:
+                    "the `SSLProtocol` line (in the main server config, or in every virtual host on the address)",
                   lead: "",
                   code: "SSLProtocol -all +TLSv1.3",
                 },
                 {
                   place: "A cloud load balancer",
-                  setting: "the security policy (also called a TLS or SSL policy) on the load balancer's HTTPS or TLS listener, the part that accepts incoming connections",
+                  setting:
+                    "the security policy (also called a TLS or SSL policy) on the load balancer's HTTPS or TLS listener, the part that accepts incoming connections",
                   lead: "Choose a policy that allows TLS 1.3 only (not every provider has one), and check it in your provider's own list. On an AWS Application or Network Load Balancer, for example:",
                   code: "ELBSecurityPolicy-TLS13-1-3-2021-06",
                 },
@@ -1404,7 +1584,10 @@ export const fixesWithTemplate: FixesView = {
                   place: "Apache",
                   code: "SSLProtocol -all +TLSv1.2 +TLSv1.3\nSSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305",
                 },
-                { place: "AWS Application or Network Load Balancer (security policy)", code: "ELBSecurityPolicy-TLS13-1-2-Res-2021-06" },
+                {
+                  place: "AWS Application or Network Load Balancer (security policy)",
+                  code: "ELBSecurityPolicy-TLS13-1-2-Res-2021-06",
+                },
               ],
             },
           },
@@ -1434,9 +1617,17 @@ export const fixesWithTemplate: FixesView = {
             title: "What it changes on the demo server on localhost:47135",
             columns: ["Setting", "Now", "With the change"],
             rows: [
-              [[{ t: "text", v: "Key-exchange groups" }], [{ t: "text", v: "P-256" }], [{ t: "text", v: "P-256 (no change)" }]],
+              [
+                [{ t: "text", v: "Key-exchange groups" }],
+                [{ t: "text", v: "P-256" }],
+                [{ t: "text", v: "P-256 (no change)" }],
+              ],
               [[{ t: "text", v: "TLS versions" }], [{ t: "text", v: "1.2 and 1.3" }], [{ t: "text", v: "1.3" }]],
-              [[{ t: "text", v: "Certificate" }], [{ t: "text", v: "ECDSA P-256" }], [{ t: "text", v: "ECDSA P-256 (no change)" }]],
+              [
+                [{ t: "text", v: "Certificate" }],
+                [{ t: "text", v: "ECDSA P-256" }],
+                [{ t: "text", v: "ECDSA P-256 (no change)" }],
+              ],
             ],
           },
           {
@@ -1444,7 +1635,11 @@ export const fixesWithTemplate: FixesView = {
             title: "The same change on your own server software",
             rows: [
               { place: "nginx", lead: "Checked on nginx 1.31.8 with OpenSSL 3.5.9:", code: "ssl_protocols TLSv1.3;" },
-              { place: "Apache", lead: "Checked on Apache 2.4.71 with OpenSSL 3.5.9:", code: "SSLProtocol -all +TLSv1.3" },
+              {
+                place: "Apache",
+                lead: "Checked on Apache 2.4.71 with OpenSSL 3.5.9:",
+                code: "SSLProtocol -all +TLSv1.3",
+              },
               {
                 place: "Your own application",
                 lead: "Not checked on real software. For example:",
@@ -1456,7 +1651,14 @@ export const fixesWithTemplate: FixesView = {
           {
             kind: "text",
             title: "Before you change it",
-            paragraphs: [[{ t: "text", v: "Older clients and partner systems that can't use TLS 1.3 will no longer be able to connect." }]],
+            paragraphs: [
+              [
+                {
+                  t: "text",
+                  v: "Older clients and partner systems that can't use TLS 1.3 will no longer be able to connect.",
+                },
+              ],
+            ],
           },
         ],
         try: null,
@@ -1473,7 +1675,8 @@ export const fixesWithTemplate: FixesView = {
             reason: "A try on a test copy must pass before approval can be asked for.",
           },
           rows: [],
-          footnote: "This version has one login and no separate accounts. Whoever is at the keyboard records each approval, under the name shown.",
+          footnote:
+            "This version has one login and no separate accounts. Whoever is at the keyboard records each approval, under the name shown.",
         },
         applied: null,
         buttons: [
@@ -1505,7 +1708,8 @@ export const fixesWithTemplate: FixesView = {
       question: "Is the scanner file true?",
       counts: { open: 0, in_progress: 0, done: 0 },
       fix_ids: [],
-      empty_text: "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Crypto tests.",
+      empty_text:
+        "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Crypto tests.",
       also: [],
     },
     {
@@ -1539,7 +1743,11 @@ export const fixesWithTemplate: FixesView = {
 };
 
 /** The Overview's next step when the sample was taken (the claims were not verified yet). */
-export const nextStepVerify: AssessmentView["next_step"] = { page: "inventory/import", label: "Verify claims", text: "Check each claim in the file against the real system." };
+export const nextStepVerify: AssessmentView["next_step"] = {
+  page: "inventory/import",
+  label: "Verify claims",
+  text: "Check each claim in the file against the real system.",
+};
 
 // ---- Not among the samples: states the backend words in the same way, written with its own sentences
 
@@ -1558,7 +1766,10 @@ export const ottoRefused: OttoSettingsView = {
     checked_line: "A newer pack is in the updates folder, but it does not follow the installed one.",
     refused: [
       { file: "2026.11.9.json", reason: "The file is not a signed test pack." },
-      { file: "2026.11.3.json", reason: "Pack 2026.11.3 does not follow the installed pack 2026.11.1. Packs install in order." },
+      {
+        file: "2026.11.3.json",
+        reason: "Pack 2026.11.3 does not follow the installed pack 2026.11.1. Packs install in order.",
+      },
     ],
     update: null,
   },
@@ -1581,7 +1792,8 @@ export const ottoLiveOnNoKey: OttoSettingsView = {
   live: {
     ...LIVE_NO_KEY,
     switch: { ...LIVE_NO_KEY.switch, on: true },
-    status_line: "Live Otto is switched on, but no API key is set on this computer, so only the answers recorded during the build are used.",
+    status_line:
+      "Live Otto is switched on, but no API key is set on this computer, so only the answers recorded during the build are used.",
   },
 };
 

@@ -2,6 +2,7 @@
 
 Only a scrypt hash and a random salt are stored. The password is never logged, printed or returned.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -20,7 +21,7 @@ COOKIE_NAME = "evidence_lab_session"
 
 
 def _hash(password: str, salt: bytes) -> bytes:
-    return hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2 ** 15, r=8, p=1, dklen=32, maxmem=2 ** 27)
+    return hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**15, r=8, p=1, dklen=32, maxmem=2**27)
 
 
 def setup_required(db: Session) -> bool:

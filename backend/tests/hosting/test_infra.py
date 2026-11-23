@@ -1,4 +1,5 @@
 """Hosting: the cache, the file store, the database by URL and the health check."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -19,8 +20,8 @@ from app.infra.storage import LocalStore, check_key, make_store, safe_name
 from app.main import create_app
 
 
-
 # ---------------------------------------------------------------- cache
+
 
 def test_memory_cache_takes_a_value_once_and_forgets_it_when_it_expires(monkeypatch):
     c = MemoryCache()
@@ -52,6 +53,7 @@ def test_redis_cache():
 
 # ---------------------------------------------------------------- file store
 
+
 def test_keys_stay_inside_the_store(tmp_path):
     for bad in ("../x", "a/../../x", "/abs", "a//b", "", "a\\b"):
         with pytest.raises(ValueError):
@@ -65,7 +67,7 @@ def test_keys_stay_inside_the_store(tmp_path):
 
 
 def test_make_store(tmp_path):
-    assert make_store(None) is None    # the default: nothing is copied anywhere
+    assert make_store(None) is None  # the default: nothing is copied anywhere
     assert make_store(str(tmp_path / "x")).kind == "local"
     assert make_store(f"file://{tmp_path}/y").kind == "local"
     for bad in ("s3://", "gs://", "ftp://host/x"):
@@ -76,6 +78,7 @@ def test_make_store(tmp_path):
 def test_s3_store_against_a_stand_in(monkeypatch):
     moto = pytest.importorskip("moto", reason="moto (a stand-in for S3) is not installed")
     import boto3
+
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-only")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-only")
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
@@ -118,11 +121,13 @@ def test_the_scanner_file_of_an_import_is_copied_to_the_store(stored_client):
 def test_a_store_that_fails_changes_no_answer(stored_client, monkeypatch):
     def broken(*_a, **_k):
         raise OSError("the store is down")
+
     monkeypatch.setattr(stored_client.app.state.lab.store, "put", broken)
     assert stored_client.post("/api/import/demo").status_code == 200
 
 
 # ---------------------------------------------------------------- database
+
 
 def test_urls():
     assert normalise_url("postgres://u:p@h/db") == "postgresql+psycopg://u:p@h/db"
@@ -138,15 +143,15 @@ def test_settings_from_the_environment(monkeypatch, tmp_path):
     monkeypatch.setenv("EVIDENCE_LAB_GITHUB_ALLOWED_ORGS", "Isogeny-Labs, other")
     s = load_settings()
     assert s.database == "postgresql://u@db/evidence"
-    monkeypatch.setenv("EVIDENCE_LAB_DATABASE_PASSWORD", "p@ss/word")   # from a secret store, kept apart from the URL
+    monkeypatch.setenv("EVIDENCE_LAB_DATABASE_PASSWORD", "p@ss/word")  # from a secret store, kept apart from the URL
     assert load_settings().database == "postgresql://u:p%40ss%2Fword@db/evidence"
     monkeypatch.delenv("EVIDENCE_LAB_DATABASE_PASSWORD")
     assert s.github and s.github.allowed_orgs == frozenset({"isogeny-labs", "other"}) and not s.github.open_to_anyone
-    assert not s.password_login    # with the GitHub login set up, the password login is off unless asked for
+    assert not s.password_login  # with the GitHub login set up, the password login is off unless asked for
     monkeypatch.setenv("EVIDENCE_LAB_PASSWORD_LOGIN", "on")
     assert load_settings().password_login
     monkeypatch.delenv("EVIDENCE_LAB_GITHUB_ALLOWED_ORGS")
-    with pytest.raises(SystemExit, match="ALLOW_ANYONE"):   # who may log in is never left open by accident
+    with pytest.raises(SystemExit, match="ALLOW_ANYONE"):  # who may log in is never left open by accident
         load_settings()
     monkeypatch.setenv("EVIDENCE_LAB_GITHUB_ALLOW_ANYONE", "on")
     assert load_settings().github.open_to_anyone
@@ -155,7 +160,7 @@ def test_settings_from_the_environment(monkeypatch, tmp_path):
     with pytest.raises(SystemExit):
         load_settings()
     monkeypatch.delenv("EVIDENCE_LAB_GITHUB_CLIENT_ID")
-    with pytest.raises(SystemExit):   # password off with no GitHub login: nobody could log in
+    with pytest.raises(SystemExit):  # password off with no GitHub login: nobody could log in
         load_settings()
 
 
@@ -172,31 +177,42 @@ def test_a_sqlite_file_from_before_gets_the_new_session_column(tmp_path):
         assert "github_user_id" in cols
 
 
-@pytest.mark.skipif(not os.environ.get("EVIDENCE_LAB_TEST_DATABASE_URL"),
-                    reason="EVIDENCE_LAB_TEST_DATABASE_URL (a PostgreSQL server) is not set")
+@pytest.mark.skipif(
+    not os.environ.get("EVIDENCE_LAB_TEST_DATABASE_URL"),
+    reason="EVIDENCE_LAB_TEST_DATABASE_URL (a PostgreSQL server) is not set",
+)
 def test_postgres_keeps_the_append_only_rules(client):
     lab = client.app.state.lab
     assert lab.db_engine.dialect.name == "postgresql"
     client.post("/api/import/demo")
     with lab.db() as db:
-        for sql in ("UPDATE import_files SET filename = 'x'", "DELETE FROM import_files", "TRUNCATE import_files",
-                    "DELETE FROM projects", "TRUNCATE projects CASCADE"):
+        for sql in (
+            "UPDATE import_files SET filename = 'x'",
+            "DELETE FROM import_files",
+            "TRUNCATE import_files",
+            "DELETE FROM projects",
+            "TRUNCATE projects CASCADE",
+        ):
             with pytest.raises(DBAPIError, match="append-only|never deleted"):
                 db.execute(text(sql))
             db.rollback()
 
 
-@pytest.mark.skipif(not os.environ.get("EVIDENCE_LAB_TEST_DATABASE_URL"),
-                    reason="EVIDENCE_LAB_TEST_DATABASE_URL (a PostgreSQL server) is not set")
+@pytest.mark.skipif(
+    not os.environ.get("EVIDENCE_LAB_TEST_DATABASE_URL"),
+    reason="EVIDENCE_LAB_TEST_DATABASE_URL (a PostgreSQL server) is not set",
+)
 def test_postgres_keeps_text_as_long_as_sqlite_does(client):
     """SQLite never enforced String(255); on PostgreSQL the columns have no length either."""
     from app.config import DEMO_CBOM
     from conftest import upload
+
     long_name = "a" * 290 + ".json"
     assert upload(client, long_name, DEMO_CBOM.read_bytes()).status_code == 200
 
 
 # ---------------------------------------------------------------- health
+
 
 def test_health(anon_client):
     r = anon_client.get("/api/health")
@@ -215,6 +231,7 @@ def test_health_answers_a_load_balancers_probe_by_address_and_nothing_else_does(
 def test_health_says_when_a_part_does_not_answer(anon_client, monkeypatch):
     def down():
         raise ConnectionError("down")
+
     monkeypatch.setattr(anon_client.app.state.lab.cache, "ping", down)
     r = anon_client.get("/api/health")
     assert r.status_code == 503 and r.json()["cache"] == {"kind": "memory", "ok": False}
@@ -228,4 +245,3 @@ def test_allowed_hosts_from_the_public_url(settings):
         assert c.get("/api/session").status_code == 200
     with TestClient(create_app(s), base_url="http://elsewhere.example") as c:
         assert c.get("/api/session").status_code == 400
-

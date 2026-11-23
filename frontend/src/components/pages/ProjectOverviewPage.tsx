@@ -1,9 +1,25 @@
 import { useEffect, useState } from "react";
-import { api, errorMessage, type OttoProjectBlock, type ProjectOverview, type ProjectOverviewRow, type Workspace } from "../../api";
+import {
+  api,
+  errorMessage,
+  type OttoProjectBlock,
+  type ProjectOverview,
+  type ProjectOverviewRow,
+  type Workspace,
+} from "../../api";
 import { linkRoute, routeHref } from "../../router";
 import { DataTable, FilterSelect, PageHeader, type Column } from "../layout";
 import { ErrorBox, SecondaryButton, StatusChip, formatTime } from "../ui";
-import { ActionsMenu, ClaimsCell, FixesCell, InlineForm, Section, SystemsCell, TestsCell, folderOptions } from "./parts";
+import {
+  ActionsMenu,
+  ClaimsCell,
+  FixesCell,
+  InlineForm,
+  Section,
+  SystemsCell,
+  TestsCell,
+  folderOptions,
+} from "./parts";
 
 /** The three columns of the block below, on a screen wide enough for columns: the assessment, how many proposals wait
  * in it, and what changed since the pack. */
@@ -25,7 +41,10 @@ function OttoProjectSection({ otto }: { otto: OttoProjectBlock }) {
         <div className="rounded-xl border border-slate-800 text-sm">
           {otto.since_title ? (
             // The heading of the third column, on a screen wide enough to have columns.
-            <div aria-hidden="true" className={`hidden gap-x-4 border-b border-slate-800 px-4 py-2 text-xs font-medium text-slate-400 md:grid ${OTTO_COLS}`}>
+            <div
+              aria-hidden="true"
+              className={`hidden gap-x-4 border-b border-slate-800 px-4 py-2 text-xs font-medium text-slate-400 md:grid ${OTTO_COLS}`}
+            >
               <span />
               <span />
               <span>{otto.since_title}</span>
@@ -57,7 +76,9 @@ function OttoProjectSection({ otto }: { otto: OttoProjectBlock }) {
                 <div className="min-w-0">
                   {row.since.length > 0 ? (
                     <>
-                      {otto.since_title ? <p className="text-xs font-medium text-slate-400 md:sr-only">{otto.since_title}</p> : null}
+                      {otto.since_title ? (
+                        <p className="text-xs font-medium text-slate-400 md:sr-only">{otto.since_title}</p>
+                      ) : null}
                       <ul data-testid="project-otto-since" className="space-y-0.5 text-slate-300">
                         {row.since.map((line, i) => (
                           <li key={i} className="break-words">
@@ -156,7 +177,9 @@ export function ProjectOverviewPage({
         <>
           <StatusChip size="sm" label={a.status.label} tone={a.status.key === "open" ? "pass" : "neutral"} />
           <span className="mt-1 block text-xs text-slate-400">
-            {a.status.signoff ? `by ${a.status.signoff.by}, ${formatTime(a.status.signoff.at)}` : `since ${formatTime(a.created_at)}`}
+            {a.status.signoff
+              ? `by ${a.status.signoff.by}, ${formatTime(a.status.signoff.at)}`
+              : `since ${formatTime(a.created_at)}`}
           </span>
         </>
       ),
@@ -199,8 +222,14 @@ export function ProjectOverviewPage({
                   { label: "Rename", onClick: () => setForm("rename") },
                   { label: "Move to folder", onClick: () => setForm("move") },
                   project.archived
-                    ? { label: "Unarchive", onClick: () => void act(() => api.changeProject(project.id, { archived: false })) }
-                    : { label: "Archive", onClick: () => void act(() => api.changeProject(project.id, { archived: true })) },
+                    ? {
+                        label: "Unarchive",
+                        onClick: () => void act(() => api.changeProject(project.id, { archived: false })),
+                      }
+                    : {
+                        label: "Archive",
+                        onClick: () => void act(() => api.changeProject(project.id, { archived: true })),
+                      },
                 ]}
               />
             ) : null}
@@ -227,11 +256,17 @@ export function ProjectOverviewPage({
           title="Move this project to a folder"
           submitLabel="Move"
           nameLabel=""
-          destination={{ label: "Folder", options: folderOptions(workspace), initial: project.folder_id === null ? "" : String(project.folder_id) }}
+          destination={{
+            label: "Folder",
+            options: folderOptions(workspace),
+            initial: project.folder_id === null ? "" : String(project.folder_id),
+          }}
           busy={busy}
           error={error}
           onCancel={() => setForm(null)}
-          onSubmit={(_n, dest) => void act(() => api.changeProject(project.id, { folder_id: dest ? Number(dest) : null, move: true }))}
+          onSubmit={(_n, dest) =>
+            void act(() => api.changeProject(project.id, { folder_id: dest ? Number(dest) : null, move: true }))
+          }
         />
       ) : null}
 
@@ -239,7 +274,12 @@ export function ProjectOverviewPage({
         title="Assessments"
         actions={
           <label className="flex items-center gap-2 text-sm text-slate-400">
-            <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} className="h-4 w-4 accent-sky-500" />
+            <input
+              type="checkbox"
+              checked={archived}
+              onChange={(e) => setArchived(e.target.checked)}
+              className="h-4 w-4 accent-sky-500"
+            />
             Show archived
           </label>
         }
@@ -285,13 +325,21 @@ export function ProjectOverviewPage({
             {view.compare ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {view.compare.lists.map((list) => (
-                  <section key={list.key} data-testid="compare-list" data-list={list.key} className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm">
+                  <section
+                    key={list.key}
+                    data-testid="compare-list"
+                    data-list={list.key}
+                    className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm"
+                  >
                     <h3 className="text-xs font-medium text-slate-400">{list.title}</h3>
                     <p className="mt-1 text-xl font-semibold tabular-nums text-slate-50">{list.items.length}</p>
                     <ul className="mt-2 space-y-1">
                       {list.items.map((item, i) => (
                         <li key={i}>
-                          <a href={routeHref(linkRoute(item.link, item.link.assessment_id ?? 0))} className="text-sky-300 hover:underline">
+                          <a
+                            href={routeHref(linkRoute(item.link, item.link.assessment_id ?? 0))}
+                            className="text-sky-300 hover:underline"
+                          >
                             {item.label}
                           </a>
                           <span className="block text-xs text-slate-400">{item.sub}</span>
@@ -312,7 +360,10 @@ export function ProjectOverviewPage({
 
       <Section title="Shared systems">
         {view && view.shared.length > 0 ? (
-          <ul data-testid="shared-systems" className="divide-y divide-slate-800 rounded-xl border border-slate-800 text-sm">
+          <ul
+            data-testid="shared-systems"
+            className="divide-y divide-slate-800 rounded-xl border border-slate-800 text-sm"
+          >
             {view.shared.map((s) => (
               <li key={s.name} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-2.5">
                 <span className="font-mono text-slate-100">{s.name}</span>

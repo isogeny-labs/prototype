@@ -96,7 +96,9 @@ describe("one of Otto's proposals", () => {
 
   it("a button the backend would refuse is off and says why", () => {
     const locked = acceptedProposal({
-      buttons: [{ key: "undo", label: "Undo", can: false, blocked_reason: "This check has run, so it stays in the test plan." }],
+      buttons: [
+        { key: "undo", label: "Undo", can: false, blocked_reason: "This check has run, so it stays in the test plan." },
+      ],
       note: null,
     });
     mockApi({});
@@ -107,12 +109,19 @@ describe("one of Otto's proposals", () => {
 
   it("a refusal from the backend is shown in its own words, and nothing is handed back", async () => {
     mockApi({
-      [route("accept")]: { status: 409, body: { error: { message: "This assessment is closed. Start a new one to continue.", line: null, field: null } } },
+      [route("accept")]: {
+        status: 409,
+        body: {
+          error: { message: "This assessment is closed. Start a new one to continue.", line: null, field: null },
+        },
+      },
     });
     const decided = vi.fn();
     render(<ProposalCard planId={7} proposal={proposal()} onDecided={decided} />);
     fireEvent.click(screen.getByTestId("proposal-accept"));
-    expect(text(await screen.findByText("This assessment is closed. Start a new one to continue."))).toContain("closed");
+    expect(text(await screen.findByText("This assessment is closed. Start a new one to continue."))).toContain(
+      "closed",
+    );
     expect(decided).not.toHaveBeenCalled();
   });
 

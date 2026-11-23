@@ -1,4 +1,5 @@
 """Turning the many spellings of algorithm, TLS version and group names into one plain spelling."""
+
 from __future__ import annotations
 
 import re
@@ -19,14 +20,26 @@ ALGORITHM_NAMES: tuple[tuple[str, str], ...] = (
 )
 
 _CURVES = {
-    "P256": "P-256", "SECP256R1": "P-256", "PRIME256V1": "P-256", "NISTP256": "P-256",
-    "P384": "P-384", "SECP384R1": "P-384", "NISTP384": "P-384",
-    "P521": "P-521", "SECP521R1": "P-521", "NISTP521": "P-521",
+    "P256": "P-256",
+    "SECP256R1": "P-256",
+    "PRIME256V1": "P-256",
+    "NISTP256": "P-256",
+    "P384": "P-384",
+    "SECP384R1": "P-384",
+    "NISTP384": "P-384",
+    "P521": "P-521",
+    "SECP521R1": "P-521",
+    "NISTP521": "P-521",
 }
 # Key-exchange groups we can probe on TLS 1.3 -> name the openssl command line understands.
 GROUPS = {
-    "X25519": "X25519", "P-256": "P-256", "P-384": "P-384", "P-521": "P-521",
-    "X448": "X448", "ffdhe2048": "ffdhe2048", "ffdhe3072": "ffdhe3072",
+    "X25519": "X25519",
+    "P-256": "P-256",
+    "P-384": "P-384",
+    "P-521": "P-521",
+    "X448": "X448",
+    "ffdhe2048": "ffdhe2048",
+    "ffdhe3072": "ffdhe3072",
 }
 
 

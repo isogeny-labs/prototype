@@ -5,6 +5,7 @@ the Advisories page, and by the research side's trial script when it tries a des
 joins the plan like a test added with "+ Add test" (origin "added"), is locked like every test, and is stamped as
 proposed by the pack, never by the rule engine or the reviewer. Nothing here runs anything.
 """
+
 from __future__ import annotations
 
 from app.db import PlanItemRow, PlanRow, TestSpecRow
@@ -12,7 +13,7 @@ from app.engine import research
 from app.lab.testlab import read_spec
 from app.otto import designs
 
-TRIAL_PACK = {"version": "trial", "fingerprint": "0" * 64}    # a design tried on a public copy before any pack holds it
+TRIAL_PACK = {"version": "trial", "fingerprint": "0" * 64}  # a design tried on a public copy before any pack holds it
 
 
 def programs_that_fit(claims: list[dict]) -> list[dict]:
@@ -26,9 +27,17 @@ def advisory_info(advisory: dict) -> dict:
     reading = advisory["reading"]
     quote = reading["weakness_quote"]
     source = next((s for s in advisory["sources"] if s["label"] == quote["source"]), advisory["sources"][0])
-    return {"plain_name": reading["plain_name"], "quote": quote["text"],
-            # the link is the address the quoted text was read from (for a file in a repository: the file at its pinned commit)
-            "source": {"title": source["title"], "url": source["read_from"], "published": advisory["published"], "checked": source["fetched"]}}
+    return {
+        "plain_name": reading["plain_name"],
+        "quote": quote["text"],
+        # the link is the address the quoted text was read from (for a file in a repository: the file at its pinned commit)
+        "source": {
+            "title": source["title"],
+            "url": source["read_from"],
+            "published": advisory["published"],
+            "checked": source["fetched"],
+        },
+    }
 
 
 def existing_item(lab, db, plan_id: int, design_sha256: str, program_ref: str) -> PlanItemRow | None:
@@ -38,13 +47,16 @@ def existing_item(lab, db, plan_id: int, design_sha256: str, program_ref: str) -
         if row is None or row.kind != research.ADVISORY_KIND:
             continue
         spec, _ = read_spec(row)
-        if ((spec.get("inputs") or {}).get("advisory") or {}).get("design_sha256") == design_sha256 \
-                and (spec.get("target") or {}).get("claim") == program_ref:
+        if ((spec.get("inputs") or {}).get("advisory") or {}).get("design_sha256") == design_sha256 and (
+            spec.get("target") or {}
+        ).get("claim") == program_ref:
             return item
     return None
 
 
-def add_design_item(lab, db, plan: PlanRow, design: dict, pack: dict, info: dict, program: dict) -> tuple[PlanItemRow, str, bool]:
+def add_design_item(
+    lab, db, plan: PlanRow, design: dict, pack: dict, info: dict, program: dict
+) -> tuple[PlanItemRow, str, bool]:
     """Lock the check of this design for this program and put it at the end of the plan. Returns (the plan item, the
     locked test's fingerprint, was it new?). A check that was removed from the plan comes back, with its runs."""
     digest = designs.design_sha256(design)

@@ -1,5 +1,6 @@
 """Phase 4d: the four Dependencies routes, through the web, in demo mode. Every answer is checked against its shape
 (tests/api_shapes.py). A broken file is refused with one plain sentence and the earlier list stays in place."""
+
 from pathlib import Path
 
 import pytest
@@ -9,8 +10,12 @@ DEMO = REPO / "demo"
 
 
 def _add(client, pid: int, path: Path, name: str | None = None):
-    return client.post(f"/api/plans/{pid}/dependencies", params={"filename": name or path.name}, content=path.read_bytes(),
-                       headers={"Content-Type": "application/octet-stream"})
+    return client.post(
+        f"/api/plans/{pid}/dependencies",
+        params={"filename": name or path.name},
+        content=path.read_bytes(),
+        headers={"Content-Type": "application/octet-stream"},
+    )
 
 
 @pytest.fixture
@@ -21,8 +26,11 @@ def plan(client):
 
 
 def _answers(view: dict) -> dict:
-    return {(g["label"], r["label"]): tuple((c["question"], c["answer"], c["label"], c["state"]) for c in r["cells"])
-            for g in view["groups"] for r in g["rows"]}
+    return {
+        (g["label"], r["label"]): tuple((c["question"], c["answer"], c["label"], c["state"]) for c in r["cells"])
+        for g in view["groups"]
+        for r in g["rows"]
+    }
 
 
 def test_no_list_yet_says_so(client, plan):
@@ -44,7 +52,10 @@ def test_add_tie_and_measure_in_demo_mode(client, plan):
     pay = next(g for g in tied["groups"] if g["label"] == "acme-pay-server 1.0.0")
     assert pay["system"] == server and pay["tie_source"] == "user"
     system = next(s for s in tied["systems"] if s["key"] == server)
-    assert [line["text"].split(":")[0] for line in system["blocker_lines"]] == ["Blocks its key exchange track", "Blocks its authentication track"]
+    assert [line["text"].split(":")[0] for line in system["blocker_lines"]] == [
+        "Blocks its key exchange track",
+        "Blocks its authentication track",
+    ]
     assert system["without_answer"] == 1
     # its text-only Fixes entry, through the web (its answer is checked against the Fixes shape)
     fixes = client.get(f"/api/plans/{pid}/fixes").json()["fixes"]
@@ -61,10 +72,15 @@ def test_add_tie_and_measure_in_demo_mode(client, plan):
 
 def test_tie_refuses_what_is_not_there(client, plan):
     _, pid = plan
-    assert client.post(f"/api/plans/{pid}/dependencies/tie", json={"top": "x", "system": ""}).status_code == 409   # no list yet
+    assert (
+        client.post(f"/api/plans/{pid}/dependencies/tie", json={"top": "x", "system": ""}).status_code == 409
+    )  # no list yet
     view = _add(client, pid, DEMO / "dependencies-demo.cdx.json").json()
     top = view["groups"][1]["key"]
-    assert client.post(f"/api/plans/{pid}/dependencies/tie", json={"top": "no-such-entry", "system": ""}).status_code == 404
+    assert (
+        client.post(f"/api/plans/{pid}/dependencies/tie", json={"top": "no-such-entry", "system": ""}).status_code
+        == 404
+    )
     bad = client.post(f"/api/plans/{pid}/dependencies/tie", json={"top": top, "system": "server:example.com:443"})
     assert bad.status_code == 422 and bad.json()["error"]["field"] == "system"
 
@@ -77,15 +93,19 @@ def test_broken_files_are_refused_with_one_sentence_and_the_earlier_list_stays(c
     assert refused.status_code == 422
     message = refused.json()["error"]["message"]
     assert message.endswith("Evidence Lab reads dependency lists in CycloneDX JSON (1.5 or 1.6) or SPDX JSON (2.3).")
-    assert message.count(". ") <= 1 and "\n" not in message                    # one plain sentence, then what it reads
+    assert message.count(". ") <= 1 and "\n" not in message  # one plain sentence, then what it reads
     view = client.get(f"/api/import/{before['import_id']}/dependencies").json()
     assert view["list_file"] == before["list_file"] and _answers(view) == _answers(before)
 
 
 def test_too_large_is_refused_before_reading(client, plan):
     _, pid = plan
-    answer = client.post(f"/api/plans/{pid}/dependencies", params={"filename": "big.json"}, content=b"{" + b" " * (16 * 1024 * 1024 + 1),
-                         headers={"Content-Type": "application/octet-stream"})
+    answer = client.post(
+        f"/api/plans/{pid}/dependencies",
+        params={"filename": "big.json"},
+        content=b"{" + b" " * (16 * 1024 * 1024 + 1),
+        headers={"Content-Type": "application/octet-stream"},
+    )
     assert answer.status_code == 422 and "16 MB" in answer.json()["error"]["message"]
 
 
@@ -98,6 +118,10 @@ def test_spdx_copy_gives_the_same_answers(client, plan):
 
 
 def test_routes_need_the_login(anon_client):
-    for method, url in (("get", "/api/import/1/dependencies"), ("post", "/api/plans/1/dependencies"),
-                        ("post", "/api/plans/1/dependencies/tie"), ("post", "/api/plans/1/dependencies/measure")):
+    for method, url in (
+        ("get", "/api/import/1/dependencies"),
+        ("post", "/api/plans/1/dependencies"),
+        ("post", "/api/plans/1/dependencies/tie"),
+        ("post", "/api/plans/1/dependencies/measure"),
+    ):
         assert getattr(anon_client, method)(url).status_code == 401

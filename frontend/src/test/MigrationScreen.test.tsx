@@ -19,7 +19,8 @@ async function open(view: MigrationView = migrationView, extra: Parameters<typeo
 const button = (name: string | RegExp) => screen.getByRole("button", { name }) as HTMLButtonElement;
 const cards = () => screen.getAllByTestId("system-card");
 const card = (name: string) => cards().find((c) => c.textContent?.includes(name))!;
-const option = (key: string) => screen.getAllByTestId("option-card").find((c) => c.getAttribute("data-option") === key)!;
+const option = (key: string) =>
+  screen.getAllByTestId("option-card").find((c) => c.getAttribute("data-option") === key)!;
 const lastBody = (fetchMock: ReturnType<typeof mockApi>, key: string) => {
   const found = fetchMock.mock.calls.filter(([url, init]) => `${init?.method ?? "GET"} ${String(url)}` === key).at(-1);
   return JSON.parse(String(found?.[1]?.body));
@@ -59,7 +60,9 @@ describe("Migration, header and Systems view", () => {
     // As before the panel, Systems opens on the first system; the panel shows it.
     expect(cards().map((c) => c.getAttribute("aria-current"))).toEqual(["true", null, null, null, null, null, null]);
     expect(screen.getByRole("heading", { level: 2, name: "localhost:8451" })).not.toBeNull();
-    expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe("server:localhost:8451");
+    expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe(
+      "server:localhost:8451",
+    );
     expect(document.body.textContent).not.toMatch(/score/i);
     // With the panel closed, the full row comes back.
     fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
@@ -78,8 +81,14 @@ describe("Migration, header and Systems view", () => {
     expect(screen.getByTestId("today-sentence").textContent).toBe(
       "It refused every post-quantum key exchange we offered and completed a classical handshake, so it is Classical.",
     );
-    expect(screen.getByTestId("file-note").textContent).toBe("The file says: this server is Hybrid. Verify marked that claim False.");
-    expect(today.getAllByRole("term").map((d) => d.textContent)).toEqual(["Hybrid key exchange", "Classical key exchange", "Certificate"]);
+    expect(screen.getByTestId("file-note").textContent).toBe(
+      "The file says: this server is Hybrid. Verify marked that claim False.",
+    );
+    expect(today.getAllByRole("term").map((d) => d.textContent)).toEqual([
+      "Hybrid key exchange",
+      "Classical key exchange",
+      "Certificate",
+    ]);
     expect(text(today.getAllByRole("definition")[0])).toBe("Refused: X25519MLKEM768 and two others measured");
     expect(screen.getByTestId("today-control").textContent).toMatch(/^Control: /);
 
@@ -101,12 +110,24 @@ describe("Migration, header and Systems view", () => {
       "yes",
     ]);
     expect((screen.getByLabelText("Data lifespan") as HTMLSelectElement).value).toBe("long");
-    expect(screen.getAllByTestId("setting-source").map((s) => s.textContent)).toEqual(["from the file", "from the file", "assumed"]);
+    expect(screen.getAllByTestId("setting-source").map((s) => s.textContent)).toEqual([
+      "from the file",
+      "from the file",
+      "assumed",
+    ]);
     expect(screen.getByText("Who can reach it or record its traffic?")).not.toBeNull();
 
     const cost = within(screen.getByTestId("migration-cost"));
-    expect(cost.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["", "Today (classical)", "Hybrid", "Full post-quantum"]);
-    expect(cost.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["Key share, client to server", "Handshake time, median of 10"]);
+    expect(cost.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "",
+      "Today (classical)",
+      "Hybrid",
+      "Full post-quantum",
+    ]);
+    expect(cost.getAllByRole("rowheader").map((h) => h.textContent)).toEqual([
+      "Key share, client to server",
+      "Handshake time, median of 10",
+    ]);
     expect(cost.getByText("published: FIPS 203 + X25519")).not.toBeNull();
 
     const recBox = within(screen.getByTestId("migration-recommendation"));
@@ -123,11 +144,11 @@ describe("Migration, header and Systems view", () => {
     expect(options.map((o) => o.getAttribute("data-option"))).toEqual(["keep", "hybrid", "full_pq", "wrap"]);
     expect(options.map((o) => o.getAttribute("data-highlighted"))).toEqual(["false", "true", "false", "false"]);
     expect(within(option("hybrid")).getByText("Recommended")).not.toBeNull();
-    expect(within(option("hybrid")).getAllByTestId("option-section").map((s) => within(s).getByRole("heading").textContent)).toEqual([
-      "Cost",
-      "Blockers",
-      "To manage",
-    ]);
+    expect(
+      within(option("hybrid"))
+        .getAllByTestId("option-section")
+        .map((s) => within(s).getByRole("heading").textContent),
+    ).toEqual(["Cost", "Blockers", "To manage"]);
     expect(within(option("keep")).getByRole("button", { name: "Choose this option" })).not.toBeNull();
     expect(screen.getByTestId("choices-note").textContent).toBe(migrationView.systems[1]!.choices_note);
     expect(screen.queryByTestId("migration-choice")).toBeNull();
@@ -161,7 +182,9 @@ describe("Migration, header and Systems view", () => {
   it("draws nothing the view doesn't send: no options, cost or evidence for a system it couldn't check", async () => {
     await open();
     fireEvent.click(card("acme-sign 9.9"));
-    expect(screen.getByTestId("recommendation-none").textContent).toBe("There is no recommendation until its status can be measured.");
+    expect(screen.getByTestId("recommendation-none").textContent).toBe(
+      "There is no recommendation until its status can be measured.",
+    );
     expect(screen.queryByTestId("option-card")).toBeNull();
     expect(screen.queryByTestId("migration-options")).toBeNull();
     expect(screen.queryByText("The four options")).toBeNull();
@@ -188,7 +211,9 @@ describe("Migration, settings", () => {
     const answer = withSystem(migrationView, "server:localhost:8452", {
       settings: {
         ...migrationView.systems[1]!.settings,
-        fields: migrationView.systems[1]!.settings.fields.map((f) => (f.field === "lifespan" ? { ...f, value: "short", source: "set by you" } : f)),
+        fields: migrationView.systems[1]!.settings.fields.map((f) =>
+          f.field === "lifespan" ? { ...f, value: "short", source: "set by you" } : f,
+        ),
       },
       plan_line: "Plan: Hybrid · Phase 2",
     });
@@ -245,7 +270,9 @@ describe("Migration, choosing an option", () => {
     await open();
     fireEvent.click(card("localhost:8452"));
     fireEvent.click(within(option("hybrid")).getByRole("button", { name: "Choose this option" }));
-    expect((within(option("hybrid")).getByRole("button", { name: "Save choice" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((within(option("hybrid")).getByRole("button", { name: "Save choice" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
   });
 
   it("sends the reason and the review date, closes the box and draws the saved choice and its history", async () => {
@@ -255,7 +282,9 @@ describe("Migration, choosing an option", () => {
         history: ["Earlier: Hybrid, 14 Nov 2026, 5:10 PM"],
       },
     });
-    const { fetchMock, onPlanChanged } = await open(migrationView, { "POST /api/plans/1/migration/choice": { body: answer } });
+    const { fetchMock, onPlanChanged } = await open(migrationView, {
+      "POST /api/plans/1/migration/choice": { body: answer },
+    });
     fireEvent.click(card("localhost:8452"));
     fireEvent.click(within(option("keep")).getByRole("button", { name: "Choose this option" }));
     fireEvent.change(screen.getByLabelText("Review date"), { target: { value: "2027-05-14" } });
@@ -268,8 +297,12 @@ describe("Migration, choosing an option", () => {
       reason: "Replaced next year.",
       review_date: "2027-05-14",
     });
-    expect(within(screen.getByTestId("migration-choice")).getByText(/^Your choice: Keep classical for now/)).not.toBeNull();
-    expect(screen.getAllByTestId("choice-history").map((h) => h.textContent)).toEqual(["Earlier: Hybrid, 14 Nov 2026, 5:10 PM"]);
+    expect(
+      within(screen.getByTestId("migration-choice")).getByText(/^Your choice: Keep classical for now/),
+    ).not.toBeNull();
+    expect(screen.getAllByTestId("choice-history").map((h) => h.textContent)).toEqual([
+      "Earlier: Hybrid, 14 Nov 2026, 5:10 PM",
+    ]);
     // The screen tells the app from an effect just after it draws: wait for the call itself.
     await waitFor(() => expect(onPlanChanged).toHaveBeenCalledTimes(2));
   });
@@ -300,7 +333,9 @@ describe("Migration, choosing an option", () => {
     fireEvent.change(screen.getByLabelText(/^Your reason/), { target: { value: "Because." } });
     fireEvent.click(button("Save choice"));
     const box = within(screen.getByTestId("choose-box"));
-    expect((await box.findByTestId("choose-error")).textContent).toBe("The review date can't be later than 31 December 2030.");
+    expect((await box.findByTestId("choose-error")).textContent).toBe(
+      "The review date can't be later than 31 December 2030.",
+    );
     expect((box.getByLabelText(/^Your reason/) as HTMLTextAreaElement).value).toBe("Because.");
     expect((box.getByRole("button", { name: "Save choice" }) as HTMLButtonElement).disabled).toBe(false);
     // The screen tells the app from an effect just after it draws: wait for the call itself.
@@ -319,7 +354,9 @@ describe("Migration, View in Fixes", () => {
     const phase2 = screen.getAllByTestId("roadmap-band").find((b) => b.getAttribute("data-band") === "phase2")!;
     fireEvent.click(within(phase2).getByRole("button", { name: "View in Fixes" }));
     expect(onViewFix).toHaveBeenLastCalledWith(SIGN_FIX);
-    expect(within(screen.getByTestId("migration-roadmap")).getAllByRole("button", { name: "View in Fixes" })).toHaveLength(2);
+    expect(
+      within(screen.getByTestId("migration-roadmap")).getAllByRole("button", { name: "View in Fixes" }),
+    ).toHaveLength(2);
   });
 });
 
@@ -341,7 +378,14 @@ describe("Migration, Roadmap view", () => {
       "Wrapped",
       "Not placed yet",
     ]);
-    expect(bands.map((b) => b.getAttribute("data-look"))).toEqual(["plain", "highlight", "plain", "plain", "plain", "dashed"]);
+    expect(bands.map((b) => b.getAttribute("data-look"))).toEqual([
+      "plain",
+      "highlight",
+      "plain",
+      "plain",
+      "plain",
+      "dashed",
+    ]);
     expect(bands.map((b) => within(b).getAllByTestId("roadmap-row").length)).toEqual([2, 1, 1, 1, 1, 1]);
     const phase1 = within(bands[1]!);
     expect(text(phase1.getByTestId("roadmap-row"))).toBe(
@@ -356,7 +400,9 @@ describe("Migration, Roadmap view", () => {
     await open();
     fireEvent.click(button("Roadmap"));
     const roadmap = screen.getByTestId("migration-roadmap");
-    const rowButtons = within(roadmap).getAllByTestId("roadmap-row").map((r) => within(r).getAllByRole("button")[0]!);
+    const rowButtons = within(roadmap)
+      .getAllByTestId("roadmap-row")
+      .map((r) => within(r).getAllByRole("button")[0]!);
     const others = within(roadmap)
       .getAllByRole("button")
       .filter((b) => !rowButtons.includes(b))
@@ -365,7 +411,9 @@ describe("Migration, Roadmap view", () => {
     // A row button is the system's name, and it opens that system in the panel.
     expect(screen.queryByTestId("detail-panel")).toBeNull();
     fireEvent.click(within(roadmap).getByRole("button", { name: /acme-sign 1\.4\.2/ }));
-    expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe("software:acme-sign-1.4.2");
+    expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe(
+      "software:acme-sign-1.4.2",
+    );
   });
 
   it("beside an open panel, a row is the system with its track, the plan, and only a note that points to a fix", async () => {
@@ -414,7 +462,9 @@ describe("Migration, Roadmap view", () => {
 describe("Migration, measuring", () => {
   it("starts a measurement with the measure button", async () => {
     const { fetchMock } = await open(migrationView, {
-      "POST /api/plans/1/migration/measure": { body: { ...migrationView, measure: { ...migrationView.measure, label: "Measure again" } } },
+      "POST /api/plans/1/migration/measure": {
+        body: { ...migrationView, measure: { ...migrationView.measure, label: "Measure again" } },
+      },
     });
     fireEvent.click(button("Measure again"));
     await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/migration/measure"));
@@ -435,7 +485,12 @@ describe("Migration, measuring", () => {
   it("shows the reason when measuring can't start", async () => {
     await open({
       ...migrationView,
-      measure: { label: "Measure status", enabled: false, blocked_reason: "Tick each address on Import first.", progress_text: null },
+      measure: {
+        label: "Measure status",
+        enabled: false,
+        blocked_reason: "Tick each address on Import first.",
+        progress_text: null,
+      },
     });
     expect(button("Measure status").disabled).toBe(true);
     expect(screen.getByTestId("measure-blocked").textContent).toBe("Tick each address on Import first.");
@@ -477,7 +532,9 @@ describe("Migration, the systems table and its detail panel", () => {
   it("opens a system in the panel on a row click, shows the whole detail there, and closes with the close button or Escape", async () => {
     await open();
     // The first system is open to begin with; a row click opens another one in the same panel.
-    expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe("server:localhost:8451");
+    expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe(
+      "server:localhost:8451",
+    );
     fireEvent.click(card("localhost:8452"));
     const panel = within(screen.getByTestId("detail-panel"));
     expect(panel.getByTestId("migration-today")).not.toBeNull();
@@ -486,7 +543,7 @@ describe("Migration, the systems table and its detail panel", () => {
     expect(panel.getAllByTestId("option-card")).toHaveLength(4);
     expect(card("localhost:8452").getAttribute("aria-selected")).toBe("true");
     fireEvent.click(panel.getByRole("button", { name: "Close details" }));
-    expect(screen.queryByTestId("detail-panel")).toBeNull();   // closed stays closed: no fall back to the first system
+    expect(screen.queryByTestId("detail-panel")).toBeNull(); // closed stays closed: no fall back to the first system
     fireEvent.click(card("localhost:8452"));
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTestId("detail-panel")).toBeNull();
@@ -535,11 +592,13 @@ describe("Migration, the systems table and its detail panel", () => {
 describe("Migration, where each status came from", () => {
   it("draws one tag on each system card, in the backend's words", async () => {
     const { fetchMock } = await open();
-    expect(cards().map((c) => within(c).getAllByTestId("source-tag").map((t) => t.textContent))).toEqual([
-      ...Array.from({ length: 5 }, () => ["Observed live"]),
-      ["Proven in the lab"],
-      ["From your file"],
-    ]);
+    expect(
+      cards().map((c) =>
+        within(c)
+          .getAllByTestId("source-tag")
+          .map((t) => t.textContent),
+      ),
+    ).toEqual([...Array.from({ length: 5 }, () => ["Observed live"]), ["Proven in the lab"], ["From your file"]]);
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });
 
@@ -547,7 +606,8 @@ describe("Migration, where each status came from", () => {
     await open();
     fireEvent.click(card("acme-sign 1.4.2"));
     const line = within(screen.getByTestId("migration-today")).getByTestId("source-line");
-    expect(text(line)).toBe("Proven in the lab Measured by running a copy of acme-sign 1.4.2 on this computer. Your live system was not touched.");
+    expect(text(line)).toBe(
+      "Proven in the lab Measured by running a copy of acme-sign 1.4.2 on this computer. Your live system was not touched.",
+    );
   });
 });
-

@@ -11,7 +11,15 @@ const VERDICTS: Record<NonNullable<TryView["verdict"]>["look"], string> = {
   warn: "border-slate-500 bg-slate-800",
 };
 
-function Evidence({ label, result, onViewFix }: { label: string; result: TryView["results"][number]["result"]; onViewFix: (fixId: string) => void }) {
+function Evidence({
+  label,
+  result,
+  onViewFix,
+}: {
+  label: string;
+  result: TryView["results"][number]["result"];
+  onViewFix: (fixId: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const id = `change-evidence-${result.run_id}`;
   return (

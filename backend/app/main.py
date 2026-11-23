@@ -2,6 +2,7 @@
 
 Start it with:  python -m app      (from the backend folder; listens on 127.0.0.1:8000 only)
 """
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -106,11 +107,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise HTTPException(401, "Please log in.")
 
     def set_cookie(response: Response, token: str) -> None:
-        response.set_cookie(auth.COOKIE_NAME, token, httponly=True, samesite="strict", path="/",
-                            secure=settings.secure_cookies, max_age=int(auth.SESSION_LIFETIME.total_seconds()))
+        response.set_cookie(
+            auth.COOKIE_NAME,
+            token,
+            httponly=True,
+            samesite="strict",
+            path="/",
+            secure=settings.secure_cookies,
+            max_age=int(auth.SESSION_LIFETIME.total_seconds()),
+        )
 
     app.include_router(session.routes(lab, set_cookie))
-    app.include_router(hosting.routes(lab, set_cookie))   # hosting: log in with GitHub, log out, health
+    app.include_router(hosting.routes(lab, set_cookie))  # hosting: log in with GitHub, log out, health
     app.include_router(projects.routes(lab, require_login))
     # Phase 5a: a changing request on a closed assessment is refused (see web/projects.py for the two exceptions).
     guarded = [Depends(projects.closed_guard(lab, require_login))]
@@ -121,10 +129,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(dependencies.routes(lab, require_login), dependencies=guarded)
     app.include_router(changes.routes(lab, require_login), dependencies=guarded)
     app.include_router(fixes.routes(lab, require_login), dependencies=guarded)
-    app.include_router(checks.routes(lab, require_login), dependencies=guarded)   # phase 5b
-    app.include_router(otto_routes.routes(lab, require_login), dependencies=guarded)   # phase 5c
-    app.include_router(assistant_routes.routes(lab, require_login), dependencies=guarded)   # phase 6a: the panel's read; 6b: a typed sentence
-    app.include_router(changewatch_routes.routes(lab, require_login), dependencies=guarded)   # phase 6d: Change watch
+    app.include_router(checks.routes(lab, require_login), dependencies=guarded)  # phase 5b
+    app.include_router(otto_routes.routes(lab, require_login), dependencies=guarded)  # phase 5c
+    app.include_router(
+        assistant_routes.routes(lab, require_login), dependencies=guarded
+    )  # phase 6a: the panel's read; 6b: a typed sentence
+    app.include_router(changewatch_routes.routes(lab, require_login), dependencies=guarded)  # phase 6d: Change watch
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):

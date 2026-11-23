@@ -4,12 +4,21 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, expectPageOpen, openFreshAssessment, password, shotFixes, sidebarLinksOn, stepLink, stepNav, shotBothThemes } from "./shared";
+import {
+  DISCLAIMER,
+  expectPageOpen,
+  openFreshAssessment,
+  password,
+  shotFixes,
+  sidebarLinksOn,
+  stepLink,
+  stepNav,
+  shotBothThemes,
+} from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(here, "../../docs/screenshots/phase1");
 const NOT_CONFIRMED = "You haven't confirmed you're allowed to test this address";
-
 
 let context: BrowserContext;
 let page: Page;
@@ -47,7 +56,8 @@ test.beforeAll(async ({ browser }) => {
   //  starts with the panel hidden, by the setting the top bar's toggle keeps; its one test of the panel shows it.)
   await context.addInitScript(() => {
     try {
-      if (window.localStorage.getItem("evidence-lab-copilot") === null) window.localStorage.setItem("evidence-lab-copilot", "hidden");
+      if (window.localStorage.getItem("evidence-lab-copilot") === null)
+        window.localStorage.setItem("evidence-lab-copilot", "hidden");
     } catch {
       /* (no storage: the app's default stands) */
     }
@@ -155,7 +165,9 @@ test("without the tick, the server is not contacted: server claims are Couldn't 
   const tls = row(page, "accepts TLS 1.3 only");
   await expect(tls.getByTestId("result-badge")).toHaveText("Couldn't check");
   // Phase 3a-fixes: the reason is in the plain sentence on top (mid-sentence, so lower case), and as written in the details.
-  await expect(tls.getByTestId("verify-summary")).toContainText("you haven't confirmed you're allowed to test this address");
+  await expect(tls.getByTestId("verify-summary")).toContainText(
+    "you haven't confirmed you're allowed to test this address",
+  );
   await expect(await openDetails(page, "accepts TLS 1.3 only")).toContainText(NOT_CONFIRMED);
   await closeDetails(page);
   await expect(row(page, "certificate is ECDSA P-256").getByTestId("result-badge")).toHaveText("Couldn't check");
@@ -174,7 +186,9 @@ test("tick the box and Verify claims: False, True, True, with evidence", async (
   const tls = row(page, "localhost:8443 accepts TLS 1.3 only");
   await expect(tls.getByTestId("result-badge")).toHaveText("False");
   // Phase 3a-fixes: one plain sentence on top; the technical text is folded under "Details and evidence".
-  await expect(tls.getByTestId("verify-summary")).toHaveText("The server accepts TLS 1.2, so \u2018TLS 1.3 only\u2019 is not true.");
+  await expect(tls.getByTestId("verify-summary")).toHaveText(
+    "The server accepts TLS 1.2, so \u2018TLS 1.3 only\u2019 is not true.",
+  );
 
   const cert = row(page, "localhost:8443 certificate is ECDSA P-256");
   await expect(cert.getByTestId("result-badge")).toHaveText("True");
@@ -326,9 +340,7 @@ test("uploading demo/claims-template.csv imports the three claims and shows the 
   // even when it arrives as an upload rather than through Use demo file.
   // Wait for the upload itself to be answered.
   const uploaded = page.waitForResponse((r) => r.url().includes("/api/import/file") && r.request().method() === "POST");
-  await page
-    .getByLabel("Choose a file to import")
-    .setInputFiles(path.resolve(here, "../../demo/claims-template.csv"));
+  await page.getByLabel("Choose a file to import").setInputFiles(path.resolve(here, "../../demo/claims-template.csv"));
   expect((await uploaded).status()).toBe(200);
   await expect(page.getByRole("alert").filter({ hasText: "We couldn't read that file" })).toHaveCount(0);
   await expect(page.getByText("claims-template.csv · CSV template")).toBeVisible();

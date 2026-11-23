@@ -51,9 +51,19 @@ const accepted = acceptedProposal({
 });
 const rejected = rejectedProposal("Not before the audit", PLAN);
 
-const WAITING: OttoRoadmapMark = { label: "From Otto", text: "1 proposal waiting for your decision", tone: "warn", waiting: 1 };
+const WAITING: OttoRoadmapMark = {
+  label: "From Otto",
+  text: "1 proposal waiting for your decision",
+  tone: "warn",
+  waiting: 1,
+};
 const ON_PLAN: OttoRoadmapMark = { label: "From Otto", text: EFFECT, tone: "neutral", waiting: 0 };
-const NOT_ADDED: OttoRoadmapMark = { label: "From Otto", text: "Not added (Not before the audit)", tone: "neutral", waiting: 0 };
+const NOT_ADDED: OttoRoadmapMark = {
+  label: "From Otto",
+  text: "Not added (Not before the audit)",
+  tone: "neutral",
+  waiting: 0,
+};
 
 /** The 4b demo view with one proposal of Otto's for acme-sign 1.4.2: in its panel and as the mark on its roadmap row. */
 function withOtto(p: OttoProposal, mark: OttoRoadmapMark): MigrationView {
@@ -62,7 +72,10 @@ function withOtto(p: OttoProposal, mark: OttoRoadmapMark): MigrationView {
     ...view,
     roadmap: {
       ...view.roadmap,
-      bands: view.roadmap.bands.map((band) => ({ ...band, rows: band.rows.map((row) => (row.system_key === SIGN ? { ...row, otto: mark } : row)) })),
+      bands: view.roadmap.bands.map((band) => ({
+        ...band,
+        rows: band.rows.map((row) => (row.system_key === SIGN ? { ...row, otto: mark } : row)),
+      })),
     },
   };
 }
@@ -70,7 +83,11 @@ function withOtto(p: OttoProposal, mark: OttoRoadmapMark): MigrationView {
 afterEach(() => vi.restoreAllMocks());
 
 /** Opens the Migration step. `views` are the answers of the page's own GET, in order (the last one repeats). */
-async function open(views: MigrationView[], routes: Parameters<typeof mockApi>[0] = {}, opts: { tab?: MigrationTab; readOnly?: boolean } = {}) {
+async function open(
+  views: MigrationView[],
+  routes: Parameters<typeof mockApi>[0] = {},
+  opts: { tab?: MigrationTab; readOnly?: boolean } = {},
+) {
   let n = 0;
   const fetchMock = mockApi({ [GET]: () => ({ body: views[Math.min(n++, views.length - 1)] }), ...routes });
   const props = { onViewFix: vi.fn(), onPlanChanged: vi.fn() };
@@ -90,7 +107,8 @@ const sent = (fetchMock: ReturnType<typeof mockApi>, key: string) => {
   return JSON.parse(String(found?.[1]?.body));
 };
 /** Is `a` drawn before `b` on the page? */
-const before = (a: HTMLElement, b: HTMLElement) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+const before = (a: HTMLElement, b: HTMLElement) =>
+  Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 describe("Migration, Systems: Otto's proposed change to a system's plan", () => {
   it("shows the proposal in the system's panel, under its tracks, and opening the page sends its one GET and nothing else", async () => {
@@ -123,7 +141,9 @@ describe("Migration, Systems: Otto's proposed change to a system's plan", () => 
   });
 
   it("Accept sends one POST to the decide route, then reads the migration view again and tells the app", async () => {
-    const { fetchMock, onPlanChanged } = await open([withOtto(proposed, WAITING), withOtto(accepted, ON_PLAN)], { [decide("accept")]: { body: accepted } });
+    const { fetchMock, onPlanChanged } = await open([withOtto(proposed, WAITING), withOtto(accepted, ON_PLAN)], {
+      [decide("accept")]: { body: accepted },
+    });
     fireEvent.click(card("acme-sign 1.4.2"));
     expect(onPlanChanged).toHaveBeenCalledTimes(1);
     fireEvent.click(block().getByTestId("proposal-accept"));
@@ -139,7 +159,9 @@ describe("Migration, Systems: Otto's proposed change to a system's plan", () => 
   });
 
   it("Reject asks for a reason, sends it, and the proposal stays as Not added with that reason", async () => {
-    const { fetchMock } = await open([withOtto(proposed, WAITING), withOtto(rejected, NOT_ADDED)], { [decide("reject")]: { body: rejected } });
+    const { fetchMock } = await open([withOtto(proposed, WAITING), withOtto(rejected, NOT_ADDED)], {
+      [decide("reject")]: { body: rejected },
+    });
     fireEvent.click(card("acme-sign 1.4.2"));
     fireEvent.click(block().getByTestId("proposal-reject"));
     // the box asks first: until it is confirmed nothing is sent
@@ -157,7 +179,9 @@ describe("Migration, Systems: Otto's proposed change to a system's plan", () => 
   });
 
   it("Undo of an accept sends one POST and the proposal is open for a decision again", async () => {
-    const { fetchMock } = await open([withOtto(accepted, ON_PLAN), withOtto(proposed, WAITING)], { [decide("undo")]: { body: proposed } });
+    const { fetchMock } = await open([withOtto(accepted, ON_PLAN), withOtto(proposed, WAITING)], {
+      [decide("undo")]: { body: proposed },
+    });
     fireEvent.click(card("acme-sign 1.4.2"));
     fireEvent.click(block().getByTestId("proposal-undo"));
     await waitFor(() => expect(text(block().getByTestId("proposal-status"))).toBe("Proposed"));
@@ -168,11 +192,15 @@ describe("Migration, Systems: Otto's proposed change to a system's plan", () => 
 
   it("a decision the backend refuses is shown in its words, and the view is not read again", async () => {
     const { fetchMock } = await open([withOtto(proposed, WAITING)], {
-      [decide("accept")]: ERROR("Otto is not installed on this computer. A decision on a proposal is recorded in Otto's ledger, so nothing can be decided here."),
+      [decide("accept")]: ERROR(
+        "Otto is not installed on this computer. A decision on a proposal is recorded in Otto's ledger, so nothing can be decided here.",
+      ),
     });
     fireEvent.click(card("acme-sign 1.4.2"));
     fireEvent.click(block().getByTestId("proposal-accept"));
-    await waitFor(() => expect(text(screen.getByTestId("system-otto"))).toContain("Otto is not installed on this computer."));
+    await waitFor(() =>
+      expect(text(screen.getByTestId("system-otto"))).toContain("Otto is not installed on this computer."),
+    );
     expect(calls(fetchMock)).toEqual([GET, decide("accept")]);
     expect(text(block().getByTestId("proposal-status"))).toBe("Proposed");
   });
@@ -180,14 +208,17 @@ describe("Migration, Systems: Otto's proposed change to a system's plan", () => 
   it("says so when the view can't be read again after a decision", async () => {
     let n = 0;
     const fetchMock = mockApi({
-      [GET]: () => (n++ === 0 ? { body: withOtto(proposed, WAITING) } : ERROR("The migration plan could not be read.", 500)),
+      [GET]: () =>
+        n++ === 0 ? { body: withOtto(proposed, WAITING) } : ERROR("The migration plan could not be read.", 500),
       [decide("accept")]: { body: accepted },
     });
     render(<MigrationScreen importId={7} onViewFix={vi.fn()} onPlanChanged={vi.fn()} />);
     await screen.findByRole("heading", { level: 1, name: migrationView4b.title });
     fireEvent.click(card("acme-sign 1.4.2"));
     fireEvent.click(block().getByTestId("proposal-accept"));
-    await waitFor(() => expect(text(screen.getByTestId("system-otto"))).toContain("The migration plan could not be read."));
+    await waitFor(() =>
+      expect(text(screen.getByTestId("system-otto"))).toContain("The migration plan could not be read."),
+    );
     expect(calls(fetchMock)).toEqual([GET, decide("accept"), GET]);
   });
 
@@ -252,7 +283,11 @@ describe("Migration, Roadmap: the mark of a proposal of Otto's", () => {
   });
 
   it("Accept from the roadmap's panel reads the view again, and the mark then says what was accepted", async () => {
-    const { fetchMock } = await open([withOtto(proposed, WAITING), withOtto(accepted, ON_PLAN)], { [decide("accept")]: { body: accepted } }, { tab: "roadmap" });
+    const { fetchMock } = await open(
+      [withOtto(proposed, WAITING), withOtto(accepted, ON_PLAN)],
+      { [decide("accept")]: { body: accepted } },
+      { tab: "roadmap" },
+    );
     fireEvent.click(screen.getByTestId("roadmap-otto"));
     fireEvent.click(block().getByTestId("proposal-accept"));
     await waitFor(() => expect(screen.getByTestId("roadmap-otto").getAttribute("data-waiting")).toBe("0"));

@@ -6,7 +6,15 @@ import { ChecksScreen } from "../components/ChecksScreen";
 import { ResultDetail } from "../components/lab/ResultDetail";
 import { LinkProvider } from "../components/related";
 import { TestsScreen } from "../components/TestsScreen";
-import { checkGroups, checksView, encryptionParts, newestBlock, planRows, retestDetail, retestRow } from "./checksFixtures";
+import {
+  checkGroups,
+  checksView,
+  encryptionParts,
+  newestBlock,
+  planRows,
+  retestDetail,
+  retestRow,
+} from "./checksFixtures";
 import { hereNotYet, publicPassed } from "./fixProposalFixtures";
 import { calls, cards, fixLines, mockApi, plan, text, vectorsResult } from "./fixtures";
 
@@ -16,7 +24,11 @@ import { calls, cards, fixLines, mockApi, plan, text, vectorsResult } from "./fi
 
 const ADVISORY = "CVE-2022-21449";
 const TITLE = "Advisory check: Missing ECDSA signature range check (CVE-2022-21449)";
-const FROM_OTTO = { label: "From Otto", advisory: `Advisory ${ADVISORY}`, link: { page: "advisories", item: ADVISORY } };
+const FROM_OTTO = {
+  label: "From Otto",
+  advisory: `Advisory ${ADVISORY}`,
+  link: { page: "advisories", item: ADVISORY },
+};
 const REMOVE_BLOCKED =
   "This check came from an accepted proposal. Until it has run, Undo on Advisories takes it out of the test plan. Once it has run, it stays.";
 
@@ -33,7 +45,13 @@ describe("Evidence, the fix line of a library's fix from Otto", () => {
 
   function open(fixLine: FixLine) {
     const viewed: string[] = [];
-    render(<ResultDetail result={{ ...vectorsResult, fix_line: fixLine }} busy={false} onViewFix={(id) => viewed.push(id)} />);
+    render(
+      <ResultDetail
+        result={{ ...vectorsResult, fix_line: fixLine }}
+        busy={false}
+        onViewFix={(id) => viewed.push(id)}
+      />,
+    );
     return viewed;
   }
 
@@ -54,7 +72,11 @@ describe("Evidence, the fix line of a library's fix from Otto", () => {
     open(fixLines.text_only);
     // the words, the arrow and the button, and nothing after them
     expect(text(screen.getByTestId("fix-line"))).toBe("Text-only suggestion: a server setting→View in Fixes");
-    expect(Array.from(screen.getByTestId("fix-line").children).map((el) => el.tagName)).toEqual(["P", "SPAN", "BUTTON"]);
+    expect(Array.from(screen.getByTestId("fix-line").children).map((el) => el.tagName)).toEqual([
+      "P",
+      "SPAN",
+      "BUTTON",
+    ]);
     expect(screen.queryByTestId("fix-line-rows")).toBeNull();
     expect(screen.queryAllByTestId("fix-line-row")).toHaveLength(0);
   });
@@ -69,8 +91,24 @@ describe("Checks, an advisory check that came from Otto", () => {
   const CHECKS = "GET /api/plans/1/checks";
   // The advisory check as the plan lists it (shown as its card), and its retest: a row in the block of the version that
   // retest ran on (the 5c fixes), beside the retest of a test that is not Otto's.
-  const planCheck: CheckRow = { ...planRows[0]!, id: "test-6", name: TITLE, link: { page: "checks", item: "test-6" }, evidence_link: { page: "evidence", item: "test-6" }, from_otto: FROM_OTTO };
-  const retest: CheckRow = { ...retestRow, id: "retest-6-on-2", alias: "retest-6", mark: null, name: TITLE, link: { page: "evidence", item: "retest-6" }, evidence_link: { page: "evidence", item: "retest-6" }, from_otto: FROM_OTTO };
+  const planCheck: CheckRow = {
+    ...planRows[0]!,
+    id: "test-6",
+    name: TITLE,
+    link: { page: "checks", item: "test-6" },
+    evidence_link: { page: "evidence", item: "test-6" },
+    from_otto: FROM_OTTO,
+  };
+  const retest: CheckRow = {
+    ...retestRow,
+    id: "retest-6-on-2",
+    alias: "retest-6",
+    mark: null,
+    name: TITLE,
+    link: { page: "evidence", item: "retest-6" },
+    evidence_link: { page: "evidence", item: "retest-6" },
+    from_otto: FROM_OTTO,
+  };
   const plainRetest: CheckRow = newestBlock.rows[0]!;
   const view: ChecksView = {
     ...checksView,
@@ -86,7 +124,13 @@ describe("Checks, an advisory check that came from Otto", () => {
     return (
       <LinkProvider assessmentId={101} planId={1}>
         {/* (a retest's rows are on the Crypto tests tab; a link that names a check opens the tab it sits in) */}
-        <ChecksScreen importId={7} plan={current} onPlan={setCurrent} openItem={item} group={item ? null : "encryption"} />
+        <ChecksScreen
+          importId={7}
+          plan={current}
+          onPlan={setCurrent}
+          openItem={item}
+          group={item ? null : "encryption"}
+        />
       </LinkProvider>
     );
   }
@@ -129,7 +173,11 @@ describe("Checks, an advisory check that came from Otto", () => {
     expect(line.getByTestId("from-otto").textContent).toBe("From Otto");
     expect(line.getByTestId("check-from-otto").textContent).toBe(`Advisory ${ADVISORY}`);
     expect(line.getByTestId("check-from-otto").getAttribute("href")).toBe(`#/a/101/advisories?item=${ADVISORY}`);
-    await waitFor(() => expect(screen.getAllByTestId("data-table").some((table) => table.getAttribute("data-compact") === "true")).toBe(true));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("data-table").some((table) => table.getAttribute("data-compact") === "true")).toBe(
+        true,
+      ),
+    );
     expect(within(row(retest.id)).getByTestId("check-from-otto").textContent).toBe(`Advisory ${ADVISORY}`);
   });
 

@@ -1,4 +1,5 @@
 """The Tests and Evidence Lab web API: every route, its errors, its login, and that nothing accepts software."""
+
 import time
 
 import pytest
@@ -9,7 +10,9 @@ from conftest import api_routes, csv_bytes, upload
 
 def start(client):
     imp = client.post("/api/import/demo").json()
-    client.post(f"/api/import/{imp['id']}/confirm-address", json={"address": imp["addresses"][0]["address"], "confirmed": True})
+    client.post(
+        f"/api/import/{imp['id']}/confirm-address", json={"address": imp["addresses"][0]["address"], "confirmed": True}
+    )
     return imp
 
 
@@ -26,7 +29,10 @@ def wait(client, plan_id, seconds=120):
 def test_session_reports_the_mode_and_its_line(client):
     session = client.get("/api/session").json()
     assert session["mode"] == "demo"
-    assert session["mode_line"] == "Demo mode: running our own demo software, not isolated. Isolated mode is switched off for this run."
+    assert (
+        session["mode_line"]
+        == "Demo mode: running our own demo software, not isolated. Isolated mode is switched off for this run."
+    )
 
 
 def test_plan_is_proposed_once_and_then_stays(client):
@@ -34,32 +40,74 @@ def test_plan_is_proposed_once_and_then_stays(client):
     assert client.get(f"/api/import/{imp['id']}/plan").status_code == 404
     plan = client.post(f"/api/import/{imp['id']}/plan").json()
     assert plan["import_id"] == imp["id"] and plan["is_demo"] is True
-    assert [t["title"] for t in plan["tests"]] == ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Attacker tricks (our short list)", "Speed and size"]
-    assert plan["intro"] == ("Five tests suggested from the claims in acme-pay-cbom.json. Drag to change the order, remove any you "
-                             "don't want, then run them.")
+    assert [t["title"] for t in plan["tests"]] == [
+        "Old TLS versions",
+        "Certificate strength",
+        "Independent exam (Wycheproof)",
+        "Attacker tricks (our short list)",
+        "Speed and size",
+    ]
+    assert plan["intro"] == (
+        "Five tests suggested from the claims in acme-pay-cbom.json. Drag to change the order, remove any you "
+        "don't want, then run them."
+    )
     address = imp["addresses"][0]["address"]
-    assert plan["subject"] == [{"t": "text", "v": "Testing: "}, {"t": "text", "v": "server "}, {"t": "mono", "v": address},
-                               {"t": "text", "v": " and "}, {"t": "text", "v": "signing component "}, {"t": "mono", "v": "acme-sign 1.4.2"},
-                               {"t": "text", "v": " "}, {"t": "tag", "v": "from the file"}]
+    assert plan["subject"] == [
+        {"t": "text", "v": "Testing: "},
+        {"t": "text", "v": "server "},
+        {"t": "mono", "v": address},
+        {"t": "text", "v": " and "},
+        {"t": "text", "v": "signing component "},
+        {"t": "mono", "v": "acme-sign 1.4.2"},
+        {"t": "text", "v": " "},
+        {"t": "tag", "v": "from the file"},
+    ]
     first = plan["tests"][0]
-    assert first == {"id": first["id"], "kind": "tls_versions", "title": "Old TLS versions", "origin": "suggested", "tag": None,
-                     "description": f"Checks whether the server at {address} accepts any TLS version older than the file claims (TLS 1.3 only).",
-                     "why": "Why it matters: older versions have known weaknesses and are easy to leave switched on.",
-                     "status": "not_run", "status_text": "Not run yet", "progress": None, "result": None, "can_run": True, "can_remove": True,
-                     "group": f"server:{address}"}
-    assert plan["tests"][2]["description"] == ("Puts acme-sign through an outside exam: the 484 ECDSA P-256 cases of Project Wycheproof, "
-                                               "each with a published right answer, and counts any it gets wrong.")
+    assert first == {
+        "id": first["id"],
+        "kind": "tls_versions",
+        "title": "Old TLS versions",
+        "origin": "suggested",
+        "tag": None,
+        "description": f"Checks whether the server at {address} accepts any TLS version older than the file claims (TLS 1.3 only).",
+        "why": "Why it matters: older versions have known weaknesses and are easy to leave switched on.",
+        "status": "not_run",
+        "status_text": "Not run yet",
+        "progress": None,
+        "result": None,
+        "can_run": True,
+        "can_remove": True,
+        "group": f"server:{address}",
+    }
+    assert plan["tests"][2]["description"] == (
+        "Puts acme-sign through an outside exam: the 484 ECDSA P-256 cases of Project Wycheproof, "
+        "each with a published right answer, and counts any it gets wrong."
+    )
     # One server and one program: the list stays flat, as it always was, and nothing is left out.
     assert plan["grouped"] is False and plan["not_tested"] is None
     assert [g["heading"] for g in plan["groups"]] == [f"Server: {address}", "Signing program: acme-sign 1.4.2"]
-    assert plan["tests"][4]["description"].startswith("Times signing and checking inside the program (100 repeats each)")
+    assert plan["tests"][4]["description"].startswith(
+        "Times signing and checking inside the program (100 repeats each)"
+    )
     assert (plan["running"], plan["can_run_all"], plan["has_results"], plan["max_parallel"]) == (False, True, False, 4)
-    assert plan["catalog_title"] == "Tests you can add" and plan["catalog_note"] == "Tests you remove from the plan come back to this list."
+    assert (
+        plan["catalog_title"] == "Tests you can add"
+        and plan["catalog_note"] == "Tests you remove from the plan come back to this list."
+    )
     assert plan["catalog"] == [
-        {"catalog_id": "pq_readiness", "title": "Post-quantum readiness", "tag": None,
-         "description": "Checks whether the server offers a quantum-resistant key exchange (such as X25519MLKEM768)."},
-        {"catalog_id": "mldsa_compare", "title": "ML-DSA-65 comparison", "tag": "reference, not production",
-         "description": "Shows the speed and sizes of a post-quantum signature (ML-DSA-65) from a reference implementation, next to acme-sign's."}]
+        {
+            "catalog_id": "pq_readiness",
+            "title": "Post-quantum readiness",
+            "tag": None,
+            "description": "Checks whether the server offers a quantum-resistant key exchange (such as X25519MLKEM768).",
+        },
+        {
+            "catalog_id": "mldsa_compare",
+            "title": "ML-DSA-65 comparison",
+            "tag": "reference, not production",
+            "description": "Shows the speed and sizes of a post-quantum signature (ML-DSA-65) from a reference implementation, next to acme-sign's.",
+        },
+    ]
     again = client.post(f"/api/import/{imp['id']}/plan").json()
     assert again["id"] == plan["id"] and [t["id"] for t in again["tests"]] == [t["id"] for t in plan["tests"]]
     assert client.get(f"/api/import/{imp['id']}/plan").json()["id"] == plan["id"]
@@ -74,7 +122,14 @@ def test_reorder_add_remove_and_add_back(client):
     swapped = [ids[1], ids[0], *ids[2:]]
     assert [t["id"] for t in client.post(f"/api/plans/{pid}/order", json={"order": swapped}).json()["tests"]] == swapped
     assert [t["id"] for t in client.get(f"/api/plans/{pid}").json()["tests"]] == swapped  # it is stored
-    for bad in ({"order": ids[:-1]}, {"order": ids + [999]}, {"order": [ids[0]] * 5}, {"order": "x"}, {}, {"order": ["1"]}):
+    for bad in (
+        {"order": ids[:-1]},
+        {"order": ids + [999]},
+        {"order": [ids[0]] * 5},
+        {"order": "x"},
+        {},
+        {"order": ["1"]},
+    ):
         assert client.post(f"/api/plans/{pid}/order", json=bad).status_code == 422
     added = client.post(f"/api/plans/{pid}/tests", json={"catalog_id": "pq_readiness"}).json()
     new = added["tests"][-1]
@@ -82,12 +137,17 @@ def test_reorder_add_remove_and_add_back(client):
     assert new["description"].startswith("Checks whether the server at localhost:")
     assert added["intro"].startswith("Six tests in the plan: five suggested from the claims, one added by you.")
     assert [c["catalog_id"] for c in added["catalog"]] == ["mldsa_compare"]
-    assert client.post(f"/api/plans/{pid}/tests", json={"catalog_id": "pq_readiness"}).status_code == 409  # already there
+    assert (
+        client.post(f"/api/plans/{pid}/tests", json={"catalog_id": "pq_readiness"}).status_code == 409
+    )  # already there
     for bad in ({"catalog_id": "upload"}, {"catalog_id": 5}, {}, {"catalog_id": "x" * 100}):
         assert client.post(f"/api/plans/{pid}/tests", json=bad).status_code == 422
     removed = client.post(f"/api/plans/{pid}/tests/{ids[3]}/remove").json()
     assert ids[3] not in [t["id"] for t in removed["tests"]] and len(removed["tests"]) == 5
-    assert removed["catalog"][0]["catalog_id"] == "bad_signatures" and removed["catalog"][0]["title"] == "Attacker tricks (our short list)"
+    assert (
+        removed["catalog"][0]["catalog_id"] == "bad_signatures"
+        and removed["catalog"][0]["title"] == "Attacker tricks (our short list)"
+    )
     assert removed["intro"].startswith("Five tests in the plan: four suggested from the claims, one added by you.")
     assert client.post(f"/api/plans/{pid}/tests/{ids[3]}/remove").status_code == 404
     back = client.post(f"/api/plans/{pid}/tests", json={"catalog_id": "bad_signatures"}).json()
@@ -104,7 +164,10 @@ def test_run_one_then_the_lab_then_mark_and_dig(client):
     lab0 = client.get(f"/api/plans/{pid}/lab").json()
     assert lab0["view"] == "results" and lab0["columns"] is None and all(r["result"] is None for r in lab0["rows"])
     assert lab0["rows"][0]["result_status"] == {"status": "not_run", "status_text": "Not run yet", "progress": None}
-    assert lab0["disclaimer"] == "Passing these tests doesn't prove a system secure. It shows these specific checks passed."
+    assert (
+        lab0["disclaimer"]
+        == "Passing these tests doesn't prove a system secure. It shows these specific checks passed."
+    )
     started = client.post(f"/api/plans/{pid}/tests/{bad}/run")
     assert started.status_code == 200
     card = next(t for t in started.json()["tests"] if t["id"] == bad)
@@ -118,35 +181,81 @@ def test_run_one_then_the_lab_then_mark_and_dig(client):
     assert client.post(f"/api/plans/{pid}/retest", json={"version": "1.4.3"}).status_code == 409
     done = wait(client, pid)
     card = next(t for t in done["tests"] if t["id"] == bad)
-    assert card["status"] == "done" and card["status_text"] == "Failed" and card["result"] == {"code": "failed", "label": "Failed", "tone": "fail"}
+    assert (
+        card["status"] == "done"
+        and card["status_text"] == "Failed"
+        and card["result"] == {"code": "failed", "label": "Failed", "tone": "fail"}
+    )
     assert done["has_results"] is True and done["can_run_all"] is True
     lab = client.get(f"/api/plans/{pid}/lab").json()
     row = next(r for r in lab["rows"] if r["item_id"] == bad)
     result = row["result"]
-    assert set(result) == {"run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "summary", "short", "plain", "also_noticed", "also_noticed_title",
-                           "control", "what_happened", "shows_title", "shows", "evidence", "run_record", "locked_test", "fix_title",
-                           "suggested_fix", "fix_line", "reviewed", "research", "real", "advisories", "source_tag", "sandbox_copy"}
-    assert result["sandbox_copy"] is False            # (sandbox research is off: no run is on a sandbox copy)
+    assert set(result) == {
+        "run_id",
+        "component",
+        "mode",
+        "finished_at",
+        "duration_ms",
+        "code",
+        "label",
+        "tone",
+        "summary",
+        "short",
+        "plain",
+        "also_noticed",
+        "also_noticed_title",
+        "control",
+        "what_happened",
+        "shows_title",
+        "shows",
+        "evidence",
+        "run_record",
+        "locked_test",
+        "fix_title",
+        "suggested_fix",
+        "fix_line",
+        "reviewed",
+        "research",
+        "real",
+        "advisories",
+        "source_tag",
+        "sandbox_copy",
+    }
+    assert result["sandbox_copy"] is False  # (sandbox research is off: no run is on a sandbox copy)
     # where it came from (22 November 2026): the attacker tricks run a copy of the signing program here
     assert result["source_tag"]["label"] == "Proven in the lab"
     # a failed result whose fix is in the Fixes step shows one line in place of the "Suggested fix" text
     assert result["suggested_fix"] is None and result["fix_line"]["fix_id"] == "fix-ecdsa-range-check"
-    assert result["component"] == "acme-sign 1.4.2" and result["mode"] == "demo" and result["reviewed"] is None and result["research"] is None
+    assert (
+        result["component"] == "acme-sign 1.4.2"
+        and result["mode"] == "demo"
+        and result["reviewed"] is None
+        and result["research"] is None
+    )
     assert row["control_line"] == "Control: a deliberately broken signer failed this test, as expected."
     assert lab["retest"]["can_start"] is False  # not every test has a result yet
     assert client.post(f"/api/plans/{pid}/retest", json={"version": "1.4.3"}).status_code == 409
     assert lab["download"] == {"can_start": True, "blocked_reason": None}
     run_id = result["run_id"]
     marked = client.post(f"/api/runs/{run_id}/mark-reviewed").json()
-    assert next(r for r in marked["rows"] if r["item_id"] == bad)["result"]["reviewed"]["text"] == "You marked this result as reviewed."
+    assert (
+        next(r for r in marked["rows"] if r["item_id"] == bad)["result"]["reviewed"]["text"]
+        == "You marked this result as reviewed."
+    )
     dug = client.post(f"/api/runs/{run_id}/dig-deeper").json()
     box = next(r for r in dug["rows"] if r["item_id"] == bad)["result"]["research"]
     assert box["status"] == "waiting for research engine" and box["title"] == "Research request saved"
-    assert client.post("/api/runs/999/mark-reviewed").status_code == 404 and client.post("/api/runs/999/dig-deeper").status_code == 404
+    assert (
+        client.post("/api/runs/999/mark-reviewed").status_code == 404
+        and client.post("/api/runs/999/dig-deeper").status_code == 404
+    )
     for bad_body in ({"version": "9.9.9"}, {"version": 3}, {}):
         assert client.post(f"/api/plans/{pid}/retest", json=bad_body).status_code == 422
     assert client.get("/api/plans/999/lab").status_code == 404
-    assert client.post("/api/plans/999/run-all").status_code == 404 and client.post(f"/api/plans/{pid}/tests/999/run").status_code == 404
+    assert (
+        client.post("/api/plans/999/run-all").status_code == 404
+        and client.post(f"/api/plans/{pid}/tests/999/run").status_code == 404
+    )
 
 
 def test_a_file_with_no_server_gets_no_server_tests(client):
@@ -154,27 +263,44 @@ def test_a_file_with_no_server_gets_no_server_tests(client):
     plan = client.post(f"/api/import/{imp['id']}/plan").json()
     assert [t["kind"] for t in plan["tests"]] == ["official_vectors", "bad_signatures", "speed_size"]
     assert plan["intro"].startswith("Three tests suggested from the claims in claims.csv.")
-    assert [c["catalog_id"] for c in plan["catalog"]] == ["mldsa_compare"]  # no server, so no post-quantum readiness test
+    assert [c["catalog_id"] for c in plan["catalog"]] == [
+        "mldsa_compare"
+    ]  # no server, so no post-quantum readiness test
     assert client.post(f"/api/plans/{plan['id']}/tests", json={"catalog_id": "pq_readiness"}).status_code == 422
 
 
 NEW_ROUTES = [
-    ("GET", "/api/import/1/plan"), ("POST", "/api/import/1/plan"), ("GET", "/api/plans/1"), ("POST", "/api/plans/1/order"),
-    ("POST", "/api/plans/1/tests"), ("POST", "/api/plans/1/tests/1/remove"), ("POST", "/api/plans/1/tests/1/run"),
-    ("POST", "/api/plans/1/run-all"), ("GET", "/api/plans/1/lab"), ("POST", "/api/runs/1/mark-reviewed"),
-    ("POST", "/api/runs/1/dig-deeper"), ("POST", "/api/plans/1/retest"),
+    ("GET", "/api/import/1/plan"),
+    ("POST", "/api/import/1/plan"),
+    ("GET", "/api/plans/1"),
+    ("POST", "/api/plans/1/order"),
+    ("POST", "/api/plans/1/tests"),
+    ("POST", "/api/plans/1/tests/1/remove"),
+    ("POST", "/api/plans/1/tests/1/run"),
+    ("POST", "/api/plans/1/run-all"),
+    ("GET", "/api/plans/1/lab"),
+    ("POST", "/api/runs/1/mark-reviewed"),
+    ("POST", "/api/runs/1/dig-deeper"),
+    ("POST", "/api/plans/1/retest"),
     # phase 3a: the Fixes step
-    ("GET", "/api/plans/1/fixes"), ("POST", "/api/plans/1/fixes/connect"), ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/proof"),
-    ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/pull-request"), ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/approve"),
-    ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/merge"), ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/retest"),
+    ("GET", "/api/plans/1/fixes"),
+    ("POST", "/api/plans/1/fixes/connect"),
+    ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/proof"),
+    ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/pull-request"),
+    ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/approve"),
+    ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/merge"),
+    ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/retest"),
     ("GET", "/api/plans/1/fixes/fix-ecdsa-range-check/patch"),
 ]
 
 
 @pytest.mark.parametrize("method, path", NEW_ROUTES)
 def test_every_new_route_needs_a_login(anon_client, method, path):
-    response = anon_client.request(method, path, json={"order": [1], "catalog_id": "pq_readiness", "version": "1.4.3",
-                                                       "reviewers": ["you"], "reviewer": "you"})
+    response = anon_client.request(
+        method,
+        path,
+        json={"order": [1], "catalog_id": "pq_readiness", "version": "1.4.3", "reviewers": ["you"], "reviewer": "you"},
+    )
     assert response.status_code == 401 and response.json()["error"]["message"] == "Please log in."
 
 
@@ -185,56 +311,78 @@ def test_there_is_no_route_that_accepts_software(client):
     routes = [r for r in api_routes(client.app) if isinstance(r, APIRoute)]
     posts = sorted(r.path for r in routes if "POST" in r.methods and r.path != "/api/{rest:path}")
     with_json_body = {r.path: r.body_field.field_info.annotation.__name__ for r in routes if r.body_field is not None}
-    allowed_bodies = {"/api/setup": "PasswordBody", "/api/login": "PasswordBody", "/api/import/{import_id}/confirm-address": "ConfirmBody",
-                      "/api/plans/{plan_id}/order": "OrderBody", "/api/plans/{plan_id}/tests": "AddTestBody",
-                      "/api/plans/{plan_id}/retest": "RetestBody",
-                      # Fixes: the picked reviewers, and the one who approves, as ids from a fixed list
-                      "/api/plans/{plan_id}/fixes/{fix_id}/pull-request": "PullRequestBody",
-                      "/api/plans/{plan_id}/fixes/{fix_id}/approve": "ApproveBody",
-                      # Migration (phase 4a): one setting of one system from fixed values; and the user's choice of one of
-                      # four options, with a reason in words and a date
-                      "/api/plans/{plan_id}/migration/settings": "MigrationSettingBody",
-                      "/api/plans/{plan_id}/migration/choice": "MigrationChoiceBody",
-                      # Changes (phase 4b): the key of one change the app built itself, and reviewer ids from a fixed list
-                      "/api/plans/{plan_id}/changes/try": "ChangeBody", "/api/plans/{plan_id}/changes/apply": "ChangeBody",
-                      "/api/plans/{plan_id}/changes/rollback": "ChangeBody",
-                      "/api/plans/{plan_id}/changes/ask-approval": "AskApprovalBody",
-                      "/api/plans/{plan_id}/changes/approve": "ApproveChangeBody",
-                      # Dependencies (phase 4d): "Part of" (a top entry of the list and a system of the file, both as keys the
-                      # app made), and which library to measure (a row id, or none for every one on the pinned list)
-                      "/api/plans/{plan_id}/dependencies/tie": "DependencyTieBody",
-                      "/api/plans/{plan_id}/dependencies/measure": "DependencyMeasureBody",
-                      # Projects (phase 5a): names, a folder or project id to move to, the archived flag, close
-                      "/api/organization": "NameBody", "/api/folders": "FolderBody", "/api/folders/{folder_id}": "FolderChangeBody",
-                      "/api/projects": "ProjectBody", "/api/projects/{project_id}": "ProjectChangeBody",
-                      "/api/assessments/{assessment_id}": "AssessmentChangeBody",
-                      # Phase 5b: the New assessment box and Rerun as new assessment: a name, a purpose from a fixed list, a reference
-                      "/api/projects/{project_id}/assessments": "NewAssessmentBody",
-                      "/api/assessments/{assessment_id}/rerun": "NewAssessmentBody",
-                      # Otto (phase 5c): the version of a test pack that is already in the updates folder on this computer (a
-                      # pack is never uploaded), and the Live Otto switch with its spending limit (never a key)
-                      "/api/otto/packs/install": "PackInstallBody", "/api/otto/live": "LiveOttoBody",
-                      # Otto's proposals (phase 5c): a short reason for a rejection, in words (300 characters at most); the
-                      # proposal's id and the decision are in the address, and both are held to what the app itself made
-                      "/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}": "DecisionBody",
-                      # Phase 6a: the name a person types once, in words, for their decisions (60 characters at most after
-                      # cleaning; it is recorded and shown as plain text, and nothing in it runs)
-                      "/api/otto/name": "NameBody",
-                      # Phase 6b: one sentence a person typed to Otto (500 characters at most), with the page and the item it
-                      # was typed beside. It is read by fixed rules as data, kept as text, and nothing in it runs
-                      "/api/plans/{plan_id}/assistant/messages": "SayBody",
-                      # Sandbox research (a prototype): the switch, its tick and two spending limits in US dollars (never a key);
-                      # and on the Watch list, the key of an item the app itself listed, with a short reason in words for a stop
-                      "/api/otto/sandbox": "SandboxBody",
-                      "/api/plans/{plan_id}/watch-list/stop": "WatchStopBody", "/api/plans/{plan_id}/watch-list/watch": "WatchAgainBody"}
+    allowed_bodies = {
+        "/api/setup": "PasswordBody",
+        "/api/login": "PasswordBody",
+        "/api/import/{import_id}/confirm-address": "ConfirmBody",
+        "/api/plans/{plan_id}/order": "OrderBody",
+        "/api/plans/{plan_id}/tests": "AddTestBody",
+        "/api/plans/{plan_id}/retest": "RetestBody",
+        # Fixes: the picked reviewers, and the one who approves, as ids from a fixed list
+        "/api/plans/{plan_id}/fixes/{fix_id}/pull-request": "PullRequestBody",
+        "/api/plans/{plan_id}/fixes/{fix_id}/approve": "ApproveBody",
+        # Migration (phase 4a): one setting of one system from fixed values; and the user's choice of one of
+        # four options, with a reason in words and a date
+        "/api/plans/{plan_id}/migration/settings": "MigrationSettingBody",
+        "/api/plans/{plan_id}/migration/choice": "MigrationChoiceBody",
+        # Changes (phase 4b): the key of one change the app built itself, and reviewer ids from a fixed list
+        "/api/plans/{plan_id}/changes/try": "ChangeBody",
+        "/api/plans/{plan_id}/changes/apply": "ChangeBody",
+        "/api/plans/{plan_id}/changes/rollback": "ChangeBody",
+        "/api/plans/{plan_id}/changes/ask-approval": "AskApprovalBody",
+        "/api/plans/{plan_id}/changes/approve": "ApproveChangeBody",
+        # Dependencies (phase 4d): "Part of" (a top entry of the list and a system of the file, both as keys the
+        # app made), and which library to measure (a row id, or none for every one on the pinned list)
+        "/api/plans/{plan_id}/dependencies/tie": "DependencyTieBody",
+        "/api/plans/{plan_id}/dependencies/measure": "DependencyMeasureBody",
+        # Projects (phase 5a): names, a folder or project id to move to, the archived flag, close
+        "/api/organization": "NameBody",
+        "/api/folders": "FolderBody",
+        "/api/folders/{folder_id}": "FolderChangeBody",
+        "/api/projects": "ProjectBody",
+        "/api/projects/{project_id}": "ProjectChangeBody",
+        "/api/assessments/{assessment_id}": "AssessmentChangeBody",
+        # Phase 5b: the New assessment box and Rerun as new assessment: a name, a purpose from a fixed list, a reference
+        "/api/projects/{project_id}/assessments": "NewAssessmentBody",
+        "/api/assessments/{assessment_id}/rerun": "NewAssessmentBody",
+        # Otto (phase 5c): the version of a test pack that is already in the updates folder on this computer (a
+        # pack is never uploaded), and the Live Otto switch with its spending limit (never a key)
+        "/api/otto/packs/install": "PackInstallBody",
+        "/api/otto/live": "LiveOttoBody",
+        # Otto's proposals (phase 5c): a short reason for a rejection, in words (300 characters at most); the
+        # proposal's id and the decision are in the address, and both are held to what the app itself made
+        "/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}": "DecisionBody",
+        # Phase 6a: the name a person types once, in words, for their decisions (60 characters at most after
+        # cleaning; it is recorded and shown as plain text, and nothing in it runs)
+        "/api/otto/name": "NameBody",
+        # Phase 6b: one sentence a person typed to Otto (500 characters at most), with the page and the item it
+        # was typed beside. It is read by fixed rules as data, kept as text, and nothing in it runs
+        "/api/plans/{plan_id}/assistant/messages": "SayBody",
+        # Sandbox research (a prototype): the switch, its tick and two spending limits in US dollars (never a key);
+        # and on the Watch list, the key of an item the app itself listed, with a short reason in words for a stop
+        "/api/otto/sandbox": "SandboxBody",
+        "/api/plans/{plan_id}/watch-list/stop": "WatchStopBody",
+        "/api/plans/{plan_id}/watch-list/watch": "WatchAgainBody",
+    }
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra
     for path in posts:
-        assert not any(word in path for word in ("upload", "software", "component", "image", "docker", "file")) or path == "/api/import/file"
-    reads_raw_body = sorted(r.path for r in routes if "request" in r.endpoint.__code__.co_varnames and "POST" in r.methods)
+        assert (
+            not any(word in path for word in ("upload", "software", "component", "image", "docker", "file"))
+            or path == "/api/import/file"
+        )
+    reads_raw_body = sorted(
+        r.path for r in routes if "request" in r.endpoint.__code__.co_varnames and "POST" in r.methods
+    )
     assert reads_raw_body == ["/api/import/file", "/api/plans/{plan_id}/dependencies"]
-    for attempt in ("/api/upload", "/api/components", "/api/software", "/api/plans/1/component", "/api/import/software"):
+    for attempt in (
+        "/api/upload",
+        "/api/components",
+        "/api/software",
+        "/api/plans/1/component",
+        "/api/import/software",
+    ):
         r = client.post(attempt, content=b"print('x')", headers={"Content-Type": "application/octet-stream"})
         assert r.status_code in (404, 405, 422) and "error" in r.json()
     # a retest cannot smuggle anything in either: the body is one short version string checked against our own list
@@ -244,4 +392,5 @@ def test_there_is_no_route_that_accepts_software(client):
         r = client.post(f"/api/plans/{pid}/retest", json=sneaky)
         assert r.status_code in (409, 422)
     from app.run import components
+
     assert components.VERSIONS == {"acme-sign": ["1.4.2", "1.4.3"]}

@@ -4,14 +4,29 @@ import { ViewInFixes } from "../migration/parts";
 import { FromOttoTag, ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
 import { withPlainName } from "../../plainNames";
-import { ProofChip, ResultBadge, SecondaryButton, SourceTag, StatusChip, StatusView, WhereFromLine, WhereFromTag, formatTime } from "../ui";
+import {
+  ProofChip,
+  ResultBadge,
+  SecondaryButton,
+  SourceTag,
+  StatusChip,
+  StatusView,
+  WhereFromLine,
+  WhereFromTag,
+  formatTime,
+} from "../ui";
 import { ImpactBlock } from "../impact/ImpactBlock";
 
 /** One answer: the answer, its one label, the first version that can (on a no), the measurement state, agreement. */
 function Cell({ cell, title }: { cell: DependencyCell; title: string }) {
   return (
-    <div data-testid="dependency-cell" data-question={cell.question} data-answer={cell.answer} data-state={cell.state}
-         className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3">
+    <div
+      data-testid="dependency-cell"
+      data-question={cell.question}
+      data-answer={cell.answer}
+      data-state={cell.state}
+      className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3"
+    >
       <p className="text-xs text-slate-400">{title}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <ResultBadge label={cell.answer_words} tone={cell.tone} />
@@ -29,8 +44,11 @@ function Cell({ cell, title }: { cell: DependencyCell; title: string }) {
         {cell.state_words}
       </p>
       {cell.agreement_words ? (
-        <p data-testid="agreement" data-agreement={cell.agreement ?? undefined}
-           className={`mt-1 text-xs ${cell.agreement === "differs" ? "font-medium text-amber-200" : "text-slate-400"}`}>
+        <p
+          data-testid="agreement"
+          data-agreement={cell.agreement ?? undefined}
+          className={`mt-1 text-xs ${cell.agreement === "differs" ? "font-medium text-amber-200" : "text-slate-400"}`}
+        >
           {cell.agreement_words}
         </p>
       ) : null}
@@ -86,19 +104,37 @@ export function OttoMarker({ row }: { row: DependencyRow }) {
   return (
     <span data-testid="dependency-otto-marker" className="mt-1.5 flex flex-col items-start gap-1">
       {advisories.map((a) => (
-        <span key={a.id} data-testid="advisory-marker" data-advisory={a.id} data-state={a.state.key} className="flex flex-col items-start gap-0.5">
+        <span
+          key={a.id}
+          data-testid="advisory-marker"
+          data-advisory={a.id}
+          data-state={a.state.key}
+          className="flex flex-col items-start gap-0.5"
+        >
           <StatusChip label={a.line} tone={a.state.tone} size="sm" wrap />
           {a.fix_link && a.fix_label ? (
             // The link goes to the fix; a click on it does not also open the row.
             <span onClick={(e) => e.stopPropagation()}>
-              <ItemLinkView link={a.fix_link} testId="advisory-marker-fix" className="text-[11px] text-sky-300 underline-offset-2 hover:underline">
+              <ItemLinkView
+                link={a.fix_link}
+                testId="advisory-marker-fix"
+                className="text-[11px] text-sky-300 underline-offset-2 hover:underline"
+              >
                 {a.fix_label}
               </ItemLinkView>
             </span>
           ) : null}
         </span>
       ))}
-      {row.otto_status ? <StatusChip label={row.otto_status.label} tone={row.otto_status.tone} size="sm" wrap testId="otto-status-marker" /> : null}
+      {row.otto_status ? (
+        <StatusChip
+          label={row.otto_status.label}
+          tone={row.otto_status.tone}
+          size="sm"
+          wrap
+          testId="otto-status-marker"
+        />
+      ) : null}
       {first ? (
         <span data-testid="proposal-marker" className="flex flex-wrap items-center gap-1">
           <FromOttoTag label={first.label} testId="proposal-marker-label" />
@@ -115,7 +151,13 @@ export function OttoMarker({ row }: { row: DependencyRow }) {
  * every No, the reason in one line ("OpenSSL added this in 3.5.0; you have 3.0.22."). */
 export function AnswerChip({ cell }: { cell: DependencyCell }) {
   return (
-    <div data-testid="dependency-answer" data-question={cell.question} data-answer={cell.answer} data-state={cell.state} className="flex min-w-0 flex-col items-start gap-1.5">
+    <div
+      data-testid="dependency-answer"
+      data-question={cell.question}
+      data-answer={cell.answer}
+      data-state={cell.state}
+      className="flex min-w-0 flex-col items-start gap-1.5"
+    >
       <ResultBadge label={cell.answer_words} tone={cell.tone} wrap />
       {/* 22 November 2026: where this answer came from (its own label stays, as before) */}
       <WhereFromTag tag={cell.source_tag} />
@@ -149,7 +191,17 @@ export function BlocksMarker({ row }: { row: DependencyRow }) {
 }
 
 /** One library of the list, in the detail panel. Every word comes from the backend. */
-export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsOpen, onMeasure, onViewFix, planId, onDecided }: Props) {
+export function DependencyDetail({
+  row,
+  questions,
+  busy,
+  detailsOpen,
+  onDetailsOpen,
+  onMeasure,
+  onViewFix,
+  planId,
+  onDecided,
+}: Props) {
   const titles = Object.fromEntries(questions.map((q) => [q.key, withPlainName(q.title)]));
   const advisories = row.advisories ?? [];
   const proposals = row.otto_proposals ?? [];
@@ -250,27 +302,47 @@ export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsO
       ) : null}
 
       {row.lookups.length > 0 || row.measurement ? (
-        <details className="mt-3" open={detailsOpen} onToggle={(e) => onDetailsOpen((e.target as HTMLDetailsElement).open)}>
+        <details
+          className="mt-3"
+          open={detailsOpen}
+          onToggle={(e) => onDetailsOpen((e.target as HTMLDetailsElement).open)}
+        >
           <summary className="cursor-pointer text-sm font-medium text-slate-200">Details and evidence</summary>
           <div className="mt-2 space-y-3">
-            {row.lookups.filter((l) => !l.repeat).map((l, i) => (
-              <div key={i} data-testid="lookup-source" className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm">
-                <p className="text-slate-100">
-                  {l.title} <SourceTag>Release notes say</SourceTag>
-                </p>
-                <blockquote className="mt-1 border-l-2 border-slate-700 pl-2 text-slate-300">“{l.quote}”</blockquote>
-                <p className="mt-1 text-xs text-slate-400">
-                  For: {row.lookups.filter((x) => x.url === l.url && x.quote === l.quote).map((x) => x.question_words).join(", ")} · checked {l.checked} ·{" "}
-                  {l.url.startsWith("https://") ? (
-                    <a href={l.url} target="_blank" rel="noreferrer noopener" className="underline hover:text-slate-100">
-                      {l.url}
-                    </a>
-                  ) : (
-                    l.url
-                  )}
-                </p>
-              </div>
-            ))}
+            {row.lookups
+              .filter((l) => !l.repeat)
+              .map((l, i) => (
+                <div
+                  key={i}
+                  data-testid="lookup-source"
+                  className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm"
+                >
+                  <p className="text-slate-100">
+                    {l.title} <SourceTag>Release notes say</SourceTag>
+                  </p>
+                  <blockquote className="mt-1 border-l-2 border-slate-700 pl-2 text-slate-300">“{l.quote}”</blockquote>
+                  <p className="mt-1 text-xs text-slate-400">
+                    For:{" "}
+                    {row.lookups
+                      .filter((x) => x.url === l.url && x.quote === l.quote)
+                      .map((x) => x.question_words)
+                      .join(", ")}{" "}
+                    · checked {l.checked} ·{" "}
+                    {l.url.startsWith("https://") ? (
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="underline hover:text-slate-100"
+                      >
+                        {l.url}
+                      </a>
+                    ) : (
+                      l.url
+                    )}
+                  </p>
+                </div>
+              ))}
             {row.measurement ? (
               <div data-testid="measurement" className="space-y-2">
                 <p className="text-sm text-slate-200">
@@ -281,7 +353,9 @@ export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsO
                 </p>
                 <p className="text-xs text-slate-300">{row.measurement.controls_words}</p>
                 {row.same_copy_note ? <p className="text-xs text-slate-400">{row.same_copy_note}</p> : null}
-                {row.measurement.result ? <ResultDetail result={row.measurement.result} busy={false} onViewFix={onViewFix} /> : null}
+                {row.measurement.result ? (
+                  <ResultDetail result={row.measurement.result} busy={false} onViewFix={onViewFix} />
+                ) : null}
               </div>
             ) : null}
           </div>

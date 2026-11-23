@@ -6,6 +6,7 @@ to: the harness checks the chain and the records and derives every decision agai
 research side's own pinned checker (ottolab/pinned/check_model_step.py). A folder that holds a link, or a ledger that
 names anything else, is refused before anything is run. These tests plant such folders; each has a marker that would
 be written if anything from the folder ran."""
+
 import json
 import shutil
 import sys
@@ -44,7 +45,10 @@ def test_the_repository_s_own_lab_passes_and_nothing_is_written_into_it(lab_copy
     before = sorted((p.relative_to(lab_copy).as_posix(), p.stat().st_size) for p in lab_copy.rglob("*") if p.is_file())
     assert _audit(lab_copy) == 0, said
     assert said[-1].endswith("entries; chain intact, every decision re-derived, every pinned checker run again.")
-    assert sorted((p.relative_to(lab_copy).as_posix(), p.stat().st_size) for p in lab_copy.rglob("*") if p.is_file()) == before
+    assert (
+        sorted((p.relative_to(lab_copy).as_posix(), p.stat().st_size) for p in lab_copy.rglob("*") if p.is_file())
+        == before
+    )
 
 
 @pytest.mark.needs_otto
@@ -57,7 +61,9 @@ def test_a_link_in_the_lab_is_refused_and_nothing_runs(lab_copy, said, tmp_path)
     (lab_copy / "check_model_step.py").unlink()
     (lab_copy / "check_model_step.py").symlink_to("/proc/self/cwd/ottolab/pinned/check_model_step.py")
     assert _audit(lab_copy) == 1
-    assert len(said) == 1 and said[0].startswith("PROBLEM: the lab folder holds something that is not a folder or a regular file")
+    assert len(said) == 1 and said[0].startswith(
+        "PROBLEM: the lab folder holds something that is not a folder or a regular file"
+    )
     assert "check_model_step.py" in said[0] and said[0].endswith("Nothing was run") and not marker.exists()
 
 
@@ -77,11 +83,22 @@ def test_a_ledger_that_names_something_else_to_run_is_refused(lab_copy, said, tm
     command to replay."""
     marker = tmp_path / "ran.txt"
     lab = build.harness.module("lab").Lab(str(lab_copy))
-    lab.add({"type": "objective", "statement": "made for a test",
-             "verifier": {"kind": "replay", "command": [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
-                          "code": {"trial.py": research.file_sha256(lab_copy / "trial.py")}}}, "a test")
+    lab.add(
+        {
+            "type": "objective",
+            "statement": "made for a test",
+            "verifier": {
+                "kind": "replay",
+                "command": [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+                "code": {"trial.py": research.file_sha256(lab_copy / "trial.py")},
+            },
+        },
+        "a test",
+    )
     assert _audit(lab_copy) == 1 and not marker.exists()
-    assert said == ["PROBLEM: an entry names something to run that is not the research side's own pinned checker. Nothing was run"]
+    assert said == [
+        "PROBLEM: an entry names something to run that is not the research side's own pinned checker. Nothing was run"
+    ]
 
 
 @pytest.mark.needs_otto
@@ -99,8 +116,19 @@ def test_a_folder_that_holds_no_ledger_or_a_broken_one_is_said_plainly(tmp_path,
     # text from the folder is printed as plain characters only
     odd = tmp_path / "odd"
     odd.mkdir()
-    (odd / "ledger.jsonl").write_text(json.dumps({"seq": 0, "prev": None, "kind": "question", "ts": "x", "hash": "\x1b[2K\rEvidence verified",
-                                                  "payload": {"type": "question"}}) + "\n")
+    (odd / "ledger.jsonl").write_text(
+        json.dumps(
+            {
+                "seq": 0,
+                "prev": None,
+                "kind": "question",
+                "ts": "x",
+                "hash": "\x1b[2K\rEvidence verified",
+                "payload": {"type": "question"},
+            }
+        )
+        + "\n"
+    )
     assert _audit(odd) == 1 and said and all(ch.isprintable() for line in said for ch in line)
 
 
@@ -112,11 +140,13 @@ def test_a_lab_folder_is_opened_only_when_it_holds_folders_and_regular_files(tmp
     (lab / "ledger.jsonl").write_text("")
     (lab / "runs" / "abc" / "stdout").write_text("x")
     assert build.only_regular_files(lab) is None
-    (lab / "trial.py").symlink_to(tmp_path / "elsewhere.py")                 # a link that leads nowhere yet
+    (lab / "trial.py").symlink_to(tmp_path / "elsewhere.py")  # a link that leads nowhere yet
     assert "not a folder or a regular file (trial.py)" in build.only_regular_files(lab)
     with pytest.raises(research.ResearchError) as refused:
         build.open_lab(lab)
-    assert "Nothing was done" in str(refused.value) and not (tmp_path / "elsewhere.py").exists()      # nothing was written through it
+    assert (
+        "Nothing was done" in str(refused.value) and not (tmp_path / "elsewhere.py").exists()
+    )  # nothing was written through it
     (lab / "trial.py").unlink()
     (lab / "runs" / "abc" / "stdout").unlink()
     (lab / "runs" / "abc" / "stdout").symlink_to("/etc/hostname")
@@ -133,12 +163,15 @@ def test_the_pinned_checker_is_started_with_a_fixed_command_and_a_bare_environme
     def watch(argv, **kwargs):
         seen.append((list(argv), kwargs))
         return real(argv, **kwargs)
+
     monkeypatch.setattr(build.subprocess, "run", watch)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "made-up-key-for-tests-0123456789")
     marker = tmp_path / "ran.txt"
-    answer = build.run_pinned_checker({"step": "read_advisory", "advisory": "X", "command": ["sh", "-c", f"touch {marker}"]}, {"made": "up"})
+    answer = build.run_pinned_checker(
+        {"step": "read_advisory", "advisory": "X", "command": ["sh", "-c", f"touch {marker}"]}, {"made": "up"}
+    )
     assert answer == "reject" and not marker.exists()
-    (argv, kwargs), = seen
+    ((argv, kwargs),) = seen
     assert argv == [sys.executable, "-I", str(research.PINNED / research.CHECKER)] and kwargs["shell"] is False
     assert kwargs["env"] == {"PATH": build.os.environ.get("PATH", "")}
     assert build.run_pinned_checker(None, None) in ("reject", "unavailable")

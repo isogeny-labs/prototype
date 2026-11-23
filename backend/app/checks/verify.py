@@ -3,6 +3,7 @@
 Results come only from what the probes and the demo component actually returned. When something could
 not be tested, the answer is Couldn't check with the reason - never a guess.
 """
+
 from __future__ import annotations
 
 import platform
@@ -19,7 +20,14 @@ from app.checks.addresses import AddressError, is_loopback_ip, resolve_all, vali
 from app.engine.compare import COULDNT, FALSE, TRUE, certificate_matches, compare_only_claim
 from app.names import TLS_VERSIONS, join_and
 from app.checks.tlsprobe import (
-    PY_TOOL, PY_TOOL_VERSION, TLS13_SUITES, WIDEST_CIPHERS, Evidence, ProbeSession, describe_certificate, openssl_cli,
+    PY_TOOL,
+    PY_TOOL_VERSION,
+    TLS13_SUITES,
+    WIDEST_CIPHERS,
+    Evidence,
+    ProbeSession,
+    describe_certificate,
+    openssl_cli,
 )
 
 NOT_CONFIRMED = "You haven't confirmed you're allowed to test this address"
@@ -30,6 +38,7 @@ _CURVE_WORDS = {"secp256r1": "P-256 (secp256r1)", "secp384r1": "P-384 (secp384r1
 @dataclass
 class DemoContext:
     """What Verify needs to know about the demo server for a demo import."""
+
     is_demo_import: bool
     host: str
     port: int
@@ -48,8 +57,12 @@ def _now_iso() -> str:
 
 
 def _result(result: str, found: str, reason: str | None, evidence: list) -> dict:
-    return {"result": result, "found": found, "reason": reason,
-            "evidence": [e.as_dict() if isinstance(e, Evidence) else e for e in evidence]}
+    return {
+        "result": result,
+        "found": found,
+        "reason": reason,
+        "evidence": [e.as_dict() if isinstance(e, Evidence) else e for e in evidence],
+    }
 
 
 def _couldnt(reason: str, evidence: list | None = None, found: str = NOT_CHECKED) -> dict:
@@ -59,11 +72,17 @@ def _couldnt(reason: str, evidence: list | None = None, found: str = NOT_CHECKED
 class AddressCheck:
     """Everything for one host:port in one run: the safety gate first, then (only if it passes) the handshakes."""
 
-    def __init__(self, row, demo: DemoContext, resolver: Callable[[str], list[str]] = resolve_all,
-                 session_factory: Callable[..., ProbeSession] = ProbeSession, mode=None):
+    def __init__(
+        self,
+        row,
+        demo: DemoContext,
+        resolver: Callable[[str], list[str]] = resolve_all,
+        session_factory: Callable[..., ProbeSession] = ProbeSession,
+        mode=None,
+    ):
         self.row = row
         self.demo = demo
-        self.mode = mode                 # the app's mode: in isolated mode the OpenSSL 3.5 container gives a second opinion
+        self.mode = mode  # the app's mode: in isolated mode the OpenSSL 3.5 container gives a second opinion
         self._pq_cache = None
         self.blocked: str | None = None
         self.evidence: list[Evidence] = []
@@ -80,8 +99,18 @@ class AddressCheck:
         started = _now_iso()
 
         def note(text: str) -> None:
-            self.evidence.append(Evidence("Address check (no connection made)", "(checked by Evidence Lab before any handshake)",
-                                          text, started, 0, "Evidence Lab", f"Python {platform.python_version()}"))
+            self.evidence.append(
+                Evidence(
+                    "Address check (no connection made)",
+                    "(checked by Evidence Lab before any handshake)",
+                    text,
+                    started,
+                    0,
+                    "Evidence Lab",
+                    f"Python {platform.python_version()}",
+                )
+            )
+
         try:
             host, port = validate_host(row.host), validate_port(row.port)
         except AddressError as exc:
@@ -99,19 +128,24 @@ class AddressCheck:
             self.blocked = f"{exc}."
             return note(self.blocked + " No connection was attempted.")
         if row.resolved_ip not in current:
-            self.blocked = (f"{host} now points to a different IP address ({', '.join(current[:3])}) than the one you "
-                            f"confirmed ({row.resolved_ip}). Confirm the address again before testing.")
+            self.blocked = (
+                f"{host} now points to a different IP address ({', '.join(current[:3])}) than the one you "
+                f"confirmed ({row.resolved_ip}). Confirm the address again before testing."
+            )
             return note(self.blocked + " No connection was attempted.")
         loop = "this computer" if is_loopback_ip(row.resolved_ip) else "not this computer"
-        note(f"{row.address} connects to {row.resolved_ip}, {loop}. You confirmed you are allowed to test it. "
-             f"Every handshake connects to {row.resolved_ip}; the name is only sent as the TLS server name.")
+        note(
+            f"{row.address} connects to {row.resolved_ip}, {loop}. You confirmed you are allowed to test it. "
+            f"Every handshake connects to {row.resolved_ip}; the name is only sent as the TLS server name."
+        )
         is_ip = host == row.resolved_ip or ":" in host
         if self._is_demo_address() and not (self.demo.running or self.demo.allow_external):
             self.blocked = self.demo.error or "The demo server is not running."
             return note(self.blocked + " No connection was attempted.")
         if self._is_extra_address() and not self.demo.extra.get(row.port):
-            self.blocked = ((self.demo.extra_problems or {}).get(row.port)
-                            or f"The demo test server for {row.address} is not running.")
+            self.blocked = (self.demo.extra_problems or {}).get(
+                row.port
+            ) or f"The demo test server for {row.address} is not running."
             return note(self.blocked + " No connection was attempted.")
         self.session = session_factory(row.resolved_ip, port, None if is_ip else host)
 
@@ -131,31 +165,54 @@ class AddressCheck:
             self._identity_done = True
             self.version_evidence = ev
             if self._is_extra_address():
-                from app.run.execute import pqstatus   # here, not at the top: that package imports this module
-                der = pqstatus.any_certificate(self)   # also reads the certificate of a server that only speaks post-quantum
+                from app.run.execute import pqstatus  # here, not at the top: that package imports this module
+
+                der = pqstatus.any_certificate(
+                    self
+                )  # also reads the certificate of a server that only speaks post-quantum
                 seen = describe_certificate(der)["sha256_fingerprint"] if der is not None else None
                 if seen != self.demo.extra.get(self.row.port):
-                    self.blocked = (f"Something other than the Evidence Lab demo test server is answering on {self.row.address} "
-                                    "(its certificate is not the one this app made), so we did not report on it.")
-                self.identity_evidence.append(Evidence(
-                    "Demo test server identity check", "compare SHA-256 of the certificate received in the handshake with the test certificate made by this app",
-                    f"received: {seen}\nexpected: {self.demo.extra.get(self.row.port)}\n=> {'match' if seen == self.demo.extra.get(self.row.port) else 'DIFFERENT'}",
-                    _now_iso(), 0, PY_TOOL, PY_TOOL_VERSION))
+                    self.blocked = (
+                        f"Something other than the Evidence Lab demo test server is answering on {self.row.address} "
+                        "(its certificate is not the one this app made), so we did not report on it."
+                    )
+                self.identity_evidence.append(
+                    Evidence(
+                        "Demo test server identity check",
+                        "compare SHA-256 of the certificate received in the handshake with the test certificate made by this app",
+                        f"received: {seen}\nexpected: {self.demo.extra.get(self.row.port)}\n=> {'match' if seen == self.demo.extra.get(self.row.port) else 'DIFFERENT'}",
+                        _now_iso(),
+                        0,
+                        PY_TOOL,
+                        PY_TOOL_VERSION,
+                    )
+                )
             if self._is_demo_address():
                 der = self.session.first_certificate()
                 started = _now_iso()
                 if der is None:
-                    self.blocked = (f"No TLS handshake with {self.row.address} completed, so we could not confirm it is "
-                                    "the demo server." + (f" {self.demo.error}" if self.demo.error else ""))
+                    self.blocked = (
+                        f"No TLS handshake with {self.row.address} completed, so we could not confirm it is "
+                        "the demo server." + (f" {self.demo.error}" if self.demo.error else "")
+                    )
                 else:
                     seen = describe_certificate(der)["sha256_fingerprint"]
                     if seen != self.demo.fingerprint:
-                        self.blocked = (f"Something other than the Evidence Lab demo server is answering on "
-                                        f"{self.row.address} (its certificate is not the demo test certificate), so we did not report on it.")
-                    self.identity_evidence.append(Evidence(
-                        "Demo server identity check", "compare SHA-256 of the certificate received in the handshake with the demo test certificate made by this app",
-                        f"received: {seen}\nexpected: {self.demo.fingerprint}\n=> {'match' if seen == self.demo.fingerprint else 'DIFFERENT'}",
-                        started, 0, PY_TOOL, PY_TOOL_VERSION))
+                        self.blocked = (
+                            f"Something other than the Evidence Lab demo server is answering on "
+                            f"{self.row.address} (its certificate is not the demo test certificate), so we did not report on it."
+                        )
+                    self.identity_evidence.append(
+                        Evidence(
+                            "Demo server identity check",
+                            "compare SHA-256 of the certificate received in the handshake with the demo test certificate made by this app",
+                            f"received: {seen}\nexpected: {self.demo.fingerprint}\n=> {'match' if seen == self.demo.fingerprint else 'DIFFERENT'}",
+                            started,
+                            0,
+                            PY_TOOL,
+                            PY_TOOL_VERSION,
+                        )
+                    )
         return self.blocked
 
     def base_evidence(self) -> list[Evidence]:
@@ -170,7 +227,9 @@ class AddressCheck:
         if detail.get("unsupported_protocol"):
             return _couldnt("This version of Evidence Lab checks TLS only, not other protocols.")
         if detail.get("version_not_stated") or not detail.get("versions"):
-            return _couldnt("The file doesn't say which TLS versions the server should accept, so there is nothing exact to compare.")
+            return _couldnt(
+                "The file doesn't say which TLS versions the server should accept, so there is nothing exact to compare."
+            )
         why = self.ready()
         if why:
             return _couldnt(why, self.wrap(self.base_evidence()))
@@ -184,6 +243,7 @@ class AddressCheck:
 
         def with_suite(v: str) -> str:
             return f"{v} (with {observed[v].cipher})" if v not in claimed and observed[v].cipher else v
+
         parts = []
         if accepted:
             parts.append(f"Accepts {join_and([with_suite(v) for v in accepted])}.")
@@ -193,8 +253,11 @@ class AddressCheck:
             parts.append(f"The server didn't confirm or refuse {join_and(unknown)}.")
         reason = None
         if verdict.result == COULDNT:
-            reason = "The server didn't clearly accept or refuse " + "; ".join(f"{v} ({observed[v].detail})" for v in unknown) + \
-                     ", so we can't say it accepts nothing else."
+            reason = (
+                "The server didn't clearly accept or refuse "
+                + "; ".join(f"{v} ({observed[v].detail})" for v in unknown)
+                + ", so we can't say it accepts nothing else."
+            )
         out = _result(verdict.result, " ".join(parts) or NOT_CHECKED, reason, self.wrap(self.base_evidence()))
         out["summary"] = plain.verify_tls(verdict.result, claimed, accepted, refused, unknown)
         return out
@@ -204,17 +267,22 @@ class AddressCheck:
         something the file didn't ask about, and no "Also noticed" note is added."""
         claimed = detail.get("algorithm")
         if not claimed:
-            return _couldnt("The file does not name the certificate's algorithm in a form we can compare "
-                            "(for example ECDSA P-256 or RSA 2048).")
+            return _couldnt(
+                "The file does not name the certificate's algorithm in a form we can compare "
+                "(for example ECDSA P-256 or RSA 2048)."
+            )
         why = self.ready()
         if why:
             return _couldnt(why, self.wrap(self.base_evidence()))
         der = self.session.first_certificate()
         if der is None:
-            return _couldnt(f"No TLS handshake with {self.row.address} completed, so no certificate was received.",
-                            self.wrap(self.base_evidence()))
+            return _couldnt(
+                f"No TLS handshake with {self.row.address} completed, so no certificate was received.",
+                self.wrap(self.base_evidence()),
+            )
         started = _now_iso()
         import cryptography
+
         try:
             cert = describe_certificate(der)
         except ValueError:
@@ -225,18 +293,28 @@ class AddressCheck:
             key_words = f"an RSA key, {cert['key_size']} bits"
         else:
             key_words = f"a {cert['key_type']} key"
-        found = (f"The certificate served by {self.row.address} has {key_words}. "
-                 f"It is signed with {cert['signature_algorithm']}.")
+        found = (
+            f"The certificate served by {self.row.address} has {key_words}. "
+            f"It is signed with {cert['signature_algorithm']}."
+        )
         ev = Evidence(
             "Certificate received in the live handshake",
             "python ssl: take the certificate the server sent in the handshake above; cryptography: x509.load_der_x509_certificate(...) and read its public key",
-            "\n".join(f"{k}: {cert[k]}" for k in ("subject", "key_type", "curve", "key_size", "signature_algorithm", "sha256_fingerprint")),
-            started, 0, f"{PY_TOOL} (handshake) + cryptography (reading the certificate)",
-            f"{PY_TOOL_VERSION}; cryptography {cryptography.__version__}")
+            "\n".join(
+                f"{k}: {cert[k]}"
+                for k in ("subject", "key_type", "curve", "key_size", "signature_algorithm", "sha256_fingerprint")
+            ),
+            started,
+            0,
+            f"{PY_TOOL} (handshake) + cryptography (reading the certificate)",
+            f"{PY_TOOL_VERSION}; cryptography {cryptography.__version__}",
+        )
         match = certificate_matches(claimed, cert)
         evidence = self.wrap(self.base_evidence() + [ev])
         observed, _ = self.session.versions()
-        noticed = [] if tls_claimed else plain.also_noticed_tls({v: o.status for v, o in observed.items()})  # words only
+        noticed = (
+            [] if tls_claimed else plain.also_noticed_tls({v: o.status for v, o in observed.items()})
+        )  # words only
         if match is None:
             out = _result(COULDNT, found, f"We don't know how to compare a certificate with {claimed!r}.", evidence)
         else:
@@ -252,6 +330,7 @@ class AddressCheck:
         from app.present import pq as present_pq
         from app.run.execute import pqstatus
         from app.engine.reviewer import pq_status_of
+
         claimed = str(detail.get("status") or "")
         if self.blocked:
             return _couldnt(self.blocked, self.wrap(self.base_evidence()))
@@ -259,11 +338,18 @@ class AddressCheck:
             try:
                 self._pq_cache = pqstatus.measure_server(self, self.mode, lambda *_: None, lambda *_: None, costs=False)
             except Exception as exc:  # never a crash and never a guess
-                self._pq_cache = {"problem": {"code": "harness_error", "text": f"The check stopped unexpectedly ({exc.__class__.__name__})."}}
+                self._pq_cache = {
+                    "problem": {
+                        "code": "harness_error",
+                        "text": f"The check stopped unexpectedly ({exc.__class__.__name__}).",
+                    }
+                }
         raw = self._pq_cache
         if raw.get("problem"):
-            return _couldnt(str(raw["problem"].get("text") or "The check could not be run."),
-                            raw.get("gate") or self.wrap(self.base_evidence()))
+            return _couldnt(
+                str(raw["problem"].get("text") or "The check could not be run."),
+                raw.get("gate") or self.wrap(self.base_evidence()),
+            )
         evidence = list(raw["subject"].get("evidence") or [])
         control = raw.get("control") if isinstance(raw.get("control"), dict) else {}
         for name in ("hybrid", "classical"):
@@ -273,7 +359,10 @@ class AddressCheck:
         except (KeyError, TypeError, ValueError, AttributeError):
             return _couldnt("The answers could not be read.", evidence)
         if found["control"]["outcome"] != "as_expected":
-            return _couldnt("The check did not read our own hybrid and classical test servers correctly, so its answer can't be relied on.", evidence)
+            return _couldnt(
+                "The check did not read our own hybrid and classical test servers correctly, so its answer can't be relied on.",
+                evidence,
+            )
         code, d = found["code"], found["detail"]
         if code not in present_pq.STATUS_LABELS:
             out = _couldnt(present_pq.unclear_sentence(d), evidence)
@@ -282,29 +371,40 @@ class AddressCheck:
         label = present_pq.STATUS_LABELS[code]
         sentence = present_pq.status_sentence(code, d)
         out = _result(TRUE if label == claimed else FALSE, f"Measured: {label}. {sentence}", None, evidence)
-        out["summary"] = (f"{sentence} That matches the claim." if label == claimed else
-                          f"{sentence} The file says {claimed}, so the claim is not true.")
+        out["summary"] = (
+            f"{sentence} That matches the claim."
+            if label == claimed
+            else f"{sentence} The file says {claimed}, so the claim is not true."
+        )
         return out
 
     def key_exchange(self, detail: dict) -> dict:
         if detail.get("from_algorithm_asset"):
-            return _couldnt("The file names a key-exchange algorithm, not the TLS groups the server offers, "
-                            "so there is nothing exact to compare.")
+            return _couldnt(
+                "The file names a key-exchange algorithm, not the TLS groups the server offers, "
+                "so there is nothing exact to compare."
+            )
         why = self.ready()
         if why:
             return _couldnt(why, self.wrap(self.base_evidence()))
         versions, _ = self.session.versions()
         if versions["TLS 1.3"].status != "accepted":
-            return _couldnt("This version checks key-exchange groups on TLS 1.3 only, and the server did not complete a "
-                            f"TLS 1.3 handshake ({versions['TLS 1.3'].detail}).", self.wrap(self.base_evidence()))
+            return _couldnt(
+                "This version checks key-exchange groups on TLS 1.3 only, and the server did not complete a "
+                f"TLS 1.3 handshake ({versions['TLS 1.3'].detail}).",
+                self.wrap(self.base_evidence()),
+            )
         if self._group_cache is None:
             self._group_cache = self.session.tls13_groups()
         observed, ev = self._group_cache
         verdict = compare_only_claim(detail.get("groups", []), observed)
         accepted = [g for g, s in observed.items() if s == "accepted"]
         unknown = [g for g, s in observed.items() if s == "unknown"]
-        found = (f"On TLS 1.3 the server accepts {join_and(accepted)}." if accepted else
-                 "On TLS 1.3 the server accepted none of the groups we tried.")
+        found = (
+            f"On TLS 1.3 the server accepts {join_and(accepted)}."
+            if accepted
+            else "On TLS 1.3 the server accepted none of the groups we tried."
+        )
         found += f" Groups tried: {', '.join(observed)}."
         reason = None
         if verdict.result == COULDNT:
@@ -315,9 +415,11 @@ class AddressCheck:
             claimed = set(detail.get("groups", []))
             others = [g for g in observed if g not in claimed]
             verdict.result = COULDNT
-            reason = ("The server accepts the claimed groups and refused the others we tried"
-                      f"{' (' + ', '.join(others) + ')' if others else ''}, but there are groups this checker "
-                      "can't offer, so we can't say it uses nothing else.")
+            reason = (
+                "The server accepts the claimed groups and refused the others we tried"
+                f"{' (' + ', '.join(others) + ')' if others else ''}, but there are groups this checker "
+                "can't offer, so we can't say it uses nothing else."
+            )
         return _result(verdict.result, found, reason, self.wrap(self.base_evidence() + [ev]))
 
     def cipher_suites(self, detail: dict) -> dict:
@@ -334,10 +436,19 @@ class AddressCheck:
             (claimed if mapped else unknown_names).append(mapped or name)
         all_evidence = self.wrap(self.base_evidence() + evidence)
         accepted = [n for n, s in observed.items() if s == "accepted"]
-        found = f"The server accepts {join_and(accepted)}." if accepted else "The server accepted no cipher suite we offered."
+        found = (
+            f"The server accepts {join_and(accepted)}."
+            if accepted
+            else "The server accepted no cipher suite we offered."
+        )
         if unknown_names:
-            return _result(COULDNT, found, f"We don't recognise the cipher suite name {join_and(unknown_names)}, "
-                                           "so we can't compare the list exactly.", all_evidence)
+            return _result(
+                COULDNT,
+                found,
+                f"We don't recognise the cipher suite name {join_and(unknown_names)}, "
+                "so we can't compare the list exactly.",
+                all_evidence,
+            )
         full = dict(observed)
         for name in claimed:
             full.setdefault(name, "refused" if complete else "unknown")
@@ -347,8 +458,10 @@ class AddressCheck:
             # We can only offer the suites this computer's OpenSSL knows, not every suite a server could
             # accept. So an "only these suites" claim can be shown False, but never True.
             verdict.result = COULDNT
-            reason = ("The server accepts the claimed cipher suites and refused every other suite this computer could "
-                      "offer, but there are cipher suites this checker can't offer, so we can't say it accepts nothing else.")
+            reason = (
+                "The server accepts the claimed cipher suites and refused every other suite this computer could "
+                "offer, but there are cipher suites this checker can't offer, so we can't say it accepts nothing else."
+            )
         elif verdict.result in (TRUE, COULDNT):
             verdict.result = COULDNT
             reason = f"The list of accepted cipher suites may be incomplete ({incomplete_why or 'some suites could not be tested'})."
@@ -408,8 +521,13 @@ def _iana_names() -> dict[str, str]:
         path, _ = openssl_cli()
         if path:
             try:
-                out = subprocess.run([path, "ciphers", "-stdname", WIDEST_CIPHERS], stdin=subprocess.DEVNULL,
-                                     capture_output=True, text=True, timeout=5).stdout
+                out = subprocess.run(
+                    [path, "ciphers", "-stdname", WIDEST_CIPHERS],
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                ).stdout
                 for line in out.splitlines():
                     parts = line.split()
                     if len(parts) >= 3 and parts[1] == "-":
@@ -419,9 +537,15 @@ def _iana_names() -> dict[str, str]:
     return _iana_cache
 
 
-def verify_claims(claims: list, address_rows: list, demo: DemoContext,
-                  resolver: Callable[[str], list[str]] = resolve_all,
-                  session_factory: Callable[..., ProbeSession] = ProbeSession, component_runner=None, mode=None) -> list[dict]:
+def verify_claims(
+    claims: list,
+    address_rows: list,
+    demo: DemoContext,
+    resolver: Callable[[str], list[str]] = resolve_all,
+    session_factory: Callable[..., ProbeSession] = ProbeSession,
+    component_runner=None,
+    mode=None,
+) -> list[dict]:
     """Check every claim, one address at a time and one handshake at a time. Returns one result per claim.
     `component_runner` is the app's ComponentRunner: a software claim's component runs in the app's own mode."""
     rows = {r.address: r for r in address_rows}
@@ -449,7 +573,9 @@ def verify_claims(claims: list, address_rows: list, demo: DemoContext,
                 elif claim.kind == "post_quantum":
                     res = check.post_quantum(detail)
                 else:
-                    res = _couldnt("This version checks signature algorithms on software components only, not on servers.")
+                    res = _couldnt(
+                        "This version checks signature algorithms on software components only, not on servers."
+                    )
         elif claim.location_kind == "software":
             known = components.kind_of(detail.get("component"), detail.get("version"))
             # Phase 4c: a real library's key exchange claim (ML-KEM-768) is checked too; any other is not.
@@ -457,15 +583,25 @@ def verify_claims(claims: list, address_rows: list, demo: DemoContext,
             if claim.kind != "signature_algorithm" and not kem:
                 res = _couldnt("This version checks signing components only.")
             elif known == "real":
-                res = components.verify_real_claim(detail["component"], detail["version"], str(detail.get("algorithm", "")),
-                                                   runner=component_runner, key_exchange=kem)
+                res = components.verify_real_claim(
+                    detail["component"],
+                    detail["version"],
+                    str(detail.get("algorithm", "")),
+                    runner=component_runner,
+                    key_exchange=kem,
+                )
             else:
                 path = components.lookup(detail.get("component"), detail.get("version"))
                 if path is None:
                     res = _couldnt(components.NOT_A_DEMO_COMPONENT)
                 else:
-                    res = components.verify_software_claim(path, detail["component"], detail["version"],
-                                                           str(detail.get("algorithm", "")), runner=component_runner)
+                    res = components.verify_software_claim(
+                        path,
+                        detail["component"],
+                        detail["version"],
+                        str(detail.get("algorithm", "")),
+                        runner=component_runner,
+                    )
         else:
             res = _couldnt("The file doesn't say where this is used, so there is nothing to connect to or run.")
         results.append(_with_summary(claim, res))
@@ -475,7 +611,10 @@ def verify_claims(claims: list, address_rows: list, demo: DemoContext,
 def names_for_certificate(cert: dict) -> str:
     """A certificate's key in the same words a claim uses ("ECDSA P-256", "RSA 2048"), or plain words if not."""
     from app.names import normalize_algorithm
-    name = normalize_algorithm("ECDSA" if cert.get("key_type") == "EC" else cert.get("key_type"), cert.get("curve"), cert.get("key_size"))
+
+    name = normalize_algorithm(
+        "ECDSA" if cert.get("key_type") == "EC" else cert.get("key_type"), cert.get("curve"), cert.get("key_size")
+    )
     if cert.get("key_type") == "RSA":
         return f"RSA with a {cert.get('key_size')}-bit key"
     return name or f"a {cert.get('key_type')} key"
@@ -490,18 +629,29 @@ def _with_summary(claim, res: dict) -> dict:
     if res["result"] == COULDNT:
         if claim.location_kind == "software" and res.get("reason") == components.NOT_A_DEMO_COMPONENT:
             label = f"{detail.get('component', '')} {detail.get('version', '')}".strip() or "this program"
-            res["summary"] = (f"We couldn't run {label}: only our own demo components can run in this version, "
-                              "so there is no answer either way.")
-        elif claim.location_kind == "software" and str(res.get("reason") or "").startswith(real_libraries.NEEDS_ISOLATED):
+            res["summary"] = (
+                f"We couldn't run {label}: only our own demo components can run in this version, "
+                "so there is no answer either way."
+            )
+        elif claim.location_kind == "software" and str(res.get("reason") or "").startswith(
+            real_libraries.NEEDS_ISOLATED
+        ):
             label = f"{detail.get('component', '')} {detail.get('version', '')}".strip() or "this library"
-            res["summary"] = (f"We couldn't run {label}: it is real software from outside, which runs only in isolated mode (Docker), "
-                              "and this run is in demo mode. So there is no answer either way.")
+            res["summary"] = (
+                f"We couldn't run {label}: it is real software from outside, which runs only in isolated mode (Docker), "
+                "and this run is in demo mode. So there is no answer either way."
+            )
         else:
             res["summary"] = plain.couldnt(res.get("reason"))
     elif claim.location_kind == "software":
         label = f"{detail.get('component', '')} {detail.get('version', '')}".strip()
-        res["summary"] = plain.verify_software(res["result"], label, str(detail.get("algorithm", "")), res.get("found", ""),
-                                               key_exchange=claim.kind == "key_exchange")
+        res["summary"] = plain.verify_software(
+            res["result"],
+            label,
+            str(detail.get("algorithm", "")),
+            res.get("found", ""),
+            key_exchange=claim.kind == "key_exchange",
+        )
     elif claim.kind in ("cipher_suites", "key_exchange") and res["result"] == FALSE:
         res["summary"] = f"{res.get('found', '').strip()} That doesn't match the claim, so it is not true."
     else:

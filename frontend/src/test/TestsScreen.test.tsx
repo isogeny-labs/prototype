@@ -37,7 +37,13 @@ describe("Tests screen", () => {
     const list = await shownCards();
     expect(calls(fetchMock)).toEqual(["POST /api/import/7/plan"]);
     expect(list).toHaveLength(5);
-    expect(titles()).toEqual(["Old TLS versions", "Certificate strength", "Official test vectors", "Bad signatures", "Speed and size"]);
+    expect(titles()).toEqual([
+      "Old TLS versions",
+      "Certificate strength",
+      "Official test vectors",
+      "Bad signatures",
+      "Speed and size",
+    ]);
     for (const [i, el] of list.entries()) {
       expect(within(el).getByText(cards[i]!.description)).not.toBeNull();
       expect(within(el).getByText(/^Why it matters: /).textContent).toBe(cards[i]!.why);
@@ -45,7 +51,9 @@ describe("Tests screen", () => {
     }
     expect(screen.getByText(plan.intro)).not.toBeNull();
     expect(screen.getByText("Demo data")).not.toBeNull();
-    expect(text(screen.getByTestId("plan-subject"))).toBe("Testing: server localhost:8443 and signing component acme-sign 1.4.2 from the file");
+    expect(text(screen.getByTestId("plan-subject"))).toBe(
+      "Testing: server localhost:8443 and signing component acme-sign 1.4.2 from the file",
+    );
   });
 
   it("an advisory check's card says which advisory it came from, with the way to it (phase 5c)", async () => {
@@ -100,7 +108,10 @@ describe("Tests screen", () => {
     open();
     await shownCards();
     const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent);
-    expect(names.filter((n) => n === "Run all" || !/^(Reorder|Run|Remove) /.test(n ?? ""))).toEqual(["Run all", "+ Add test"]);
+    expect(names.filter((n) => n === "Run all" || !/^(Reorder|Run|Remove) /.test(n ?? ""))).toEqual([
+      "Run all",
+      "+ Add test",
+    ]);
     expect(screen.getAllByRole("button", { name: /^Run (?!all)/ })).toHaveLength(5);
     expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(5);
     expect(screen.getAllByRole("button", { name: /^Reorder / })).toHaveLength(5);
@@ -116,7 +127,10 @@ describe("Tests screen", () => {
 
   it("shows a plain error when the plan can't be loaded", async () => {
     mockApi({
-      "POST /api/import/7/plan": { status: 409, body: { error: { message: "Verify the claims first.", line: null, field: null } } },
+      "POST /api/import/7/plan": {
+        status: 409,
+        body: { error: { message: "Verify the claims first.", line: null, field: null } },
+      },
     });
     render(<Harness />);
     expect(text(await screen.findByRole("alert"))).toContain("Verify the claims first.");
@@ -147,24 +161,32 @@ describe("Tests screen", () => {
     open({ "GET /api/plans/1": { body: runningPlan } }, runningPlan);
     await shownCards();
     expect(button("Run all").disabled).toBe(true);
-    for (const b of screen.getAllByRole("button", { name: /^Run (?!all)/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
+    for (const b of screen.getAllByRole("button", { name: /^Run (?!all)/ }))
+      expect((b as HTMLButtonElement).disabled).toBe(true);
     expect(button("Remove Old TLS versions").disabled).toBe(false);
     expect(button("Remove Official test vectors").disabled).toBe(true);
     expect(button("Remove Post-quantum readiness").disabled).toBe(true);
   });
 
   it("shows any result label the backend sends, including the two cautious ones", async () => {
-    const done = (i: number, label: string, tone: "warn" | "neutral" | "pass", code: "couldnt_run" | "couldnt_trust" | "offered" | "no_slowdown") =>
-      ({ ...cards[i]!, status: "done" as const, status_text: label, result: { code, label, tone } });
-    open({}, {
-      ...plan,
-      tests: [
-        done(0, "Couldn't run (address not confirmed)", "warn", "couldnt_run"),
-        done(1, "Couldn't trust this run", "warn", "couldnt_trust"),
-        done(2, "Offered", "neutral", "offered"),
-        done(3, "No slowdown beyond measured noise", "pass", "no_slowdown"),
-      ],
-    });
+    const done = (
+      i: number,
+      label: string,
+      tone: "warn" | "neutral" | "pass",
+      code: "couldnt_run" | "couldnt_trust" | "offered" | "no_slowdown",
+    ) => ({ ...cards[i]!, status: "done" as const, status_text: label, result: { code, label, tone } });
+    open(
+      {},
+      {
+        ...plan,
+        tests: [
+          done(0, "Couldn't run (address not confirmed)", "warn", "couldnt_run"),
+          done(1, "Couldn't trust this run", "warn", "couldnt_trust"),
+          done(2, "Offered", "neutral", "offered"),
+          done(3, "No slowdown beyond measured noise", "pass", "no_slowdown"),
+        ],
+      },
+    );
     await shownCards();
     const badges = screen.getAllByTestId("result-badge");
     expect(badges.map((b) => b.lastElementChild?.textContent)).toEqual([
@@ -192,7 +214,10 @@ describe("Tests screen", () => {
 
   it("shows the server's reason when a run is refused", async () => {
     open({
-      "POST /api/plans/1/run-all": { status: 409, body: { error: { message: "Tests are already running.", line: null, field: null } } },
+      "POST /api/plans/1/run-all": {
+        status: 409,
+        body: { error: { message: "Tests are already running.", line: null, field: null } },
+      },
     });
     await shownCards();
     fireEvent.click(button("Run all"));
@@ -254,7 +279,9 @@ describe("Tests screen", () => {
   });
 
   it("removes a test with its × button", async () => {
-    const fetchMock = open({ "POST /api/plans/1/tests/14/remove": { body: { ...plan, tests: cards.filter((c) => c.id !== 14) } } });
+    const fetchMock = open({
+      "POST /api/plans/1/tests/14/remove": { body: { ...plan, tests: cards.filter((c) => c.id !== 14) } },
+    });
     await shownCards();
     fireEvent.click(button("Remove Bad signatures"));
     await waitFor(() => expect(screen.getAllByTestId("test-card")).toHaveLength(4));
@@ -262,7 +289,9 @@ describe("Tests screen", () => {
   });
 
   it("+ Add test lists the catalog with its note, and clicking an item adds it", async () => {
-    const fetchMock = open({ "POST /api/plans/1/tests": { body: { ...plan, tests: [...cards, pqCard], catalog: [plan.catalog[1]!] } } });
+    const fetchMock = open({
+      "POST /api/plans/1/tests": { body: { ...plan, tests: [...cards, pqCard], catalog: [plan.catalog[1]!] } },
+    });
     await shownCards();
     const add = button("+ Add test");
     expect(add.getAttribute("aria-expanded")).toBe("false");
@@ -309,11 +338,17 @@ describe("Tests screen", () => {
     expect(await shownCards()).toHaveLength(5);
 
     fireEvent.click(button("+ Add test"));
-    fireEvent.click(within(screen.getByRole("menu", { name: "Tests you can add" })).getByRole("menuitem", { name: /Post-quantum readiness/ }));
+    fireEvent.click(
+      within(screen.getByRole("menu", { name: "Tests you can add" })).getByRole("menuitem", {
+        name: /Post-quantum readiness/,
+      }),
+    );
     await waitFor(() => expect(screen.getAllByTestId("test-card")).toHaveLength(6));
 
     land();
-    await waitFor(() => expect(calls(inner)).toEqual(["GET /api/import/7/plan", "POST /api/plans/1/tests", "GET /api/import/7/plan"]));
+    await waitFor(() =>
+      expect(calls(inner)).toEqual(["GET /api/import/7/plan", "POST /api/plans/1/tests", "GET /api/import/7/plan"]),
+    );
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(titles()).toHaveLength(6);
     expect(titles()).toContain("Post-quantum readiness");
@@ -355,11 +390,19 @@ describe("Tests screen", () => {
       await shownCards();
       const box = screen.getByTestId("not-tested");
       expect(within(box).getByRole("heading").textContent).toBe("Not tested, and why");
-      expect(within(box).getAllByRole("listitem").map((li) => li.textContent)).toEqual(groupedPlan.not_tested!.items);
+      expect(
+        within(box)
+          .getAllByRole("listitem")
+          .map((li) => li.textContent),
+      ).toEqual(groupedPlan.not_tested!.items);
       expect(box.getAttribute("role")).toBeNull();
       expect(box.className).not.toMatch(/amber|red/);
-      expect(box.compareDocumentPosition(screen.getAllByTestId("test-group")[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(screen.getByTestId("plan-subject").compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(
+        box.compareDocumentPosition(screen.getAllByTestId("test-group")[0]!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        screen.getByTestId("plan-subject").compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     });
 
     it("moves a card with the arrow keys only inside its own group and sends the whole list in the order shown", async () => {
@@ -377,7 +420,11 @@ describe("Tests screen", () => {
       fireEvent.keyDown(handles()[6]!, { key: "ArrowUp" });
       await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/order"));
       expect(body(fetchMock, "/api/plans/1/order")).toEqual({ order: [21, 22, 31, 32, 41, 43, 42] });
-      expect(screen.getByText("Speed and size moved to position 2 of 3 in Standard tests under Signing program: acme-sign 1.4.2.")).not.toBeNull();
+      expect(
+        screen.getByText(
+          "Speed and size moved to position 2 of 3 in Standard tests under Signing program: acme-sign 1.4.2.",
+        ),
+      ).not.toBeNull();
     });
 
     it("doesn't let a card be dropped into another group", async () => {
@@ -415,10 +462,21 @@ describe("Tests screen, the plan's two lists", () => {
   // in the plan's own order the two kinds are mixed: 11, A (21), 12, 13, B (22), 14, 15
   const mixed: PlanView = {
     ...plan,
-    tests: [cards[0]!, advisoryCard(21, "Advisory check: A"), cards[1]!, cards[2]!, advisoryCard(22, "Advisory check: B"), cards[3]!, cards[4]!],
+    tests: [
+      cards[0]!,
+      advisoryCard(21, "Advisory check: A"),
+      cards[1]!,
+      cards[2]!,
+      advisoryCard(22, "Advisory check: B"),
+      cards[3]!,
+      cards[4]!,
+    ],
   };
   const lists = () => screen.getAllByTestId("plan-list");
-  const titlesIn = (el: HTMLElement) => within(el).getAllByTestId("test-card").map((c) => within(c).getByRole("heading").textContent);
+  const titlesIn = (el: HTMLElement) =>
+    within(el)
+      .getAllByTestId("test-card")
+      .map((c) => within(c).getByRole("heading").textContent);
 
   it("shows Standard tests and Advisory checks as two lists, each with its count, and marks the second From Otto", async () => {
     open({}, mixed);
@@ -432,10 +490,19 @@ describe("Tests screen, the plan's two lists", () => {
     expect(within(standard).queryByTestId("plan-list-from-otto")).toBeNull();
     expect(within(advisory).getByTestId("plan-list-from-otto").textContent).toBe("From Otto");
     // every card is in exactly one list, in the plan's order within that list
-    expect(titlesIn(standard)).toEqual(["Old TLS versions", "Certificate strength", "Official test vectors", "Bad signatures", "Speed and size"]);
+    expect(titlesIn(standard)).toEqual([
+      "Old TLS versions",
+      "Certificate strength",
+      "Official test vectors",
+      "Bad signatures",
+      "Speed and size",
+    ]);
     expect(titlesIn(advisory)).toEqual(["Advisory check: A", "Advisory check: B"]);
     expect(screen.getAllByTestId("test-card")).toHaveLength(7);
-    expect(screen.getAllByRole("table").map((t) => t.getAttribute("aria-label"))).toEqual(["Tests: Standard tests", "Tests: Advisory checks"]);
+    expect(screen.getAllByRole("table").map((t) => t.getAttribute("aria-label"))).toEqual([
+      "Tests: Standard tests",
+      "Tests: Advisory checks",
+    ]);
     // a card's place is counted in its own list
     expect(button(/^Reorder Advisory check: B/).getAttribute("aria-label")).toMatch(/position 2 of 2\./);
     expect(button(/^Reorder Speed and size/).getAttribute("aria-label")).toMatch(/position 5 of 5\./);
@@ -518,7 +585,11 @@ describe("Tests screen, closed assessment", () => {
       </ReadOnlyProvider>,
     );
     await shownCards();
-    for (const b of [...screen.getAllByRole("button", { name: /^Run / }), ...screen.getAllByRole("button", { name: /^Remove / }), ...screen.getAllByTestId("drag-handle")]) {
+    for (const b of [
+      ...screen.getAllByRole("button", { name: /^Run / }),
+      ...screen.getAllByRole("button", { name: /^Remove / }),
+      ...screen.getAllByTestId("drag-handle"),
+    ]) {
       expect((b as HTMLButtonElement).disabled).toBe(true);
       expect(b.getAttribute("title")).toBe(CLOSED_SENTENCE);
     }
@@ -530,19 +601,43 @@ describe("Tests screen, closed assessment", () => {
 // every other test runs a copy here. A test that couldn't run has no tag.
 describe("Test plan, where each result came from", () => {
   it("draws one tag beside each finished card's result, and none where it couldn't run", async () => {
-    open({}, {
-      ...plan,
-      tests: [
-        { ...cards[0]!, status: "done", status_text: "Failed", result: { code: "failed", label: "Failed", tone: "fail" }, source_tag: live("localhost:8443") },
-        { ...cards[2]!, status: "done", status_text: "Failed", result: { code: "failed", label: "Failed", tone: "fail" }, source_tag: labCopy("acme-sign 1.4.2") },
-        { ...cards[3]!, status: "done", status_text: "Couldn't run", result: { code: "couldnt_run", label: "Couldn't run", tone: "warn" }, source_tag: null },
-      ],
-    });
+    open(
+      {},
+      {
+        ...plan,
+        tests: [
+          {
+            ...cards[0]!,
+            status: "done",
+            status_text: "Failed",
+            result: { code: "failed", label: "Failed", tone: "fail" },
+            source_tag: live("localhost:8443"),
+          },
+          {
+            ...cards[2]!,
+            status: "done",
+            status_text: "Failed",
+            result: { code: "failed", label: "Failed", tone: "fail" },
+            source_tag: labCopy("acme-sign 1.4.2"),
+          },
+          {
+            ...cards[3]!,
+            status: "done",
+            status_text: "Couldn't run",
+            result: { code: "couldnt_run", label: "Couldn't run", tone: "warn" },
+            source_tag: null,
+          },
+        ],
+      },
+    );
     await shownCards();
-    const shown = screen.getAllByTestId("test-card").map((c) => within(c).queryAllByTestId("source-tag").map((t) => t.textContent));
+    const shown = screen.getAllByTestId("test-card").map((c) =>
+      within(c)
+        .queryAllByTestId("source-tag")
+        .map((t) => t.textContent),
+    );
     expect(shown).toEqual([["Observed live"], ["Proven in the lab"], []]);
     const first = within(screen.getAllByTestId("test-card")[0]!);
     expect(first.getByTestId("result-badge").parentElement!.contains(first.getByTestId("source-tag"))).toBe(true);
   });
 });
-

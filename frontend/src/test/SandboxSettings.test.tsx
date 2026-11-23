@@ -4,7 +4,15 @@ import type { OttoSettingsView } from "../api";
 import { SettingsPage } from "../components/pages/SettingsPage";
 import { calls, mockApi, session } from "./fixtures";
 import { ottoInstalledTwo } from "./ottoFixtures";
-import { NOT_MARKED, sandboxBlocked, sandboxByItself, sandboxOff, sandboxOn, sandboxOnLive, settingsWith } from "./sandboxFixtures";
+import {
+  NOT_MARKED,
+  sandboxBlocked,
+  sandboxByItself,
+  sandboxOff,
+  sandboxOn,
+  sandboxOnLive,
+  settingsWith,
+} from "./sandboxFixtures";
 import { workspace } from "./shellFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
@@ -55,7 +63,9 @@ describe("Settings: Sandbox research (prototype)", () => {
     expect(sw.disabled).toBe(true);
     const reasons = within(block().getByTestId("sandbox-switch-reasons")).getAllByRole("listitem");
     expect(reasons.map((r) => r.textContent)).toEqual([NOT_MARKED, "It needs isolated mode. Docker is not running."]);
-    expect(block().getByTestId("sandbox-status-line").textContent).toBe("Sandbox research is off, and can't be turned on here.");
+    expect(block().getByTestId("sandbox-status-line").textContent).toBe(
+      "Sandbox research is off, and can't be turned on here.",
+    );
     fireEvent.click(sw);
     expect(screen.queryByTestId("sandbox-box")).toBeNull();
     expect(posts(fetchMock)).toEqual([]);
@@ -94,7 +104,16 @@ describe("Settings: Sandbox research (prototype)", () => {
 
   it("a refusal to turn on closes the box and is shown in the block", async () => {
     const fetchMock = await open(settingsWith(sandboxOff), {
-      [SANDBOX]: { status: 409, body: { error: { message: "Sandbox research can't be turned on here. It needs isolated mode. Docker is not running.", line: null, field: null } } },
+      [SANDBOX]: {
+        status: 409,
+        body: {
+          error: {
+            message: "Sandbox research can't be turned on here. It needs isolated mode. Docker is not running.",
+            line: null,
+            field: null,
+          },
+        },
+      },
     });
     fireEvent.click(block().getByTestId("sandbox-switch"));
     fireEvent.click(within(await screen.findByTestId("sandbox-box")).getByTestId("sandbox-box-confirm"));
@@ -116,8 +135,12 @@ describe("Settings: Sandbox research (prototype)", () => {
     const first = await open(settingsWith(sandboxOn));
     const tick = block().getByTestId("sandbox-by-itself") as HTMLInputElement;
     expect(tick.disabled).toBe(true);
-    expect(block().getByTestId("sandbox-by-itself-reason").textContent).toBe("This can be ticked only while Live Otto is on.");
-    expect(block().getByTestId("sandbox-by-itself-line").textContent).toContain("within the limit for one run and the limit for a day");
+    expect(block().getByTestId("sandbox-by-itself-reason").textContent).toBe(
+      "This can be ticked only while Live Otto is on.",
+    );
+    expect(block().getByTestId("sandbox-by-itself-line").textContent).toContain(
+      "within the limit for one run and the limit for a day",
+    );
     fireEvent.click(tick);
     expect(posts(first)).toEqual([]);
   });
@@ -148,7 +171,16 @@ describe("Settings: Sandbox research (prototype)", () => {
       [SANDBOX]: (init) => {
         const body = JSON.parse(String(init?.body)) as { day_limit?: string; run_limit?: string };
         if (body.run_limit !== undefined)
-          return { status: 400, body: { error: { message: "A spending limit is an amount in US dollars, like 5 or 2.50.", line: null, field: "limit" } } };
+          return {
+            status: 400,
+            body: {
+              error: {
+                message: "A spending limit is an amount in US dollars, like 5 or 2.50.",
+                line: null,
+                field: "limit",
+              },
+            },
+          };
         return { body: saved };
       },
     });

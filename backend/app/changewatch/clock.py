@@ -14,6 +14,7 @@ Rules kept here:
   - By itself the clock only looks. A research run is started only where the second tick allows it (`start_research_
     by_itself`, behind `sandbox_by_itself()`), within the limit for a day; it accepts nothing and runs no check.
 """
+
 from __future__ import annotations
 
 import threading
@@ -26,10 +27,10 @@ from app.db import AssessmentRow, OttoLookupRow, PlanRow
 from app.errors import Conflict
 from app.present import watchlist as words
 
-INTERVAL = timedelta(hours=24)                       # a look by itself is due this long after the last look
+INTERVAL = timedelta(hours=24)  # a look by itself is due this long after the last look
 RETRY_WAITS = (timedelta(hours=1), timedelta(hours=2), timedelta(hours=4), timedelta(hours=8), timedelta(hours=24))
-START_DELAY_SECONDS = 30.0                           # after the app starts, before the first round
-TICK_SECONDS = 60.0                                  # how often the clock asks itself whether anything is due
+START_DELAY_SECONDS = 30.0  # after the app starts, before the first round
+TICK_SECONDS = 60.0  # how often the clock asks itself whether anything is due
 
 
 def _when(at: object) -> datetime:
@@ -44,7 +45,7 @@ def _stamp(when: datetime) -> str:
     return when.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-MAX_BY_ITSELF = 3          # times the clock takes one advisory up by itself before it waits for a person's click
+MAX_BY_ITSELF = 3  # times the clock takes one advisory up by itself before it waits for a person's click
 
 
 class WatchClockMixin:
@@ -65,8 +66,8 @@ class WatchClockMixin:
     start_research: Callable[..., dict]
 
     def _init_watch_clock(self) -> None:
-        self._clock_round = threading.Lock()                       # one round at a time
-        self._clock_failed: dict[int, dict] = {}                   # plan id -> {"count", "until", "reason"}: looks that got no answer
+        self._clock_round = threading.Lock()  # one round at a time
+        self._clock_failed: dict[int, dict] = {}  # plan id -> {"count", "until", "reason"}: looks that got no answer
         self._clock_stop = threading.Event()
         self._clock_thread: threading.Thread | None = None
 
@@ -83,7 +84,7 @@ class WatchClockMixin:
                 wait = TICK_SECONDS
                 try:
                     self.watch_clock_tick()
-                except Exception:      # noqa: BLE001  (the clock never takes the app down; the next minute it asks again)
+                except Exception:  # noqa: BLE001  (the clock never takes the app down; the next minute it asks again)
                     pass
 
         self._clock_thread = threading.Thread(target=run, name="evidence-lab-watch-clock", daemon=True)
@@ -99,15 +100,21 @@ class WatchClockMixin:
 
     def _clock_plans(self, db) -> list[int]:
         """The plan of every open assessment that is not archived, oldest first."""
-        rows = db.execute(select(PlanRow.id).join(AssessmentRow, AssessmentRow.import_id == PlanRow.import_id)
-                          .where(AssessmentRow.closed_at.is_(None), AssessmentRow.archived.is_(False)).order_by(PlanRow.id)).all()
+        rows = db.execute(
+            select(PlanRow.id)
+            .join(AssessmentRow, AssessmentRow.import_id == PlanRow.import_id)
+            .where(AssessmentRow.closed_at.is_(None), AssessmentRow.archived.is_(False))
+            .order_by(PlanRow.id)
+        ).all()
         return [int(r[0]) for r in rows]
 
     def _clock_due(self, db, plan_id: int, now: datetime) -> bool:
         failed = self._clock_failed.get(plan_id)
         if failed is not None and now < failed["until"]:
             return False
-        newest = db.scalars(select(OttoLookupRow).where(OttoLookupRow.plan_id == plan_id).order_by(OttoLookupRow.id.desc()).limit(1)).first()
+        newest = db.scalars(
+            select(OttoLookupRow).where(OttoLookupRow.plan_id == plan_id).order_by(OttoLookupRow.id.desc()).limit(1)
+        ).first()
         return newest is None or now - _when(newest.at) >= INTERVAL
 
     def watch_clock_tick(self, now: datetime | None = None) -> dict:
@@ -126,7 +133,9 @@ class WatchClockMixin:
                     if not self._clock_due(db, plan_id, now):
                         continue
                     plan = db.get(PlanRow, plan_id)
-                    if self._askable(self._named_libraries(db, plan))[0]:     # (nothing to ask about is nothing to look for)
+                    if self._askable(self._named_libraries(db, plan))[
+                        0
+                    ]:  # (nothing to ask about is nothing to look for)
                         due.append(plan_id)
             looked: list[int] = []
             failed: dict[int, str] = {}
@@ -150,13 +159,23 @@ class WatchClockMixin:
                     except Conflict as refused:
                         count = self._clock_failed.get(plan_id, {}).get("count", 0) + 1
                         wait = RETRY_WAITS[min(count, len(RETRY_WAITS)) - 1]
-                        self._clock_failed[plan_id] = {"count": count, "until": now + wait, "reason": str(refused), "at": now}
+                        self._clock_failed[plan_id] = {
+                            "count": count,
+                            "until": now + wait,
+                            "reason": str(refused),
+                            "at": now,
+                        }
                         failed[plan_id] = str(refused)
                     else:
                         self._clock_failed.pop(plan_id, None)
                         looked.append(plan_id)
-            started = self.start_research_by_itself(now)       # (only with the second tick set; None otherwise)
-            return {"did": "looked" if (looked or failed) else "nothing", "looked": looked, "failed": failed, "started": started}
+            started = self.start_research_by_itself(now)  # (only with the second tick set; None otherwise)
+            return {
+                "did": "looked" if (looked or failed) else "nothing",
+                "looked": looked,
+                "failed": failed,
+                "started": started,
+            }
         finally:
             self._clock_round.release()
 
@@ -175,15 +194,23 @@ class WatchClockMixin:
                 if look is None:
                     continue
                 rows = self._lookup_rows(db, db.get(PlanRow, plan_id), look)
-                mine = {r["advisory"]["id"] for r in rows if r["state"] == "new"
-                        and self.research_tries_by_itself(db, plan_id, r["advisory"]["id"], words.CLOCK_NAME) < MAX_BY_ITSELF}
-                if mine and self._research_blocked(db, plan_id, [r for r in rows if r["advisory"]["id"] in mine]) is None:
+                mine = {
+                    r["advisory"]["id"]
+                    for r in rows
+                    if r["state"] == "new"
+                    and self.research_tries_by_itself(db, plan_id, r["advisory"]["id"], words.CLOCK_NAME)
+                    < MAX_BY_ITSELF
+                }
+                if (
+                    mine
+                    and self._research_blocked(db, plan_id, [r for r in rows if r["advisory"]["id"] in mine]) is None
+                ):
                     waiting.append((str(look.at), plan_id, mine))
         for _, plan_id, mine in sorted(waiting):
             try:
                 self.start_research(plan_id, by=words.CLOCK_NAME, only=mine)
             except Conflict:
-                continue          # (something changed since the check above: the next round looks again)
+                continue  # (something changed since the check above: the next round looks again)
             return plan_id
         return None
 
@@ -200,7 +227,9 @@ class WatchClockMixin:
         if failed is not None:
             return words.clock_failed_line(_stamp(failed["at"]), failed["reason"], _stamp(failed["until"]))
         with self.db() as db:
-            newest = db.scalars(select(OttoLookupRow).where(OttoLookupRow.plan_id == plan_id).order_by(OttoLookupRow.id.desc()).limit(1)).first()
+            newest = db.scalars(
+                select(OttoLookupRow).where(OttoLookupRow.plan_id == plan_id).order_by(OttoLookupRow.id.desc()).limit(1)
+            ).first()
         if newest is None:
             return words.CLOCK_SOON
         return words.clock_next_line(_stamp(_when(newest.at) + INTERVAL))

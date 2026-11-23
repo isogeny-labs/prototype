@@ -9,6 +9,7 @@ Enabled for every test by tests/conftest.py. Options (environment variables):
   API_SHAPES_REPORT=1   at the end, list the routes that were checked and those no test reached
   API_SHAPES_COLLECT=1  record every mismatch and list it at the end instead of failing the test
 """
+
 from __future__ import annotations
 
 import os
@@ -63,15 +64,17 @@ def check_response(app, method: str, url: str, response) -> None:
         return
     template, model = found
     try:
-        model.model_validate_json(response.text, strict=True)   # as the screens read it: JSON, exactly
+        model.model_validate_json(response.text, strict=True)  # as the screens read it: JSON, exactly
     except ValidationError as exc:
         if os.environ.get("API_SHAPES_COLLECT"):
             for err in exc.errors(include_url=False):
                 where = ".".join("*" if isinstance(p, int) else str(p) for p in err["loc"])
                 ERRORS.setdefault((f"{method.upper()} {template}", where, err["type"]), repr(err.get("input"))[:100])
             return
-        raise AssertionError(f"{method.upper()} {template} answered something its shape {model.__name__} does not "
-                             f"accept:\n{exc.errors(include_url=False)}") from None
+        raise AssertionError(
+            f"{method.upper()} {template} answered something its shape {model.__name__} does not "
+            f"accept:\n{exc.errors(include_url=False)}"
+        ) from None
     CHECKED.add((method.upper(), template))
 
 

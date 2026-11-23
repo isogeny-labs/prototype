@@ -1,6 +1,7 @@
 """Phase 6a: never more than three panel tabs, and every kind of entry belongs to exactly one of them.
 
 These tests read the one table (app/assistant/threads.py). No Lab is needed."""
+
 import pytest
 
 from app.assistant import engine, threads
@@ -26,13 +27,21 @@ def test_every_kind_of_entry_maps_to_exactly_one_of_the_three_threads():
 def test_every_page_of_an_assessment_has_its_thread_and_the_overview_has_none():
     assert set(threads.PAGE_THREAD) == set(threads.PAGES) == set(threads.PAGE_LABELS)
     assert threads.PAGE_THREAD["overview"] is None
-    assert {p for p, t in threads.PAGE_THREAD.items() if t == "testing"} == {"inventory/import", "inventory/verify", "advisories", "checks", "evidence", "change-watch"}
+    assert {p for p, t in threads.PAGE_THREAD.items() if t == "testing"} == {
+        "inventory/import",
+        "inventory/verify",
+        "advisories",
+        "checks",
+        "evidence",
+        "change-watch",
+    }
     assert {p for p, t in threads.PAGE_THREAD.items() if t == "fixing"} == {"fixes", "migration/dependencies"}
     assert {p for p, t in threads.PAGE_THREAD.items() if t == "planning"} == {"migration/systems", "migration/roadmap"}
 
 
 def test_each_kind_of_proposal_arrives_in_one_thread_and_fits_the_pages_the_plan_names():
     from app.otto import proposals
+
     assert set(threads.KIND_THREAD) == set(proposals.KINDS)
     assert threads.KIND_THREAD == {"check": "testing", "fix": "fixing", "dependency": "fixing", "plan": "planning"}
     for kind in proposals.KINDS:
@@ -40,7 +49,9 @@ def test_each_kind_of_proposal_arrives_in_one_thread_and_fits_the_pages_the_plan
         # a proposal fits the page it lives on (the one with its own buttons); a check also fits Checks
         assert kind in threads.FITS[proposals.HOME[kind]]
         # ... and every page it fits is a page of its own thread
-        assert {threads.PAGE_THREAD[page] for page, kinds in threads.FITS.items() if kind in kinds} == {threads.KIND_THREAD[kind]}
+        assert {threads.PAGE_THREAD[page] for page, kinds in threads.FITS.items() if kind in kinds} == {
+            threads.KIND_THREAD[kind]
+        }
     assert threads.FITS["checks"] == ("check",) and threads.FITS["migration/roadmap"] == ("plan",)
     # no suggestion fits Import, Verify, Evidence or the Overview
     assert not set(threads.FITS) & {"overview", "inventory/import", "inventory/verify", "evidence"}

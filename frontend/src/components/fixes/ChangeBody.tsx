@@ -6,9 +6,18 @@ export function CodeLines({ lines }: { lines: DiffLine[] }) {
     <div className="rounded bg-slate-900 py-1.5 font-mono text-xs leading-5">
       {lines.map((line) => {
         const tint =
-          line.mark === "-" ? "bg-amber-400/15 text-amber-50" : line.mark === "+" ? "bg-sky-400/15 text-sky-50" : "text-slate-400";
+          line.mark === "-"
+            ? "bg-amber-400/15 text-amber-50"
+            : line.mark === "+"
+              ? "bg-sky-400/15 text-sky-50"
+              : "text-slate-400";
         return (
-          <div key={line.n} data-testid="code-line" data-mark={line.mark} className={`grid grid-cols-[3.25rem_1.25rem_1fr] ${tint}`}>
+          <div
+            key={line.n}
+            data-testid="code-line"
+            data-mark={line.mark}
+            className={`grid grid-cols-[3.25rem_1.25rem_1fr] ${tint}`}
+          >
             <span className="select-none pr-2 text-right text-slate-400">{line.n}</span>
             <span className="select-none text-center font-semibold">
               {line.mark === "-" ? "−" : line.mark === "+" ? "+" : ""}

@@ -103,7 +103,6 @@ describe("first run and login", () => {
   });
 });
 
-
 // ---- helpers for the screens inside an assessment ----
 const nav = () => within(screen.getByRole("navigation", { name: "Assessment" }));
 const sideLink = (name: string) => nav().getByRole("link", { name });
@@ -116,7 +115,8 @@ const currentPages = () =>
 const goTo = (name: string) => fireEvent.click(sideLink(name));
 /** 20 November 2026: the sidebar lists the four work groups under the open page (Checks, Evidence or Fixes); each opens
  * its tab. A screen reader hears the page with the group ("Crypto tests on Evidence"). */
-const goToGroup = async (group: string, page: string) => fireEvent.click(await nav().findByRole("link", { name: `${group} on ${page}` }));
+const goToGroup = async (group: string, page: string) =>
+  fireEvent.click(await nav().findByRole("link", { name: `${group} on ${page}` }));
 
 /** What an assessment (101, Acme Pay) with a file, a Verify run and a plan with results asks the server for. */
 const withResults = (extra: Record<string, unknown> = {}): Routes =>
@@ -138,7 +138,9 @@ describe("app shell", () => {
       "GET /api/session": { body: session },
       ...withWorkspace,
       "GET /api/assessments/111": { body: emptyAssessment },
-      "GET /api/projects/11": { body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [] } },
+      "GET /api/projects/11": {
+        body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [] },
+      },
       ...extra,
     }) as Routes;
 
@@ -151,10 +153,26 @@ describe("app shell", () => {
     expect(screen.getByTestId("mode-line").textContent).toBe("Demo mode: running our own demo software, not isolated.");
 
     // Phase 5c: Advisories sits between Inventory and Checks. Phase 6d: Change watch comes after Fixes.
-    expect(nav().getAllByRole("link").map((a) => text(a))).toEqual(["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Change watch", "Migration"]);
+    expect(
+      nav()
+        .getAllByRole("link")
+        .map((a) => text(a)),
+    ).toEqual([
+      "Overview",
+      "Inventory",
+      "Import",
+      "Verify",
+      "Advisories",
+      "Checks",
+      "Evidence",
+      "Fixes",
+      "Change watch",
+      "Migration",
+    ]);
     expect(currentPages()).toEqual(["Import"]);
     // With no file yet, only Overview and Import open; the rest say why not.
-    for (const name of ["Verify", "Advisories", "Checks", "Evidence", "Fixes", "Change watch", "Migration"]) expect(isOff(name), name).toBe(true);
+    for (const name of ["Verify", "Advisories", "Checks", "Evidence", "Fixes", "Change watch", "Migration"])
+      expect(isOff(name), name).toBe(true);
     expect(isOff("Overview")).toBe(false);
     expect(isOff("Import")).toBe(false);
     expect(screen.getByTestId("otto-panel")).not.toBeNull();
@@ -189,7 +207,9 @@ describe("app shell", () => {
     expect(text(await within(panel).findByTestId("otto-status"))).toBe("Live Otto is off. Settings");
     expect(within(panel).getByTestId("otto-status-link").getAttribute("href")).toBe("#/settings?section=live-otto");
     expect(text(within(panel).getByTestId("otto-empty"))).toBe("Nothing is suggested on this page.");
-    expect(document.body.textContent).not.toMatch(/Prototype assistant|no AI model connected|The assistant isn't built yet/);
+    expect(document.body.textContent).not.toMatch(
+      /Prototype assistant|no AI model connected|The assistant isn't built yet/,
+    );
     expect(within(panel).queryByRole("button", { name: /Hide/ })).toBeNull();
     // Phase 6b: the text box is at the foot of the panel, under its own label, with the page's example chips
     expect(within(panel).getByRole("textbox", { name: "Ask Otto, or tell it what to do" })).not.toBeNull();
@@ -285,18 +305,24 @@ describe("full flow", () => {
     // Evidence, with the open one marked, and each opens its tab.
     await screen.findAllByTestId("group-section");
     const groupLinks = () => within(screen.getAllByTestId("sidebar-groups")[0]!).getAllByRole("link");
-    await waitFor(() => expect(groupLinks().map((a) => text(a))).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]));
+    await waitFor(() =>
+      expect(groupLinks().map((a) => text(a))).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]),
+    );
     expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual(["true", null, null, null]);
     expect(groupLinks()[1]!.getAttribute("href")).toBe("#/a/101/evidence?group=encryption");
     await goToGroup("Crypto tests", "Evidence");
     expect(await screen.findAllByTestId("evidence-row")).toHaveLength(5);
     expect(window.location.hash).toBe("#/a/101/evidence?group=encryption");
     expect(currentPages()).toEqual(["Evidence"]);
-    await waitFor(() => expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual([null, "true", null, null]));
+    await waitFor(() =>
+      expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual([null, "true", null, null]),
+    );
     // a tab chosen on the page shows in the sidebar too, and goes into the address
     fireEvent.click(screen.getByRole("tab", { name: "Migration" }));
     expect(window.location.hash).toBe("#/a/101/evidence?group=migration");
-    await waitFor(() => expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual([null, null, "true", null]));
+    await waitFor(() =>
+      expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual([null, null, "true", null]),
+    );
     expect(screen.getByTestId("otto-panel")).not.toBeNull();
 
     goTo("Checks");
@@ -389,7 +415,14 @@ describe("full flow", () => {
   it("starts a newly imported file from its first fix, not from the fix picked for the file before", async () => {
     // A second file goes into a new assessment of the same project. Its plan and fixes have the same ids as the first
     // file's in the demo, and the old assessment stays as it was.
-    const second = assessmentView({ id: 102, number: 3, title: "Assessment 3", import: { ...demoImport, id: 8, assessment_id: 102 }, plan_id: null, has_results: false });
+    const second = assessmentView({
+      id: 102,
+      number: 3,
+      title: "Assessment 3",
+      import: { ...demoImport, id: 8, assessment_id: 102 },
+      plan_id: null,
+      has_results: false,
+    });
     at("fixes");
     mockApi({
       ...withFixes(),
@@ -423,7 +456,9 @@ describe("full flow", () => {
       withResults({
         // The code fix came from the official vectors' result (Evidence row test-3).
         "GET /api/plans/1/fixes": {
-          body: withCodeFix(fixesViews.merged, { came_from_links: [{ label: "Official test vectors", link: { page: "evidence", item: "test-3" } }] }),
+          body: withCodeFix(fixesViews.merged, {
+            came_from_links: [{ label: "Official test vectors", link: { page: "evidence", item: "test-3" } }],
+          }),
         },
         "GET /api/plans/1/lab": () => ({ body: retested ? beforeAfter : lab }),
         [retest]: () => {
@@ -496,7 +531,18 @@ describe("full flow", () => {
       "GET /api/session": { body: session },
       ...withWorkspace,
       "GET /api/assessments/111": { body: emptyAssessment },
-      "GET /api/projects/11": { body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [], next_name: "Assessment 2" } },
+      "GET /api/projects/11": {
+        body: {
+          id: 11,
+          name: "Ledger",
+          folder_id: null,
+          archived: false,
+          is_demo: false,
+          path: [],
+          assessments: [],
+          next_name: "Assessment 2",
+        },
+      },
     } as Routes);
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Import" })).not.toBeNull();
@@ -525,7 +571,11 @@ describe("full flow", () => {
     mockApi(withFixes());
     render(<App />);
     await screen.findByRole("heading", { name: "Verify" });
-    for (const [name, testId] of [["Checks", "test-card"], ["Evidence", "evidence-row"], ["Fixes", "fix-summary"]] as const) {
+    for (const [name, testId] of [
+      ["Checks", "test-card"],
+      ["Evidence", "evidence-row"],
+      ["Fixes", "fix-summary"],
+    ] as const) {
       goTo(name);
       await screen.findAllByTestId("group-section");
       if (name !== "Fixes") await goToGroup("Crypto tests", name);
@@ -542,7 +592,18 @@ describe("full flow", () => {
       ...withResults(),
       "GET /api/import/7/plan": notFound,
       "POST /api/projects/10/assessments": { body: { id: 102 } },
-      "GET /api/assessments/102": { body: assessmentView({ id: 102, number: 3, title: "Assessment 3", file: null, import: null, plan_id: null, has_verify: false, has_results: false }) },
+      "GET /api/assessments/102": {
+        body: assessmentView({
+          id: 102,
+          number: 3,
+          title: "Assessment 3",
+          file: null,
+          import: null,
+          plan_id: null,
+          has_verify: false,
+          has_results: false,
+        }),
+      },
       "POST /api/import/file?filename=broken.csv&assessment_id=102": {
         status: 422,
         body: { error: { message: "The value column is empty.", line: 3, field: "value" } },
@@ -551,7 +612,9 @@ describe("full flow", () => {
     render(<App />);
     await screen.findAllByTestId("claim-row");
 
-    fireEvent.change(screen.getByLabelText("Choose a file to import"), { target: { files: [new File(["x"], "broken.csv")] } });
+    fireEvent.change(screen.getByLabelText("Choose a file to import"), {
+      target: { files: [new File(["x"], "broken.csv")] },
+    });
     expect(text(await screen.findByRole("alert"))).toContain("The value column is empty.");
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.queryAllByTestId("claim-row")).toHaveLength(0);
@@ -564,7 +627,11 @@ describe("full flow", () => {
     at("inventory/import");
     const fetchMock = mockApi({
       ...withResults(),
-      "GET /api/assessments/101": { body: assessmentView({ import: { ...demoImport, addresses: [{ ...address, confirmed: true }], assessment_id: 101 } }) },
+      "GET /api/assessments/101": {
+        body: assessmentView({
+          import: { ...demoImport, addresses: [{ ...address, confirmed: true }], assessment_id: 101 },
+        }),
+      },
       "GET /api/import/7/plan": notFound,
     } as Routes);
     render(<App />);
@@ -591,7 +658,10 @@ describe("full flow", () => {
       "GET /api/session": { body: session },
       ...withWorkspace,
       "GET /api/assessments/111": { body: emptyAssessment },
-      "POST /api/import/demo?assessment_id=111": { status: 401, body: { error: { message: "Please log in", line: null, field: null } } },
+      "POST /api/import/demo?assessment_id=111": {
+        status: 401,
+        body: { error: { message: "Please log in", line: null, field: null } },
+      },
     } as Routes);
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Use demo file" }));
@@ -612,7 +682,9 @@ describe("Migration pages", () => {
 
   it("opens as soon as a file is imported, before any test has run", async () => {
     at("inventory/import");
-    const fetchMock = mockApi(base({ "GET /api/import/7/plan": notFound, "GET /api/import/7/migration": { body: migrationView } }));
+    const fetchMock = mockApi(
+      base({ "GET /api/import/7/plan": notFound, "GET /api/import/7/migration": { body: migrationView } }),
+    );
     render(<App />);
     await screen.findByRole("heading", { name: "Import" });
     for (const name of ["Migration", "Evidence", "Fixes"]) expect(isOff(name), name).toBe(false);
@@ -625,7 +697,12 @@ describe("Migration pages", () => {
 
   it("opens Fixes as soon as a file is in, even with no test results", async () => {
     at("inventory/import");
-    mockApi(base({ "GET /api/import/7/plan": { body: { ...plan, has_migration: true } }, "GET /api/plans/1/fixes": { body: fixesViews.ready } }));
+    mockApi(
+      base({
+        "GET /api/import/7/plan": { body: { ...plan, has_migration: true } },
+        "GET /api/plans/1/fixes": { body: fixesViews.ready },
+      }),
+    );
     render(<App />);
     await screen.findByRole("heading", { name: "Import" });
     await waitFor(() => expect(isOff("Fixes")).toBe(false));
@@ -666,14 +743,22 @@ describe("Migration pages", () => {
         "GET /api/import/7/plan": { body: { ...plan, has_migration: true } },
         "GET /api/import/7/migration": { body: migrationView },
         "GET /api/plans/1/fixes": {
-          body: { ...fixesViews.ready, fixes: [...fixesViews.ready.fixes, { ...fixesViews.ready.fixes[1]!, id: HYBRID_FIX, title: "Turn on hybrid on localhost:8452" }] },
+          body: {
+            ...fixesViews.ready,
+            fixes: [
+              ...fixesViews.ready.fixes,
+              { ...fixesViews.ready.fixes[1]!, id: HYBRID_FIX, title: "Turn on hybrid on localhost:8452" },
+            ],
+          },
         },
       }),
     );
     render(<App />);
     await screen.findByRole("heading", { level: 1, name: "Migration plan" });
     goTo("Roadmap");
-    const phase1 = (await screen.findAllByTestId("roadmap-band")).find((b) => b.getAttribute("data-band") === "phase1")!;
+    const phase1 = (await screen.findAllByTestId("roadmap-band")).find(
+      (b) => b.getAttribute("data-band") === "phase1",
+    )!;
     fireEvent.click(within(phase1).getByRole("button", { name: "View in Fixes" }));
     expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(HYBRID_FIX);
     expect(currentPages()).toEqual(["Fixes"]);
@@ -695,7 +780,12 @@ describe("Migration pages", () => {
 
   it("comes back to Fixes after a refresh when only the migration plan opens it", async () => {
     at("fixes");
-    mockApi(base({ "GET /api/import/7/plan": { body: { ...plan, has_migration: true } }, "GET /api/plans/1/fixes": { body: fixesViews.ready } }));
+    mockApi(
+      base({
+        "GET /api/import/7/plan": { body: { ...plan, has_migration: true } },
+        "GET /api/plans/1/fixes": { body: fixesViews.ready },
+      }),
+    );
     render(<App />);
     expect(await screen.findByTestId("fix-summary")).not.toBeNull();
     expect(currentPages()).toEqual(["Fixes"]);
@@ -730,7 +820,9 @@ describe("Migration pages", () => {
         // the first two reads are from before the pack (opening the assessment, then opening Import); later ones after it
         "GET /api/assessments/101": () => {
           reads += 1;
-          return { body: assessmentView({ import: { ...demoImport, assessment_id: 101, otto: found(reads <= 2 ? 2 : 3) } }) };
+          return {
+            body: assessmentView({ import: { ...demoImport, assessment_id: 101, otto: found(reads <= 2 ? 2 : 3) } }),
+          };
         },
       }),
     );

@@ -6,6 +6,7 @@ list is pairs of (name, what is written about it): for a declared need the versi
 it, for a dependency list the version. Nothing is worked out about ranges: "^4.11.9" and "^4.12.0" are different
 texts, and that is all this says. Names are compared without regard to upper and lower case.
 """
+
 from __future__ import annotations
 
 MAX_ITEMS = 5000
@@ -29,7 +30,13 @@ def read_list(raw: object) -> list[tuple[str, str]]:
             name, text = item
         else:
             raise ListError("An entry of the list is not a name with its text.")
-        if not isinstance(name, str) or not name.strip() or len(name) > 300 or not isinstance(text, str) or len(text) > 300:
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or len(name) > 300
+            or not isinstance(text, str)
+            or len(text) > 300
+        ):
             raise ListError("An entry of the list is not a name with its text.")
         if name.lower() in seen:
             raise ListError("A name is in the list twice.")
@@ -43,11 +50,16 @@ def compare(before: object, after: object) -> dict:
     "same": [names]}, each in the order of the list it comes from."""
     old, new = read_list(before), read_list(after)
     old_by, new_by = {n.lower(): (n, t) for n, t in old}, {n.lower(): (n, t) for n, t in new}
-    return {"added": [{"name": n, "wants": t} for n, t in new if n.lower() not in old_by],
-            "removed": [{"name": n, "wants": t} for n, t in old if n.lower() not in new_by],
-            "changed": [{"name": n, "before": old_by[n.lower()][1], "after": t} for n, t in new
-                        if n.lower() in old_by and old_by[n.lower()][1] != t],
-            "same": [n for n, t in new if n.lower() in old_by and old_by[n.lower()][1] == t]}
+    return {
+        "added": [{"name": n, "wants": t} for n, t in new if n.lower() not in old_by],
+        "removed": [{"name": n, "wants": t} for n, t in old if n.lower() not in new_by],
+        "changed": [
+            {"name": n, "before": old_by[n.lower()][1], "after": t}
+            for n, t in new
+            if n.lower() in old_by and old_by[n.lower()][1] != t
+        ],
+        "same": [n for n, t in new if n.lower() in old_by and old_by[n.lower()][1] == t],
+    }
 
 
 __all__ = ["ListError", "MAX_ITEMS", "compare", "read_list"]

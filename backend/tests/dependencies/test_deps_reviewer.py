@@ -1,6 +1,7 @@
 """Phase 4d: the reviewer's capability rule, from made-up raw records (no library runs here): yes, no, a control
 that does not behave, a crash, an unconfirmed result, and the same copy used as a control. The rule never asks
 where the library came from (the target kind is not read)."""
+
 import copy
 
 import pytest
@@ -14,8 +15,17 @@ QUESTIONS = ("ml_kem_768", "x25519mlkem768", "ml_dsa_65")
 
 
 def spec(name="openjdk", version="17.0.2", tls=True, target_kind="public_copy"):
-    return ENGINE.design_capability({"name": name, "version": version, "label": f"{name} {version}", "target_kind": target_kind,
-                                     "tls": tls, "capable": "OpenSSL 3.5.9", "incapable": "OpenSSL 3.0.22 (Debian's build)"})
+    return ENGINE.design_capability(
+        {
+            "name": name,
+            "version": version,
+            "label": f"{name} {version}",
+            "target_kind": target_kind,
+            "tls": tls,
+            "capable": "OpenSSL 3.5.9",
+            "incapable": "OpenSSL 3.0.22 (Debian's build)",
+        }
+    )
 
 
 MADE = {"state": "made", "confirmed": True, "classical_completed": True}
@@ -27,16 +37,39 @@ def answers(kind: str, questions=QUESTIONS) -> dict:
 
 
 def raw(subject: dict, capable=None, incapable=None, questions=QUESTIONS, subject_copy=("openjdk", "17.0.2")):
-    return {"target": {}, "questions": list(questions), "subject": subject,
-            "controls": {"capable": {"copy": {"name": "openssl", "version": "3.5.9"}, "answers": capable or answers("yes", questions)},
-                         "incapable": {"copy": {"name": "openssl", "version": "3.0.22"},
-                                       "answers": incapable or answers("no", questions)}}}
+    return {
+        "target": {},
+        "questions": list(questions),
+        "subject": subject,
+        "controls": {
+            "capable": {
+                "copy": {"name": "openssl", "version": "3.5.9"},
+                "answers": capable or answers("yes", questions),
+            },
+            "incapable": {
+                "copy": {"name": "openssl", "version": "3.0.22"},
+                "answers": incapable or answers("no", questions),
+            },
+        },
+    }
 
 
 def review(the_spec: dict, the_raw: dict):
     h = sha256_hex(the_spec)
-    run = {"schema": "isogeny.run/1", "spec_hash": h, "phase": "dependencies", "component": None, "baseline_version": None,
-           "mode": "isolated", "started_at": "t", "finished_at": "t", "duration_ms": 1, "raw": the_raw, "logs": "", "runner": "isogeny.runner/1"}
+    run = {
+        "schema": "isogeny.run/1",
+        "spec_hash": h,
+        "phase": "dependencies",
+        "component": None,
+        "baseline_version": None,
+        "mode": "isolated",
+        "started_at": "t",
+        "finished_at": "t",
+        "duration_ms": 1,
+        "raw": the_raw,
+        "logs": "",
+        "runner": "isogeny.runner/1",
+    }
     out = RuleReviewer().review({"spec": the_spec, "spec_hash": h, "proposed_by": ENGINE.engine_id, "run": run})
     return out["verdict"]["code"], out["control"]["outcome"], out["detail"]
 
@@ -56,14 +89,20 @@ def test_a_result_the_reference_library_did_not_confirm_is_couldnt_check_never_y
     subject = answers("yes")
     subject["ml_dsa_65"] = {"state": "made", "confirmed": False}
     _, _, detail = review(spec(), raw(subject))
-    assert detail["answers"]["ml_dsa_65"] == "couldnt_check" and "reference library did not agree" in detail["why"]["ml_dsa_65"]
+    assert (
+        detail["answers"]["ml_dsa_65"] == "couldnt_check"
+        and "reference library did not agree" in detail["why"]["ml_dsa_65"]
+    )
 
 
 def test_a_crash_or_time_out_is_couldnt_check_with_its_reason():
     subject = answers("no")
     subject["ml_kem_768"] = {"state": "no_answer", "why": "the keygen step: time-out"}
     _, _, detail = review(spec(), raw(subject))
-    assert detail["answers"]["ml_kem_768"] == "couldnt_check" and detail["why"]["ml_kem_768"] == "the keygen step: time-out"
+    assert (
+        detail["answers"]["ml_kem_768"] == "couldnt_check"
+        and detail["why"]["ml_kem_768"] == "the keygen step: time-out"
+    )
 
 
 def test_a_hybrid_yes_needs_its_own_classical_handshake_too():
@@ -73,11 +112,14 @@ def test_a_hybrid_yes_needs_its_own_classical_handshake_too():
     assert detail["answers"]["x25519mlkem768"] == "couldnt_check"
 
 
-@pytest.mark.parametrize("which, broken", [
-    ("capable", {"state": "refused", "note": "x"}),            # the copy that can do it said no
-    ("incapable", {"state": "made", "confirmed": True}),       # the copy that can't do it said yes
-    ("incapable", {"state": "no_answer", "why": "crashed"}),   # the copy that can't do it did not answer
-])
+@pytest.mark.parametrize(
+    "which, broken",
+    [
+        ("capable", {"state": "refused", "note": "x"}),  # the copy that can do it said no
+        ("incapable", {"state": "made", "confirmed": True}),  # the copy that can't do it said yes
+        ("incapable", {"state": "no_answer", "why": "crashed"}),  # the copy that can't do it did not answer
+    ],
+)
 def test_a_control_that_does_not_behave_means_the_run_cant_be_trusted(which, broken):
     controls = {"capable": answers("yes"), "incapable": answers("no")}
     controls[which]["ml_kem_768"] = broken

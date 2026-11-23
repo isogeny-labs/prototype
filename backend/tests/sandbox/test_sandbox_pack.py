@@ -1,5 +1,6 @@
 """Sandbox research: a test pack that carries asking code (the second format). It is data, read strictly; it is taken
 only when it was made on this computer, and installed only while Sandbox research is on."""
+
 from __future__ import annotations
 
 import copy
@@ -36,17 +37,29 @@ def test_the_pack_of_a_real_run_reads_and_holds_everything_its_proof_rests_on():
     assert pack.pack["schema"] == packs.PACK_SCHEMA_2 and pack.made_here
     entry = pack.pack["advisories"][0]
     block = entry["test"]["sandbox"]
-    assert entry["test"]["state"] == "ready" and set(block) == {"set", "second", "known", "second_known", "versions", "screen_sha256", "registered"}
+    assert entry["test"]["state"] == "ready" and set(block) == {
+        "set",
+        "second",
+        "known",
+        "second_known",
+        "versions",
+        "screen_sha256",
+        "registered",
+    }
     assert block["set"]["asking"]["kind"] == "written" and block["second"]["sha256"] != block["set"]["asking"]["sha256"]
     assert {"affected-b", "fixed-b"} <= set(entry["test"]["trial"]["arms"])
     assert [s["step"] for s in entry["steps"]].count("write_wrapper") == 2
     # the scripts the harness ran are named by fingerprint, the two sandbox instruments among them
-    assert {"trial_sandbox.py", "qualify.py", "ottolab/sandbox.py", "ottolab/screens.py"} <= set(pack.pack["otto"]["scripts"])
+    assert {"trial_sandbox.py", "qualify.py", "ottolab/sandbox.py", "ottolab/screens.py"} <= set(
+        pack.pack["otto"]["scripts"]
+    )
 
 
 def test_a_pack_that_carries_asking_code_is_taken_only_when_it_was_made_on_this_computer():
     with pytest.raises(packs.PackError) as refused:
-        packs.read_envelope(raw_pack(), keys(made_here=False))       # the same signature, from a key that is not this computer's
+        packs.read_envelope(
+            raw_pack(), keys(made_here=False)
+        )  # the same signature, from a key that is not this computer's
     assert str(refused.value) == packs.ONLY_MADE_HERE
     with pytest.raises(packs.PackError, match="does not trust"):
         packs.read_envelope(raw_pack(), {})
@@ -54,7 +67,7 @@ def test_a_pack_that_carries_asking_code_is_taken_only_when_it_was_made_on_this_
 
 def test_a_pack_of_the_first_format_can_not_carry_a_sandbox_part():
     shipped = json.loads((OTTO_PACKS_DIR / "2026.11.2.json").read_text(encoding="utf-8"))["pack"]
-    packs.check_pack(copy.deepcopy(shipped))                         # (as shipped, it reads)
+    packs.check_pack(copy.deepcopy(shipped))  # (as shipped, it reads)
     ready = next(a for a in shipped["advisories"] if a["test"]["state"] == "ready")
     ready["test"]["sandbox"] = envelope()["pack"]["advisories"][0]["test"]["sandbox"]
     with pytest.raises(packs.PackError, match="does not have exactly the fields"):
@@ -68,21 +81,64 @@ def _content(change) -> dict:
 
 
 BENT = [
-    ("the second code is the first one over again",
-     lambda a: a["test"]["sandbox"]["second"].update(source=a["test"]["sandbox"]["set"]["asking"]["source"],
-                                                    sha256=a["test"]["sandbox"]["set"]["asking"]["sha256"]), "first one over again"),
-    ("the asking code was edited", lambda a: a["test"]["sandbox"]["set"]["asking"].__setitem__("source", "import os\n"), "copy set"),
-    ("a file of a copy was swapped", lambda a: a["test"]["sandbox"]["set"]["versions"][0]["files"][0].__setitem__("sha256", "0" * 64), "copy set"),
+    (
+        "the second code is the first one over again",
+        lambda a: a["test"]["sandbox"]["second"].update(
+            source=a["test"]["sandbox"]["set"]["asking"]["source"],
+            sha256=a["test"]["sandbox"]["set"]["asking"]["sha256"],
+        ),
+        "first one over again",
+    ),
+    (
+        "the asking code was edited",
+        lambda a: a["test"]["sandbox"]["set"]["asking"].__setitem__("source", "import os\n"),
+        "copy set",
+    ),
+    (
+        "a file of a copy was swapped",
+        lambda a: a["test"]["sandbox"]["set"]["versions"][0]["files"][0].__setitem__("sha256", "0" * 64),
+        "copy set",
+    ),
     ("written code with no second author", lambda a: a["test"]["sandbox"].__setitem__("second", None), "second author"),
-    ("the known-answer check failed on the affected version",
-     lambda a: a["test"]["sandbox"]["known"]["versions"]["2.0.0"].__setitem__("accepted_valid", 3), "did not pass the known-answer check"),
-    ("the known-answer check did not refuse its controls", lambda a: a["test"]["sandbox"]["known"].__setitem__("controls_refused", False), "did not refuse its own controls"),
-    ("a version that is not in the copy set", lambda a: a["test"]["sandbox"]["versions"].__setitem__("fixed", "9.9.9"), "not in its copy set"),
-    ("the registration is of another trial", lambda a: a["test"]["sandbox"]["registered"].__setitem__("hypothesis", "sha256:" + "0" * 64), "not of its own trial"),
-    ("a run stands before the registration",
-     lambda a: [e.__setitem__("seq", 999) for e in a["ledger"] if e["id"] == a["test"]["sandbox"]["registered"]["hypothesis"]], "not registered before its first run"),
-    ("no screen is named for written code", lambda a: a["test"]["sandbox"].__setitem__("screen_sha256", None), "screened by"),
-    ("an arm this version does not know", lambda a: a["test"]["trial"]["arms"].__setitem__("extra-arm", {"right": 1}), "exactly the fields"),
+    (
+        "the known-answer check failed on the affected version",
+        lambda a: a["test"]["sandbox"]["known"]["versions"]["2.0.0"].__setitem__("accepted_valid", 3),
+        "did not pass the known-answer check",
+    ),
+    (
+        "the known-answer check did not refuse its controls",
+        lambda a: a["test"]["sandbox"]["known"].__setitem__("controls_refused", False),
+        "did not refuse its own controls",
+    ),
+    (
+        "a version that is not in the copy set",
+        lambda a: a["test"]["sandbox"]["versions"].__setitem__("fixed", "9.9.9"),
+        "not in its copy set",
+    ),
+    (
+        "the registration is of another trial",
+        lambda a: a["test"]["sandbox"]["registered"].__setitem__("hypothesis", "sha256:" + "0" * 64),
+        "not of its own trial",
+    ),
+    (
+        "a run stands before the registration",
+        lambda a: [
+            e.__setitem__("seq", 999)
+            for e in a["ledger"]
+            if e["id"] == a["test"]["sandbox"]["registered"]["hypothesis"]
+        ],
+        "not registered before its first run",
+    ),
+    (
+        "no screen is named for written code",
+        lambda a: a["test"]["sandbox"].__setitem__("screen_sha256", None),
+        "screened by",
+    ),
+    (
+        "an arm this version does not know",
+        lambda a: a["test"]["trial"]["arms"].__setitem__("extra-arm", {"right": 1}),
+        "exactly the fields",
+    ),
 ]
 
 
@@ -117,13 +173,17 @@ def test_it_is_installed_only_while_sandbox_research_is_on(tmp_path, monkeypatch
         lab.stop()
 
 
-@pytest.mark.needs_otto        # (a decision is written into the assessment's Otto ledger)
+@pytest.mark.needs_otto  # (a decision is written into the assessment's Otto ledger)
 def test_the_proposal_carries_the_proof_and_a_decision_is_not_made_on_it(tmp_path, monkeypatch):
     from app.otto import proposals
+
     lab = _lab_with_the_pack(tmp_path, monkeypatch)
     try:
         lab.install_pack("2026.11.3")
-        imp = lab.import_file("libraries.csv", b"location,type,claim,value\nstarkbank-ecdsa 2.0.0,software,signature_algorithm,ECDSA P-256\n")
+        imp = lab.import_file(
+            "libraries.csv",
+            b"location,type,claim,value\nstarkbank-ecdsa 2.0.0,software,signature_algorithm,ECDSA P-256\n",
+        )
         plan = lab.ensure_plan(imp["id"])["id"]
         mine = next(p for p in lab.otto_proposals(plan, ("check",)) if "CVE-2021-43572" in p["title"])
         assert mine["proof"]["title"] == proof.TITLE and "proof" not in proposals.content(mine)
@@ -153,7 +213,7 @@ def test_seeded_fuzz_of_a_damaged_pack_file_is_a_plain_refusal_or_a_normal_read(
             if how < 0.5:
                 raw[at] = rng.randrange(256)
             elif how < 0.8:
-                del raw[at:at + rng.randint(1, 60)]
+                del raw[at : at + rng.randint(1, 60)]
             else:
                 raw[at:at] = bytes(rng.randrange(32, 127) for _ in range(rng.randint(1, 12)))
         try:
@@ -161,7 +221,7 @@ def test_seeded_fuzz_of_a_damaged_pack_file_is_a_plain_refusal_or_a_normal_read(
             read += 1
         except packs.PackError as refused:
             assert str(refused)
-    assert read == 0                                             # one changed byte anywhere breaks the fingerprint or the form
+    assert read == 0  # one changed byte anywhere breaks the fingerprint or the form
     # the content itself, damaged and never signed again: the shape check alone must refuse it or read it, never crash
     content = envelope()["pack"]
     paths = []
@@ -175,6 +235,7 @@ def test_seeded_fuzz_of_a_damaged_pack_file_is_a_plain_refusal_or_a_normal_read(
                 walk(v, path + [i])
         else:
             paths.append(path)
+
     walk(content, [])
     for _ in range(400):
         damaged = copy.deepcopy(content)
@@ -184,7 +245,7 @@ def test_seeded_fuzz_of_a_damaged_pack_file_is_a_plain_refusal_or_a_normal_read(
             try:
                 for key in path[:-1]:
                     node = node[key]
-                node[path[-1]] = rng.choice([None, 0, -1, "", "x" * 50, [], {}, True, 10 ** 12, {"a": 1}, ["x"]])
+                node[path[-1]] = rng.choice([None, 0, -1, "", "x" * 50, [], {}, True, 10**12, {"a": 1}, ["x"]])
             except (KeyError, IndexError, TypeError):
                 continue
         try:
@@ -201,6 +262,7 @@ def test_the_pack_a_watched_items_test_proposed_rests_on_is_in_the_evidence_file
     from app.evidence.export import build_evidence
     from evidence import watchlist as check
     from tools import research_demo
+
     source = research_demo.sandbox_source(tmp_path / "source", 1)
     lab = sandbox_lab(tmp_path, monkeypatch, advisory_source_dir=source)
     try:
@@ -211,9 +273,12 @@ def test_the_pack_a_watched_items_test_proposed_rests_on_is_in_the_evidence_file
         for version in ("2026.11.1", "2026.11.2", "2026.11.3"):
             lab.install_pack(version)
         # this assessment names a version the pack's copies do not hold; it accepted nothing, and none of its runs made the pack
-        imp = lab.import_file("libraries.csv", b"location,type,claim,value\nstarkbank-ecdsa 1.2.1,software,signature_algorithm,ECDSA P-256\n")
+        imp = lab.import_file(
+            "libraries.csv",
+            b"location,type,claim,value\nstarkbank-ecdsa 1.2.1,software,signature_algorithm,ECDSA P-256\n",
+        )
         plan = lab.ensure_plan(imp["id"])["id"]
-        lab.watch_list_look(plan)                                   # day 1: no fix yet
+        lab.watch_list_look(plan)  # day 1: no fix yet
         research_demo.sandbox_source(source, 2)
         item = next(i for i in lab.watch_list_look(plan)["items"] if i["key"] == "CVE-2021-43572~starkbank-ecdsa")
         assert item["status"]["key"] == "test_proposed", item["status"]

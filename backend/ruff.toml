@@ -8,3 +8,17 @@ extend-exclude = [".venv"]
 
 [lint]
 select = ["E4", "E7", "E9", "F", "B"]
+
+[format]
+# Files named by their SHA-256 fingerprint (in the shipped test packs, Otto's research ledger or a test) keep their exact
+# bytes: the formatter leaves them as they are. Found on 22 November 2026 by hashing every tracked file and looking for
+# the hash in the repository; add a file here when its fingerprint is pinned.
+exclude = [
+  "app/engine/reviewer.py",
+  "app/otto/checker/recheck.py",
+  "ottolab/agent.py",
+  "ottolab/asking.py",
+  "ottolab/prompts.py",
+  "ottolab/research.py",
+  "ottolab/pinned/*.py",
+]

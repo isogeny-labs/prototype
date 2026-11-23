@@ -18,12 +18,13 @@ worst a stuck read costs the others is that one wait.
 
 Nothing is decided here, and no answer is changed.
 """
+
 from __future__ import annotations
 
 import asyncio
 import weakref
 
-LIMIT = 5.0   # seconds one read may hold its turn; an ordinary view takes well under two
+LIMIT = 5.0  # seconds one read may hold its turn; an ordinary view takes well under two
 
 
 # Hosting: the health check (a load balancer's probe) and the GitHub login (which waits on GitHub) read no view.
@@ -35,7 +36,7 @@ class _Turns:
 
     def __init__(self) -> None:
         self.lock = asyncio.Lock()
-        self.stuck = 0          # reads that ran past their turn and have not answered yet
+        self.stuck = 0  # reads that ran past their turn and have not answered yet
 
 
 class OneReadAtATime:
@@ -57,12 +58,14 @@ class OneReadAtATime:
 
     async def __call__(self, scope, receive, send) -> None:
         path = str(scope.get("path") or "")
-        if (not (scope.get("type") == "http" and scope.get("method") == "GET" and path.startswith("/api/"))
-                or path in UNQUEUED):
+        if (
+            not (scope.get("type") == "http" and scope.get("method") == "GET" and path.startswith("/api/"))
+            or path in UNQUEUED
+        ):
             await self.app(scope, receive, send)
             return
         turns = self._for_this_loop()
-        if turns.stuck:                                    # a read is stuck: meanwhile nobody waits for a turn
+        if turns.stuck:  # a read is stuck: meanwhile nobody waits for a turn
             await self.app(scope, receive, send)
             return
         await turns.lock.acquire()
@@ -81,12 +84,12 @@ class OneReadAtATime:
                 turns.stuck += 1
                 pass_the_turn()
 
-        if turns.stuck:                                    # one got stuck while this read waited: it does not wait either
+        if turns.stuck:  # one got stuck while this read waited: it does not wait either
             pass_the_turn()
         timer = asyncio.get_running_loop().call_later(self.limit, too_long) if held else None
 
         async def send_and_pass_the_turn(message) -> None:
-            if message.get("type") == "http.response.start":      # the view is worked out: the next read may start
+            if message.get("type") == "http.response.start":  # the view is worked out: the next read may start
                 pass_the_turn()
             await send(message)
 
@@ -95,7 +98,7 @@ class OneReadAtATime:
         finally:
             if timer is not None:
                 timer.cancel()
-            pass_the_turn()                                # no answer went out (the request was dropped, or failed)
+            pass_the_turn()  # no answer went out (the request was dropped, or failed)
             if ran_over:
                 turns.stuck -= 1
 

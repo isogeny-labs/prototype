@@ -8,6 +8,7 @@ Every handshake has one of three outcomes:
 Decisions never come from a command's exit code; `openssl s_client` output is parsed.
 Commands are run from argument lists (never a shell), with stdin closed and a time limit.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -32,23 +33,36 @@ CONNECT_TIMEOUT = 3.0
 CLI_TIMEOUT = 8.0
 
 _PY_VERSIONS = {
-    "TLS 1.0": ssl.TLSVersion.TLSv1, "TLS 1.1": ssl.TLSVersion.TLSv1_1,
-    "TLS 1.2": ssl.TLSVersion.TLSv1_2, "TLS 1.3": ssl.TLSVersion.TLSv1_3,
+    "TLS 1.0": ssl.TLSVersion.TLSv1,
+    "TLS 1.1": ssl.TLSVersion.TLSv1_1,
+    "TLS 1.2": ssl.TLSVersion.TLSv1_2,
+    "TLS 1.3": ssl.TLSVersion.TLSv1_3,
 }
 _RAW_VERSIONS = {"TLS 1.0": (3, 1), "TLS 1.1": (3, 2), "TLS 1.2": (3, 3)}
 # Errors that come from OUR side (the checker could not make the offer): never proof of anything.
-LOCAL_REASONS = {"NO_PROTOCOLS_AVAILABLE", "NO_CIPHERS_AVAILABLE", "NO_CIPHER_MATCH", "UNSUPPORTED_PROTOCOL",
-                 "NO_SUITABLE_KEY_SHARE", "NO_SUITABLE_GROUPS", "LIBRARY_HAS_NO_CIPHERS"}
+LOCAL_REASONS = {
+    "NO_PROTOCOLS_AVAILABLE",
+    "NO_CIPHERS_AVAILABLE",
+    "NO_CIPHER_MATCH",
+    "UNSUPPORTED_PROTOCOL",
+    "NO_SUITABLE_KEY_SHARE",
+    "NO_SUITABLE_GROUPS",
+    "LIBRARY_HAS_NO_CIPHERS",
+}
 # Alerts a server sends to say "no" to what was offered (cipher-suite and group probes).
 # For a per-VERSION probe only VERSION_REFUSAL_REASON counts: the other two can be about the cipher
 # suites or anything else in the offer, so they do not prove the server refuses that TLS version.
 VERSION_REFUSAL_REASON = "TLSV1_ALERT_PROTOCOL_VERSION"
 NOT_ABOUT_VERSION = "the server said no to what we offered, but not specifically to this TLS version"
-REFUSAL_REASONS = {"TLSV1_ALERT_PROTOCOL_VERSION", "SSLV3_ALERT_HANDSHAKE_FAILURE",
-                   "TLSV1_ALERT_INSUFFICIENT_SECURITY"}
+REFUSAL_REASONS = {"TLSV1_ALERT_PROTOCOL_VERSION", "SSLV3_ALERT_HANDSHAKE_FAILURE", "TLSV1_ALERT_INSUFFICIENT_SECURITY"}
 REFUSAL_ALERT_NUMBERS = {40: "handshake_failure", 70: "protocol_version", 71: "insufficient_security"}
-TLS13_SUITES = ["TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256",
-                "TLS_AES_128_CCM_SHA256", "TLS_AES_128_CCM_8_SHA256"]
+TLS13_SUITES = [
+    "TLS_AES_128_GCM_SHA256",
+    "TLS_AES_256_GCM_SHA384",
+    "TLS_CHACHA20_POLY1305_SHA256",
+    "TLS_AES_128_CCM_SHA256",
+    "TLS_AES_128_CCM_8_SHA256",
+]
 
 PY_TOOL = "Python ssl module"
 PY_TOOL_VERSION = f"{ssl.OPENSSL_VERSION} (Python {platform.python_version()})"
@@ -106,8 +120,9 @@ def openssl_cli() -> tuple[str | None, str]:
         version = "not installed"
         if path:
             try:
-                out = subprocess.run([path, "version"], stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                                     timeout=5)
+                out = subprocess.run(
+                    [path, "version"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5
+                )
                 version = (out.stdout or out.stderr).strip() or "unknown"
             except (OSError, subprocess.SubprocessError):
                 path, version = None, "could not be run"
@@ -141,9 +156,11 @@ def describe_certificate(der: bytes) -> dict:
     key = cert.public_key()
     info: dict = {
         "subject": cert.subject.rfc4514_string(),
-        "signature_algorithm": getattr(cert.signature_algorithm_oid, "_name", None) or cert.signature_algorithm_oid.dotted_string,
+        "signature_algorithm": getattr(cert.signature_algorithm_oid, "_name", None)
+        or cert.signature_algorithm_oid.dotted_string,
         "sha256_fingerprint": hashlib.sha256(der).hexdigest(),
-        "curve": None, "key_size": None,
+        "curve": None,
+        "key_size": None,
     }
     if isinstance(key, ec.EllipticCurvePublicKey):
         info.update(key_type="EC", curve=key.curve.name, key_size=key.key_size)
@@ -164,8 +181,14 @@ class ProbeSession:
     Connections always go to `ip` (the address the user confirmed). `server_name` is only sent as SNI.
     """
 
-    def __init__(self, ip: str, port: int, server_name: str | None, max_handshakes: int = MAX_HANDSHAKES_PER_ADDRESS,
-                 timeout: float = CONNECT_TIMEOUT):
+    def __init__(
+        self,
+        ip: str,
+        port: int,
+        server_name: str | None,
+        max_handshakes: int = MAX_HANDSHAKES_PER_ADDRESS,
+        timeout: float = CONNECT_TIMEOUT,
+    ):
         self.ip, self.port, self.server_name = ip, port, server_name
         self.max_handshakes = max_handshakes
         self.timeout = timeout
@@ -216,8 +239,13 @@ class ProbeSession:
         try:
             with ctx.wrap_socket(sock, server_hostname=self.server_name) as tls:
                 name = tls.cipher()[0] if tls.cipher() else None
-                return Observation("accepted", f"handshake completed ({tls.version()}, {name})", cipher=name,
-                                   der=tls.getpeercert(True), version=tls.version())
+                return Observation(
+                    "accepted",
+                    f"handshake completed ({tls.version()}, {name})",
+                    cipher=name,
+                    der=tls.getpeercert(True),
+                    version=tls.version(),
+                )
         except ssl.SSLError as exc:
             reason = _reason(exc)
             if reason in REFUSAL_REASONS:
@@ -246,8 +274,25 @@ class ProbeSession:
         blocked = self._take()
         if blocked:
             return Observation("unknown", blocked)
-        suites = [0xC009, 0xC00A, 0xC013, 0xC014, 0x002F, 0x0035, 0x000A, 0xC02B, 0xC02F, 0x009C, 0x0033, 0x0039,
-                  0x0016, 0xC012, 0xC008, 0x0005, 0x0004]
+        suites = [
+            0xC009,
+            0xC00A,
+            0xC013,
+            0xC014,
+            0x002F,
+            0x0035,
+            0x000A,
+            0xC02B,
+            0xC02F,
+            0x009C,
+            0x0033,
+            0x0039,
+            0x0016,
+            0xC012,
+            0xC008,
+            0x0005,
+            0x0004,
+        ]
         cs = b"".join(struct.pack("!H", c) for c in suites)
         ext = struct.pack("!HHH", 0x000A, 8, 6) + struct.pack("!HHH", 23, 24, 29)
         ext += struct.pack("!HHBB", 0x000B, 2, 1, 0)
@@ -291,8 +336,14 @@ class ProbeSession:
         if blocked:
             return argv, None, blocked
         try:
-            done = subprocess.run([path, *argv[1:]], stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                                  timeout=CLI_TIMEOUT, errors="replace")
+            done = subprocess.run(
+                [path, *argv[1:]],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=CLI_TIMEOUT,
+                errors="replace",
+            )
         except subprocess.TimeoutExpired:
             return argv, "(no answer before the time limit)", None
         except OSError as exc:
@@ -316,18 +367,32 @@ class ProbeSession:
                 obs = self.raw_hello(version)
                 raw_lines.append((version, obs, _now(), int((time.perf_counter() - t1) * 1000)))
             results[version] = obs
-        evidence = [Evidence(
-            title="TLS versions: one handshake per version",
-            command=(f"python ssl: connect to {self.target}{self._sni_words()}, offer exactly one TLS version per "
-                     f"handshake (1.3, 1.2, 1.1, 1.0), cipher list {WIDEST_CIPHERS}, then close"),
-            output="\n".join(lines), started_at=_iso(started),
-            duration_ms=int((time.perf_counter() - t0) * 1000), tool=PY_TOOL, tool_version=PY_TOOL_VERSION)]
+        evidence = [
+            Evidence(
+                title="TLS versions: one handshake per version",
+                command=(
+                    f"python ssl: connect to {self.target}{self._sni_words()}, offer exactly one TLS version per "
+                    f"handshake (1.3, 1.2, 1.1, 1.0), cipher list {WIDEST_CIPHERS}, then close"
+                ),
+                output="\n".join(lines),
+                started_at=_iso(started),
+                duration_ms=int((time.perf_counter() - t0) * 1000),
+                tool=PY_TOOL,
+                tool_version=PY_TOOL_VERSION,
+            )
+        ]
         for version, obs, when, ms in raw_lines:
-            evidence.append(Evidence(
-                title=f"{version}: second try with a hand-built ClientHello",
-                command=f"python socket: send one {version} ClientHello to {self.target}{self._sni_words()}, read the first answer, close",
-                output=f"{version}: {obs.status} - {obs.detail}", started_at=_iso(when), duration_ms=ms,
-                tool=RAW_TOOL, tool_version=RAW_TOOL_VERSION))
+            evidence.append(
+                Evidence(
+                    title=f"{version}: second try with a hand-built ClientHello",
+                    command=f"python socket: send one {version} ClientHello to {self.target}{self._sni_words()}, read the first answer, close",
+                    output=f"{version}: {obs.status} - {obs.detail}",
+                    started_at=_iso(when),
+                    duration_ms=ms,
+                    tool=RAW_TOOL,
+                    tool_version=RAW_TOOL_VERSION,
+                )
+            )
         self._versions, self._versions_evidence = results, evidence
         return results, evidence
 
@@ -344,8 +409,11 @@ class ProbeSession:
         started, t0 = _now(), time.perf_counter()
         scan, lines = CipherScan(), []
         try:
-            names = [c["name"] for c in self._context(version, WIDEST_CIPHERS).get_ciphers()
-                     if c.get("protocol") != "TLSv1.3"]
+            names = [
+                c["name"]
+                for c in self._context(version, WIDEST_CIPHERS).get_ciphers()
+                if c.get("protocol") != "TLSv1.3"
+            ]
         except (ssl.SSLError, ValueError) as exc:
             names, scan.why_incomplete = [], f"this computer's TLS library cannot offer {version} ({_reason(exc)})"
         offered = len(names)
@@ -366,12 +434,20 @@ class ProbeSession:
             lines.append(f"stopped early: {scan.why_incomplete}")
         return scan, Evidence(
             title=f"{version} cipher suites",
-            command=(f"python ssl: connect to {self.target}{self._sni_words()}, offer {version} with all {offered} suites "
-                     f"this computer knows ({WIDEST_CIPHERS}); after each completed handshake remove the chosen suite and repeat"),
-            output="\n".join(lines) or "(nothing offered)", started_at=_iso(started),
-            duration_ms=int((time.perf_counter() - t0) * 1000), tool=PY_TOOL, tool_version=PY_TOOL_VERSION)
+            command=(
+                f"python ssl: connect to {self.target}{self._sni_words()}, offer {version} with all {offered} suites "
+                f"this computer knows ({WIDEST_CIPHERS}); after each completed handshake remove the chosen suite and repeat"
+            ),
+            output="\n".join(lines) or "(nothing offered)",
+            started_at=_iso(started),
+            duration_ms=int((time.perf_counter() - t0) * 1000),
+            tool=PY_TOOL,
+            tool_version=PY_TOOL_VERSION,
+        )
 
-    def _cli_series(self, title: str, items: list[tuple[str, list[str], str | None]]) -> tuple[dict[str, str], Evidence]:
+    def _cli_series(
+        self, title: str, items: list[tuple[str, list[str], str | None]]
+    ) -> tuple[dict[str, str], Evidence]:
         started, t0 = _now(), time.perf_counter()
         _, cli_version = openssl_cli()
         statuses: dict[str, str] = {}
@@ -385,25 +461,41 @@ class ProbeSession:
                 status, why = classify_s_client(output, "TLSv1.3", want_suite)
             statuses[label] = status
             outputs.append(f"$ {' '.join(argv)}\n{output.strip()}\n=> {label}: {status} - {why}")
-        return statuses, Evidence(title=title, command="\n".join(commands), output="\n\n".join(outputs),
-                                  started_at=_iso(started), duration_ms=int((time.perf_counter() - t0) * 1000),
-                                  tool=CLI_TOOL, tool_version=cli_version)
+        return statuses, Evidence(
+            title=title,
+            command="\n".join(commands),
+            output="\n\n".join(outputs),
+            started_at=_iso(started),
+            duration_ms=int((time.perf_counter() - t0) * 1000),
+            tool=CLI_TOOL,
+            tool_version=cli_version,
+        )
 
     def tls13_ciphers(self) -> tuple[dict[str, str], Evidence]:
-        return self._cli_series("TLS 1.3 cipher suites: one handshake per suite",
-                                [(s, ["-tls1_3", "-ciphersuites", s], s) for s in TLS13_SUITES])
+        return self._cli_series(
+            "TLS 1.3 cipher suites: one handshake per suite",
+            [(s, ["-tls1_3", "-ciphersuites", s], s) for s in TLS13_SUITES],
+        )
 
     def tls13_groups(self) -> tuple[dict[str, str], Evidence]:
-        return self._cli_series("TLS 1.3 key-exchange groups: one handshake per group",
-                                [(g, ["-tls1_3", "-groups", cli_name], None) for g, cli_name in GROUPS.items()])
+        return self._cli_series(
+            "TLS 1.3 key-exchange groups: one handshake per group",
+            [(g, ["-tls1_3", "-groups", cli_name], None) for g, cli_name in GROUPS.items()],
+        )
 
     def count_evidence(self) -> Evidence:
         return Evidence(
             title="Handshake count",
             command="(count kept by Evidence Lab)",
-            output=(f"{self.handshakes} handshakes were made to {self.target} in this run, one at a time. "
-                    f"The limit is {self.max_handshakes} per address. Handshakes only: no data was sent or requested."),
-            started_at=_iso(_now()), duration_ms=0, tool="Evidence Lab", tool_version="phase 1")
+            output=(
+                f"{self.handshakes} handshakes were made to {self.target} in this run, one at a time. "
+                f"The limit is {self.max_handshakes} per address. Handshakes only: no data was sent or requested."
+            ),
+            started_at=_iso(_now()),
+            duration_ms=0,
+            tool="Evidence Lab",
+            tool_version="phase 1",
+        )
 
     def _sni_words(self) -> str:
         return f" (server name {self.server_name})" if self.server_name else ""

@@ -5,12 +5,25 @@ import App from "../App";
 import { calls, lab, mockApi, plan, session, text } from "./fixtures";
 import { checksView } from "./checksFixtures";
 import { fixesViews } from "./fixesFixtures";
-import { ONE_LOGIN_LINE, OVERVIEW_BLOCKS, acmeRoutes, assessmentView, closedAssessment, emptyAssessment, emptyWorkspace, openAssessment } from "./shellFixtures";
+import {
+  ONE_LOGIN_LINE,
+  OVERVIEW_BLOCKS,
+  acmeRoutes,
+  assessmentView,
+  closedAssessment,
+  emptyAssessment,
+  emptyWorkspace,
+  openAssessment,
+} from "./shellFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
 
 /** The Overview's next step before the claims were verified, as the backend words it. */
-const nextStepVerify: AssessmentView["next_step"] = { page: "inventory/import", label: "Verify claims", text: "Check each claim in the file against the real system." };
+const nextStepVerify: AssessmentView["next_step"] = {
+  page: "inventory/import",
+  label: "Verify claims",
+  text: "Check each claim in the file against the real system.",
+};
 
 /** The Overview's next step while proposed checks of Otto's wait for a decision (phase 5c), as the backend words it. */
 const nextStepAdvisories: AssessmentView["next_step"] = {
@@ -24,19 +37,45 @@ const WAITING: OttoWaiting = {
   title: "Waiting for you",
   total: 5,
   items: [
-    { kind: "check", count: 2, text: "2 proposed checks", link: { page: "advisories", item: null }, page_label: "Advisories" },
+    {
+      kind: "check",
+      count: 2,
+      text: "2 proposed checks",
+      link: { page: "advisories", item: null },
+      page_label: "Advisories",
+    },
     { kind: "fix", count: 1, text: "1 proposed fix", link: { page: "fixes", item: null }, page_label: "Fixes" },
-    { kind: "plan", count: 1, text: "1 proposed change to the migration plan", link: { page: "migration/systems", item: null }, page_label: "Migration" },
-    { kind: "dependency", count: 1, text: "1 proposed dependency update", link: { page: "migration/dependencies", item: null }, page_label: "Dependencies" },
+    {
+      kind: "plan",
+      count: 1,
+      text: "1 proposed change to the migration plan",
+      link: { page: "migration/systems", item: null },
+      page_label: "Migration",
+    },
+    {
+      kind: "dependency",
+      count: 1,
+      text: "1 proposed dependency update",
+      link: { page: "migration/dependencies", item: null },
+      page_label: "Dependencies",
+    },
   ],
   line: "5 proposals from Otto wait for your decision.",
   note: "Each proposal is decided by a person. Nothing is added, run or applied by itself.",
 };
-const NOTHING_WAITING: OttoWaiting = { ...WAITING, total: 0, items: [], line: "Nothing from Otto is waiting for a decision." };
+const NOTHING_WAITING: OttoWaiting = {
+  ...WAITING,
+  total: 0,
+  items: [],
+  line: "Nothing from Otto is waiting for a decision.",
+};
 
 /** The Advisories page has its own tests. Where a test here only needs it to open, its request gets a plain refusal,
  * which the page shows in place of its table. */
-const ADVISORIES_NOT_READ = { status: 503, body: { error: { message: "The advisories could not be read just now.", line: null, field: null } } };
+const ADVISORIES_NOT_READ = {
+  status: 503,
+  body: { error: { message: "The advisories could not be read just now.", line: null, field: null } },
+};
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -44,9 +83,15 @@ beforeEach(() => {
 });
 
 const routes = (extra: Record<string, unknown> = {}): Routes =>
-  ({ "GET /api/session": { body: session }, ...acmeRoutes, "POST /api/import/7/plan": { body: { ...plan, has_results: true } }, ...extra }) as Routes;
+  ({
+    "GET /api/session": { body: session },
+    ...acmeRoutes,
+    "POST /api/import/7/plan": { body: { ...plan, has_results: true } },
+    ...extra,
+  }) as Routes;
 
-const group = (key: string) => screen.getAllByTestId("overview-group").find((g) => g.getAttribute("data-group") === key)!;
+const group = (key: string) =>
+  screen.getAllByTestId("overview-group").find((g) => g.getAttribute("data-group") === key)!;
 
 async function show(extra: Record<string, unknown> = {}) {
   const fetchMock = mockApi(routes(extra));
@@ -65,7 +110,11 @@ describe("Overview blocks", () => {
       "dependencies",
     ]);
     expect(text(group("verification"))).toContain("Checks: Open 0 · In progress 0 · Done 12");
-    expect(within(group("verification")).getAllByTestId("overview-fact").map((a) => [text(a), a.getAttribute("href")])).toEqual([
+    expect(
+      within(group("verification"))
+        .getAllByTestId("overview-fact")
+        .map((a) => [text(a), a.getAttribute("href")]),
+    ).toEqual([
       ["True 7", "#/a/101/inventory/verify?group=verification"],
       ["False 3", "#/a/101/inventory/verify?group=verification"],
       ["Couldn't check 2", "#/a/101/inventory/verify?group=verification"],
@@ -75,7 +124,11 @@ describe("Overview blocks", () => {
     const fixes = within(group("encryption")).getByRole("link", { name: /^Fixes:/ });
     expect(text(fixes)).toBe("Fixes: Open 1 · In progress 1 · Done 0");
     expect(fixes.getAttribute("href")).toBe("#/a/101/fixes?group=encryption");
-    expect(within(group("encryption")).getByRole("link", { name: /^Checks:/ }).getAttribute("href")).toBe("#/a/101/checks?group=encryption");
+    expect(
+      within(group("encryption"))
+        .getByRole("link", { name: /^Checks:/ })
+        .getAttribute("href"),
+    ).toBe("#/a/101/checks?group=encryption");
     // An empty group stays and says why.
     expect(text(group("migration"))).toContain("Nothing measured yet. Measure status is on Migration.");
     expect(text(group("dependencies"))).toContain("No dependency list yet. Add one on Dependencies.");
@@ -85,17 +138,23 @@ describe("Overview blocks", () => {
     // The workspace's row for this project and the 5a counts say something different; the page must not use them.
     const blocks = {
       ...OVERVIEW_BLOCKS,
-      groups: OVERVIEW_BLOCKS.groups.map((g) => (g.key === "verification" ? { ...g, facts: g.facts.map((f, i) => ({ ...f, value: [30, 9, 2][i]! })) } : g)),
+      groups: OVERVIEW_BLOCKS.groups.map((g) =>
+        g.key === "verification" ? { ...g, facts: g.facts.map((f, i) => ({ ...f, value: [30, 9, 2][i]! })) } : g,
+      ),
       findings: OVERVIEW_BLOCKS.findings.map((f) => ({ ...f, value: f.label === "False claims" ? 9 : f.value })),
       evidence: { runs: 41, last_download: null },
     };
     await show({ "GET /api/assessments/101": { body: assessmentView({ blocks }) } });
-    expect(within(group("verification")).getAllByTestId("overview-fact").map((a) => text(a))).toEqual(["True 30", "False 9", "Couldn't check 2"]);
-    expect(within(screen.getByTestId("open-findings")).getAllByTestId("finding-count").map((a) => text(a))).toEqual([
-      "False claims 9",
-      "Failed tests 2",
-      "Dependency blockers 0",
-    ]);
+    expect(
+      within(group("verification"))
+        .getAllByTestId("overview-fact")
+        .map((a) => text(a)),
+    ).toEqual(["True 30", "False 9", "Couldn't check 2"]);
+    expect(
+      within(screen.getByTestId("open-findings"))
+        .getAllByTestId("finding-count")
+        .map((a) => text(a)),
+    ).toEqual(["False claims 9", "Failed tests 2", "Dependency blockers 0"]);
     expect(text(screen.getByTestId("overview-evidence"))).toContain("41 runs recorded");
   });
 
@@ -105,7 +164,18 @@ describe("Overview blocks", () => {
       "GET /api/session": { body: session },
       "GET /api/workspace": { body: { ...emptyWorkspace } },
       "GET /api/assessments/111": { body: emptyAssessment },
-      "GET /api/projects/11": { body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [], next_name: "Assessment 2" } },
+      "GET /api/projects/11": {
+        body: {
+          id: 11,
+          name: "Ledger",
+          folder_id: null,
+          archived: false,
+          is_demo: false,
+          path: [],
+          assessments: [],
+          next_name: "Assessment 2",
+        },
+      },
     });
     render(<App />);
     await screen.findByTestId("overview-page");
@@ -154,14 +224,23 @@ describe("Overview blocks", () => {
     });
     const line = screen.getByTestId("overview-watch-list");
     expect(text(line)).toContain("2 published weaknesses in your libraries have no fix yet.");
-    expect(within(line).getByTestId("overview-watch-list-link").getAttribute("href")).toBe("#/a/101/change-watch?section=watch-list");
-    expect(within(screen.getByTestId("open-findings")).getAllByTestId("finding-count")).toHaveLength(OVERVIEW_BLOCKS.findings.length);
+    expect(within(line).getByTestId("overview-watch-list-link").getAttribute("href")).toBe(
+      "#/a/101/change-watch?section=watch-list",
+    );
+    expect(within(screen.getByTestId("open-findings")).getAllByTestId("finding-count")).toHaveLength(
+      OVERVIEW_BLOCKS.findings.length,
+    );
   });
 
   it("shows the open findings and the evidence, each a link to the page that holds them", async () => {
     await show({
       "GET /api/assessments/101": {
-        body: assessmentView({ blocks: { ...OVERVIEW_BLOCKS, evidence: { runs: 6, last_download: { at: "2026-11-12T10:00:00Z", fingerprint: "ab12cd34ef567890" } } } }),
+        body: assessmentView({
+          blocks: {
+            ...OVERVIEW_BLOCKS,
+            evidence: { runs: 6, last_download: { at: "2026-11-12T10:00:00Z", fingerprint: "ab12cd34ef567890" } },
+          },
+        }),
       },
     });
     const findings = within(screen.getByTestId("open-findings")).getAllByTestId("finding-count");
@@ -173,32 +252,48 @@ describe("Overview blocks", () => {
     const evidence = screen.getByTestId("overview-evidence");
     expect(text(evidence)).toContain("6 runs recorded");
     expect(text(evidence)).toContain("fingerprint ab12cd34ef56");
-    expect(within(evidence).getByRole("link", { name: "6 runs recorded" }).getAttribute("href")).toBe("#/a/101/evidence");
+    expect(within(evidence).getByRole("link", { name: "6 runs recorded" }).getAttribute("href")).toBe(
+      "#/a/101/evidence",
+    );
   });
 });
 
 describe("Overview links into a work group (20 November 2026: the groups are tabs)", () => {
   it("a group's Checks and Fixes counts open that group's tab, and the sidebar marks it", async () => {
-    await show({ "GET /api/plans/1/checks": { body: checksView }, "GET /api/plans/1/lab": { body: lab }, "GET /api/plans/1/fixes": { body: fixesViews.ready } });
+    await show({
+      "GET /api/plans/1/checks": { body: checksView },
+      "GET /api/plans/1/lab": { body: lab },
+      "GET /api/plans/1/fixes": { body: fixesViews.ready },
+    });
     // Migration's checks: Checks opens on Migration, not on the first group with something in it
     fireEvent.click(within(group("migration")).getByRole("link", { name: /^Checks:/ }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?group=migration"));
     expect((await screen.findByRole("tab", { name: "Migration" })).getAttribute("aria-selected")).toBe("true");
     expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["migration"]);
     await waitFor(() =>
-      expect(within(screen.getByTestId("sidebar-groups")).getByRole("link", { name: "Migration on Checks" }).getAttribute("aria-current")).toBe("true"),
+      expect(
+        within(screen.getByTestId("sidebar-groups"))
+          .getByRole("link", { name: "Migration on Checks" })
+          .getAttribute("aria-current"),
+      ).toBe("true"),
     );
     // Crypto tests' fixes: Fixes opens on Crypto tests, with its fixes
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }));
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }),
+    );
     await screen.findByTestId("overview-page");
     fireEvent.click(within(group("encryption")).getByRole("link", { name: /^Fixes:/ }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/fixes?group=encryption"));
     expect((await screen.findByRole("tab", { name: "Crypto tests" })).getAttribute("aria-selected")).toBe("true");
     expect(await screen.findAllByTestId("fix-row")).toHaveLength(2);
     // the open findings' "Failed tests" opens Evidence on Crypto tests, where the results table is
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }));
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }),
+    );
     await screen.findByTestId("overview-page");
-    const failed = within(screen.getByTestId("open-findings")).getAllByTestId("finding-count").find((a) => a.getAttribute("href") === "#/a/101/evidence?group=encryption")!;
+    const failed = within(screen.getByTestId("open-findings"))
+      .getAllByTestId("finding-count")
+      .find((a) => a.getAttribute("href") === "#/a/101/evidence?group=encryption")!;
     fireEvent.click(failed);
     expect((await screen.findByRole("tab", { name: "Crypto tests" })).getAttribute("aria-selected")).toBe("true");
     expect(await screen.findAllByTestId("evidence-row")).toHaveLength(lab.rows.length);
@@ -217,7 +312,13 @@ describe("Overview next step", () => {
 
   it("goes to Import when the next step is the import", async () => {
     window.history.replaceState(null, "", "#/a/101/overview");
-    await show({ "GET /api/assessments/101": { body: assessmentView({ next_step: { page: "inventory/import", label: "Import a file", text: "Bring in a scanner file." } }) } });
+    await show({
+      "GET /api/assessments/101": {
+        body: assessmentView({
+          next_step: { page: "inventory/import", label: "Import a file", text: "Bring in a scanner file." },
+        }),
+      },
+    });
     fireEvent.click(within(screen.getByTestId("next-step")).getByRole("button", { name: "Import a file" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/inventory/import"));
   });
@@ -251,12 +352,24 @@ describe("Overview next step", () => {
       routes({
         "GET /api/assessments/100": { body: closedAssessment },
         "POST /api/projects/10/assessments": { body: { id: 102 } },
-        "GET /api/assessments/102": { body: assessmentView({ id: 102, number: 3, title: "Assessment 3", file: null, import: null, plan_id: null, counts: { claims: null, tests: null, fixes: null, systems: null } }) },
+        "GET /api/assessments/102": {
+          body: assessmentView({
+            id: 102,
+            number: 3,
+            title: "Assessment 3",
+            file: null,
+            import: null,
+            plan_id: null,
+            counts: { claims: null, tests: null, fixes: null, systems: null },
+          }),
+        },
       }),
     );
     render(<App />);
     await screen.findByTestId("overview-page");
-    const button = within(screen.getByTestId("next-step")).getByRole("button", { name: "New assessment" }) as HTMLButtonElement;
+    const button = within(screen.getByTestId("next-step")).getByRole("button", {
+      name: "New assessment",
+    }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
     fireEvent.click(button);
     const box = await screen.findByTestId("new-assessment-box");
@@ -267,7 +380,9 @@ describe("Overview next step", () => {
 });
 
 describe("Overview: Waiting for you (phase 5c)", () => {
-  const waitingRoute = (waiting: OttoWaiting | null) => ({ "GET /api/assessments/101": { body: assessmentView({ waiting }) } });
+  const waitingRoute = (waiting: OttoWaiting | null) => ({
+    "GET /api/assessments/101": { body: assessmentView({ waiting }) },
+  });
   const items = () => within(screen.getByTestId("overview-waiting")).getAllByTestId("waiting-item");
 
   it("counts Otto's proposals nobody has decided yet, each kind a link to the page it lives on, in the backend's words", async () => {
@@ -277,7 +392,9 @@ describe("Overview: Waiting for you (phase 5c)", () => {
     expect(screen.getByRole("region", { name: "Waiting for you" })).toBe(block);
     expect(text(within(block).getByTestId("waiting-line"))).toBe(WAITING.line);
     expect(text(within(block).getByTestId("waiting-note"))).toBe(WAITING.note);
-    expect(items().map((li) => [li.getAttribute("data-kind"), text(li), within(li).getByRole("link").getAttribute("href")])).toEqual([
+    expect(
+      items().map((li) => [li.getAttribute("data-kind"), text(li), within(li).getByRole("link").getAttribute("href")]),
+    ).toEqual([
       ["check", "2 proposed checks", "#/a/101/advisories"],
       ["fix", "1 proposed fix", "#/a/101/fixes"],
       ["plan", "1 proposed change to the migration plan", "#/a/101/migration/systems"],
@@ -348,7 +465,9 @@ describe("Overview buttons", () => {
     expect(window.localStorage.getItem("evidence-lab-guided")).toBe("on");
     // The Overview itself has no step bar; the pages do.
     expect(screen.queryByTestId("guided-bar")).toBeNull();
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Verify" }));
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Verify" }),
+    );
     const bar = await screen.findByTestId("guided-bar");
     expect(within(bar).getByRole("button", { name: /Back: Import/ })).not.toBeNull();
     fireEvent.click(within(bar).getByRole("button", { name: /Next: Checks/ }));
@@ -364,7 +483,9 @@ describe("Overview buttons", () => {
   it("New assessment starts a fresh pass in this project and opens it", async () => {
     const fetchMock = await show({
       "POST /api/projects/10/assessments": { body: { id: 102 } },
-      "GET /api/assessments/102": { body: assessmentView({ id: 102, number: 3, title: "Assessment 3", file: null, import: null, plan_id: null }) },
+      "GET /api/assessments/102": {
+        body: assessmentView({ id: 102, number: 3, title: "Assessment 3", file: null, import: null, plan_id: null }),
+      },
     });
     fireEvent.click(within(screen.getByTestId("page-header")).getByRole("button", { name: "New assessment" }));
     // The box: a name filled in ("Assessment 3"), a purpose and an optional reference. It closes nothing.
@@ -384,8 +505,14 @@ describe("Overview buttons", () => {
     fireEvent.change(box.getByLabelText("Reference (optional)"), { target: { value: "Release 2.1" } });
     fireEvent.click(box.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/overview"));
-    const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/projects/10/assessments" && i?.method === "POST");
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: "Assessment 3", purpose: "release_check", reference: "Release 2.1" });
+    const call = fetchMock.mock.calls.find(
+      ([u, i]) => String(u) === "/api/projects/10/assessments" && i?.method === "POST",
+    );
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+      name: "Assessment 3",
+      purpose: "release_check",
+      reference: "Release 2.1",
+    });
     // Nothing else was closed or changed.
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual(["POST /api/projects/10/assessments"]);
     expect(await screen.findByRole("heading", { level: 1, name: "Assessment 3" })).not.toBeNull();
@@ -402,7 +529,9 @@ describe("Overview buttons", () => {
   it("Rerun as new assessment opens the same box, filled in, and brings the same file in again on Import", async () => {
     const fetchMock = await show({
       "POST /api/assessments/101/rerun": { body: { id: 102 } },
-      "GET /api/assessments/102": { body: assessmentView({ id: 102, number: 3, title: "Assessment 2 (again)", import: null, plan_id: null }) },
+      "GET /api/assessments/102": {
+        body: assessmentView({ id: 102, number: 3, title: "Assessment 2 (again)", import: null, plan_id: null }),
+      },
     });
     fireEvent.click(within(screen.getByTestId("page-header")).getByRole("button", { name: "Rerun as new assessment" }));
     const box = within(await screen.findByTestId("new-assessment-box"));
@@ -411,14 +540,22 @@ describe("Overview buttons", () => {
     expect(text(screen.getByTestId("new-assessment-box"))).toContain("the file only, no results or choices");
     fireEvent.click(box.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/inventory/import"));
-    const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/assessments/101/rerun" && i?.method === "POST");
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: "Assessment 2 (again)", purpose: "full_review", reference: "" });
+    const call = fetchMock.mock.calls.find(
+      ([u, i]) => String(u) === "/api/assessments/101/rerun" && i?.method === "POST",
+    );
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+      name: "Assessment 2 (again)",
+      purpose: "full_review",
+      reference: "",
+    });
   });
 
   it("Close assessment closes it, and then the page is read-only", async () => {
     let closed = false;
     const fetchMock = await show({
-      "GET /api/assessments/101": () => ({ body: closed ? { ...openAssessment, status: closedAssessment.status } : openAssessment }),
+      "GET /api/assessments/101": () => ({
+        body: closed ? { ...openAssessment, status: closedAssessment.status } : openAssessment,
+      }),
       "POST /api/assessments/101": () => {
         closed = true;
         return { body: { ...openAssessment, status: closedAssessment.status } };
@@ -437,7 +574,11 @@ describe("Overview buttons", () => {
     fireEvent.click(sign);
     expect(await screen.findByTestId("closed-banner")).not.toBeNull();
     const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/assessments/101" && i?.method === "POST");
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ close: true, signed_off_by: "Dana Lee", note: "Wave 1 done" });
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+      close: true,
+      signed_off_by: "Dana Lee",
+      note: "Wave 1 done",
+    });
     expect(screen.queryByRole("button", { name: "Close assessment" })).toBeNull();
   });
 
@@ -448,7 +589,9 @@ describe("Overview buttons", () => {
     let closed = false;
     const inner = mockApi(
       routes({
-        "GET /api/assessments/101": () => ({ body: closed ? { ...openAssessment, status: closedAssessment.status } : openAssessment }),
+        "GET /api/assessments/101": () => ({
+          body: closed ? { ...openAssessment, status: closedAssessment.status } : openAssessment,
+        }),
         "POST /api/assessments/101": () => {
           closed = true;
           return { body: { ...openAssessment, status: closedAssessment.status } };
@@ -461,7 +604,10 @@ describe("Overview buttons", () => {
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       if ((init?.method ?? "GET") === "GET" && String(input) === "/api/assessments/101" && ++reads === 2) {
         // the Overview's own re-read: answered as things stood when it was asked, and delivered late
-        const stale = new Response(JSON.stringify(openAssessment), { status: 200, headers: { "Content-Type": "application/json" } });
+        const stale = new Response(JSON.stringify(openAssessment), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
         await held;
         return stale;
       }
@@ -474,9 +620,9 @@ describe("Overview buttons", () => {
     fireEvent.change(box.getByLabelText("Signed off by"), { target: { value: "Dana Lee" } });
     fireEvent.click(box.getByRole("button", { name: "Close and sign off" }));
     expect(await screen.findByTestId("closed-banner")).not.toBeNull();
-    expect(reads).toBeGreaterThanOrEqual(3);          // the close asked for the assessment afresh
+    expect(reads).toBeGreaterThanOrEqual(3); // the close asked for the assessment afresh
     release();
-    await new Promise((resolve) => setTimeout(resolve, 30));      // the late answer has arrived by now
+    await new Promise((resolve) => setTimeout(resolve, 30)); // the late answer has arrived by now
     expect(screen.queryByTestId("closed-banner")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Close assessment" })).toBeNull();
     expect(text(screen.getByTestId("assessment-status"))).toMatch(/Closed/);
@@ -493,7 +639,12 @@ describe("Overview buttons", () => {
   it("offers Rename, Change purpose, Move and Archive in the more-actions menu", async () => {
     const fetchMock = await show({ "POST /api/assessments/101": { body: openAssessment } });
     fireEvent.click(screen.getByRole("button", { name: "More actions for this assessment" }));
-    expect(screen.getAllByRole("menuitem").map((m) => text(m))).toEqual(["Rename", "Change purpose", "Move to another project", "Archive"]);
+    expect(screen.getAllByRole("menuitem").map((m) => text(m))).toEqual([
+      "Rename",
+      "Change purpose",
+      "Move to another project",
+      "Archive",
+    ]);
     fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
     const form = screen.getByRole("form", { name: "Rename this assessment" });
     fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "Before the fix" } });
@@ -516,7 +667,10 @@ describe("Overview and the project", () => {
 
   it("shows who signed a closed assessment off, and when", async () => {
     window.history.replaceState(null, "", "#/a/100/overview");
-    const signed = { ...closedAssessment, status: { ...closedAssessment.status, signoff: { by: "Dana Lee", at: "2026-11-11T09:00:00Z", note: null } } };
+    const signed = {
+      ...closedAssessment,
+      status: { ...closedAssessment.status, signoff: { by: "Dana Lee", at: "2026-11-11T09:00:00Z", note: null } },
+    };
     mockApi(routes({ "GET /api/assessments/100": { body: signed } }));
     render(<App />);
     await screen.findByTestId("overview-page");
@@ -536,14 +690,29 @@ describe("Overview stays current", () => {
         asked += 1;
         return { body: assessmentView({ blocks: asked > 2 ? later : OVERVIEW_BLOCKS }) };
       },
-      "GET /api/plans/1/checks": { body: { plan_id: 1, title: "Checks", subline: "", groups: [], busy: false, came_from_options: [], libraries: [], evidence_counts: {} } },
+      "GET /api/plans/1/checks": {
+        body: {
+          plan_id: 1,
+          title: "Checks",
+          subline: "",
+          groups: [],
+          busy: false,
+          came_from_options: [],
+          libraries: [],
+          evidence_counts: {},
+        },
+      },
       "POST /api/import/7/plan": { body: { ...plan, has_results: true } },
     });
     const failed = () => within(screen.getByTestId("open-findings")).getAllByTestId("finding-count")[1]!;
     await waitFor(() => expect(text(failed())).toBe("Failed tests 2"));
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Checks" }));
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Checks" }),
+    );
     await screen.findByRole("heading", { level: 1, name: "Checks" });
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }));
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }),
+    );
     await waitFor(() => expect(text(failed())).toBe("Failed tests 4"));
   });
 });
@@ -557,12 +726,17 @@ describe("Overview, where each group's checks came from", () => {
     expect(text(line)).toBe("Where these came from: 8 Observed live · 2 Proven in the lab · 2 From your file");
     const counts = within(line).getAllByTestId("overview-source-count");
     expect(counts.map((c) => c.getAttribute("data-source"))).toEqual(["live", "lab", "file"]);
-    expect(within(line).getAllByTestId("overview-source-tag").map((t) => t.getAttribute("title"))).toEqual(
-      OVERVIEW_BLOCKS.groups[0]!.source_counts!.map((c) => c.meaning),
-    );
+    expect(
+      within(line)
+        .getAllByTestId("overview-source-tag")
+        .map((t) => t.getAttribute("title")),
+    ).toEqual(OVERVIEW_BLOCKS.groups[0]!.source_counts!.map((c) => c.meaning));
     // it sits under the checks' own count line
-    expect(text(group("verification")).indexOf("Checks:")).toBeLessThan(text(group("verification")).indexOf("Where these came from"));
-    for (const key of ["encryption", "migration", "dependencies"]) expect(within(group(key)).queryByTestId("overview-source-counts")).toBeNull();
+    expect(text(group("verification")).indexOf("Checks:")).toBeLessThan(
+      text(group("verification")).indexOf("Where these came from"),
+    );
+    for (const key of ["encryption", "migration", "dependencies"])
+      expect(within(group(key)).queryByTestId("overview-source-counts")).toBeNull();
     expect(within(line).queryAllByRole("link")).toEqual([]);
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });

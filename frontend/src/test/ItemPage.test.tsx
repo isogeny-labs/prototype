@@ -3,7 +3,15 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "../App";
-import { DetailPanel, HiddenPageNotesContext, ItemPageContext, PanelHeaderSlotContext, STANDING_LINE, TableWithPanel, type ItemPage } from "../components/layout";
+import {
+  DetailPanel,
+  HiddenPageNotesContext,
+  ItemPageContext,
+  PanelHeaderSlotContext,
+  STANDING_LINE,
+  TableWithPanel,
+  type ItemPage,
+} from "../components/layout";
 import { ErrorBox } from "../components/ui";
 import { CLOSED_SENTENCE } from "../readOnly";
 import { itemPageHref, parseRoute, routeHref } from "../router";
@@ -47,9 +55,21 @@ beforeEach(() => {
 describe("the address of an item on a page of its own", () => {
   it("names the assessment, the page, the item and the view, and reads back the same", () => {
     expect(itemPageHref(12, "checks", "test-5")).toBe("#/a/12/checks?item=test-5&view=page");
-    expect(parseRoute("#/a/12/checks?item=test-5&view=page")).toEqual({ kind: "assessment", id: 12, page: "checks", item: "test-5", group: null, section: null, view: "page" });
+    expect(parseRoute("#/a/12/checks?item=test-5&view=page")).toEqual({
+      kind: "assessment",
+      id: 12,
+      page: "checks",
+      item: "test-5",
+      group: null,
+      section: null,
+      view: "page",
+    });
     const system = itemPageHref(3, "migration/systems", "server:localhost:8443");
-    expect(parseRoute(system)).toMatchObject({ page: "migration/systems", item: "server:localhost:8443", view: "page" });
+    expect(parseRoute(system)).toMatchObject({
+      page: "migration/systems",
+      item: "server:localhost:8443",
+      view: "page",
+    });
     expect(routeHref(parseRoute(system))).toBe(system);
   });
 
@@ -93,9 +113,16 @@ describe("a side panel's header", () => {
     expect(link.getAttribute("href")).toBe("#/a/101/checks?item=test-5&view=page");
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toBe("noopener");
-    expect(within(header).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual(["Wider", "Narrower", "Close details"]);
+    expect(
+      within(header)
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-label") ?? b.textContent),
+    ).toEqual(["Wider", "Narrower", "Close details"]);
     // it comes before them, in the same row
-    expect(link.compareDocumentPosition(within(header).getByRole("button", { name: "Wider" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      link.compareDocumentPosition(within(header).getByRole("button", { name: "Wider" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText("the list")).not.toBeNull();
   });
 
@@ -129,7 +156,9 @@ describe("a side panel's header", () => {
     );
     const slot = screen.getByTestId("panel-header-slot");
     expect(within(slot).getByRole("button", { name: "Ask about test-5" })).not.toBeNull();
-    expect(slot.compareDocumentPosition(screen.getByTestId("open-in-new-tab")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      slot.compareDocumentPosition(screen.getByTestId("open-in-new-tab")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("every side panel in the app names its item, so every one of them has the link", () => {
@@ -143,7 +172,8 @@ describe("a side panel's header", () => {
         if (statSync(path).isDirectory()) walk(path);
         else if (name.endsWith(".tsx") && name !== "layout.tsx") {
           const source = readFileSync(path, "utf-8");
-          for (const match of source.matchAll(/<DetailPanel\b[^>]*?>/gs)) found.push(`${name}: ${/\bitem=\{/.test(match[0]) ? "names its item" : "NO ITEM"}`);
+          for (const match of source.matchAll(/<DetailPanel\b[^>]*?>/gs))
+            found.push(`${name}: ${/\bitem=\{/.test(match[0]) ? "names its item" : "NO ITEM"}`);
         }
       }
     };
@@ -166,7 +196,11 @@ describe("an item on a page of its own", () => {
     expect(within(page).getByTestId("check-panel").getAttribute("data-check")).toBe(ROW.id);
     expect(document.title).toBe(`${ROW.name} · Isogeny Labs`);
     // the shell stays: the sidebar with this page marked, and the top bar
-    expect(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Checks" }).getAttribute("aria-current")).toBe("page");
+    expect(
+      within(screen.getByRole("navigation", { name: "Assessment" }))
+        .getByRole("link", { name: "Checks" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
     expect(screen.getAllByRole("banner").length).toBeGreaterThan(0);
     // the list is not shown, and the panel's own header buttons are not there
     expect(screen.getByTestId("page-content").hidden).toBe(true);
@@ -210,7 +244,9 @@ describe("an item on a page of its own", () => {
     expect(screen.getByTestId("page-content").hidden).toBe(false);
     expect(document.title).toBe("Isogeny Labs");
     // and from the panel the way to the item's own page is one click
-    expect(within(panel).getByTestId("open-in-new-tab").getAttribute("href")).toBe(`#/a/101/checks?item=${ROW.id}&view=page`);
+    expect(within(panel).getByTestId("open-in-new-tab").getAttribute("href")).toBe(
+      `#/a/101/checks?item=${ROW.id}&view=page`,
+    );
   });
 
   it("says so when the address names an item that is not there, with the way back", async () => {
@@ -232,15 +268,27 @@ describe("an item on a page of its own", () => {
     render(<App />);
     const page = await screen.findByTestId("item-page");
     const line = within(page).getByTestId("item-page-standing");
-    expect(text(line)).toBe("Passing these tests doesn't prove a system secure. It shows these specific checks passed.");
+    expect(text(line)).toBe(
+      "Passing these tests doesn't prove a system secure. It shows these specific checks passed.",
+    );
     expect(STANDING_LINE).toBe(text(line));
     // it comes after the item's own content
-    expect(within(page).getByTestId("check-panel").compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      within(page).getByTestId("check-panel").compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("an item of Import, which shows what a file says and no result, has no such line", () => {
     const root = document.body.appendChild(document.createElement("div"));
-    const importPage: ItemPage = { asPage: true, root, standing: false, backHref: () => "#/a/1/inventory/import", listHref: "#/a/1/inventory/import", backLabel: "Import", hrefFor: () => "#" };
+    const importPage: ItemPage = {
+      asPage: true,
+      root,
+      standing: false,
+      backHref: () => "#/a/1/inventory/import",
+      listHref: "#/a/1/inventory/import",
+      backLabel: "Import",
+      hrefFor: () => "#",
+    };
     const drawn = render(
       <ItemPageContext.Provider value={importPage}>
         <DetailPanel open title="RSA-2048" onClose={() => {}} item="row-3">
@@ -268,7 +316,10 @@ describe("an item on a page of its own", () => {
     const fetchMock = mockApi(
       routes({
         "GET /api/plans/1/fixes": { body: fixesViews.not_connected },
-        "POST /api/plans/1/fixes/connect": { status: 409, body: { error: { message: refusal, line: null, field: null } } },
+        "POST /api/plans/1/fixes/connect": {
+          status: 409,
+          body: { error: { message: refusal, line: null, field: null } },
+        },
       }),
     );
     render(<App />);
@@ -282,7 +333,9 @@ describe("an item on a page of its own", () => {
     // it is on screen: above the item, and not inside the list page that is kept hidden
     expect(screen.getByTestId("page-content").hidden).toBe(true);
     expect(screen.getByTestId("page-content").contains(alert)).toBe(false);
-    expect(notes.compareDocumentPosition(screen.getByTestId("item-page-root")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      notes.compareDocumentPosition(screen.getByTestId("item-page-root")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
@@ -310,7 +363,15 @@ describe("an item on a page of its own", () => {
 
   it("does not say an item is not here while the page still waits for the list it looks the item up in", () => {
     const root = document.body.appendChild(document.createElement("div"));
-    const page: ItemPage = { asPage: true, root, standing: true, backHref: () => "#/a/1/evidence", listHref: "#/a/1/evidence", backLabel: "Evidence", hrefFor: () => "#" };
+    const page: ItemPage = {
+      asPage: true,
+      root,
+      standing: true,
+      backHref: () => "#/a/1/evidence",
+      listHref: "#/a/1/evidence",
+      backLabel: "Evidence",
+      hrefFor: () => "#",
+    };
     const draw = (settled: boolean) => (
       <ItemPageContext.Provider value={page}>
         <TableWithPanel panelOpen={false} settled={settled} table={<p>the list</p>} panel={null} />
@@ -327,7 +388,9 @@ describe("an item on a page of its own", () => {
   it("stays read-only in a closed assessment: the same buttons, off, with the reason", async () => {
     const first = lab.rows[0]!;
     at(`evidence?item=test-${first.item_id}&view=page`);
-    mockApi(routes({}, { ...assessmentView(), status: closedAssessment.status, closed_at: closedAssessment.closed_at }));
+    mockApi(
+      routes({}, { ...assessmentView(), status: closedAssessment.status, closed_at: closedAssessment.closed_at }),
+    );
     render(<App />);
     const page = await screen.findByTestId("item-page");
     expect(within(page).getByRole("heading", { level: 1, name: first.title })).not.toBeNull();

@@ -14,6 +14,7 @@ asked, with Live Otto on or off; answers in free words (Claude's, held to a fact
     What is this page for?                                one sentence about the page, and what is on it now
     What should I do next?                                the Overview's next step, and what waits for a decision
 """
+
 from __future__ import annotations
 
 import re
@@ -40,7 +41,10 @@ ASKS: tuple[tuple[str, str], ...] = (
     ("why_failed", r"why (?:did|does|is|was) (?P<rest>.+?) not (?:pass|passing|passed)"),
     ("why_failed", r"what went wrong(?: (?:with|in|on) (?P<rest>.+))?"),
     ("why_failed", r"why (?:did|does) (?:it|this|that) fail"),
-    ("shows", r"what does (?P<rest>.+?) (?:show|prove|tell me|tell us)(?:,? and what (?:(?:doesn't|does not|doesnt) it|does it not|it (?:doesn't|does not))(?: show| prove)?)?"),
+    (
+        "shows",
+        r"what does (?P<rest>.+?) (?:show|prove|tell me|tell us)(?:,? and what (?:(?:doesn't|does not|doesnt) it|does it not|it (?:doesn't|does not))(?: show| prove)?)?",
+    ),
     ("shows", r"what did (?P<rest>.+?) (?:show|prove)"),
     ("came_from", r"where (?:did|does) (?P<rest>.+?) come from"),
     ("came_from", r"why (?:is|was) (?P<rest>.+?) (?:proposed|suggested)"),
@@ -54,7 +58,22 @@ ASKS: tuple[tuple[str, str], ...] = (
     ("next", r"what(?:'s| is) (?:next|the next step)|what now|what comes next|next step"),
 )
 # The words that only say "the thing I am looking at".
-_POINTING = {"this", "that", "it", "check", "checks", "test", "result", "one", "suggestion", "proposal", "fix", "update", "change", "here"}
+_POINTING = {
+    "this",
+    "that",
+    "it",
+    "check",
+    "checks",
+    "test",
+    "result",
+    "one",
+    "suggestion",
+    "proposal",
+    "fix",
+    "update",
+    "change",
+    "here",
+}
 _TEST = re.compile(r"^test-(\d+)$")
 _OTHER_RUN = re.compile(r"^(?:retest|proof|watch|watchbase)-\d+")
 
@@ -90,6 +109,7 @@ def _names(rest: str) -> bool:
 
 # ------------------------------------------------------------------ what the records say, and never more
 
+
 def _newest(row: dict) -> dict | None:
     return row.get("after") or row.get("result")
 
@@ -104,17 +124,19 @@ def _failed(result: dict | None) -> bool:
 def _row_names(lab_view: dict) -> dict[int, str]:
     """A name for each test of the plan that no other test has (where two share a title: with its target)."""
     headings = {g["key"]: g["heading"] for g in lab_view.get("groups") or []}
-    return commands.distinct([(r["item_id"], r["title"], headings.get(r.get("group"))) for r in lab_view.get("rows") or []])
+    return commands.distinct(
+        [(r["item_id"], r["title"], headings.get(r.get("group"))) for r in lab_view.get("rows") or []]
+    )
 
 
 def _open(item: str | None, rows: list[dict], proposals: list[dict]) -> tuple[str, Any]:
     """What the open item is, for a question about "this check". Nothing is guessed:
-      ("none", None)        nothing is open
-      ("row", row)          a test of the plan that has a result
-      ("no_result", row)    a test of the plan that has none yet
-      ("rows", [row, ...])  an advisory with several accepted checks in the plan
-      ("other_run", None)   the row of a retest or of a fix proof: its own run, which an answer here is not about
-      ("not_a_test", None)  anything else: a claim, an advisory with no check in the plan, a fix, a system"""
+    ("none", None)        nothing is open
+    ("row", row)          a test of the plan that has a result
+    ("no_result", row)    a test of the plan that has none yet
+    ("rows", [row, ...])  an advisory with several accepted checks in the plan
+    ("other_run", None)   the row of a retest or of a fix proof: its own run, which an answer here is not about
+    ("not_a_test", None)  anything else: a claim, an advisory with no check in the plan, a fix, a system"""
     if not item:
         return "none", None
     m = _TEST.match(item)
@@ -125,8 +147,13 @@ def _open(item: str | None, rows: list[dict], proposals: list[dict]) -> tuple[st
         return ("row" if _newest(row) is not None else "no_result"), row
     if _OTHER_RUN.match(item):
         return "other_run", None
-    ids = [int(p["facts"]["item_id"]) for p in proposals
-           if p["kind"] == "check" and (p.get("link") or {}).get("item") == item and (p.get("facts") or {}).get("item_id") is not None]
+    ids = [
+        int(p["facts"]["item_id"])
+        for p in proposals
+        if p["kind"] == "check"
+        and (p.get("link") or {}).get("item") == item
+        and (p.get("facts") or {}).get("item_id") is not None
+    ]
     mine = [r for r in rows if r["item_id"] in ids]
     if len(mine) == 1:
         return ("row" if _newest(mine[0]) is not None else "no_result"), mine[0]
@@ -137,18 +164,26 @@ def _open(item: str | None, rows: list[dict], proposals: list[dict]) -> tuple[st
 
 NO_RESULTS = "No test of the plan has a result yet. Results come from running the test plan on Checks."
 NONE_FAILED = "No test of the plan reads Failed now."
-OTHER_RUN = ("The open row is the run of a retest or of a fix proof. An answer here is about a test's first result and its newest "
-             "retest: open the test on Evidence, or name it.")
+OTHER_RUN = (
+    "The open row is the run of a retest or of a fix proof. An answer here is about a test's first result and its newest "
+    "retest: open the test on Evidence, or name it."
+)
 NOT_A_TEST = "The open item is not a test of the plan, so there is no test result to explain. Name the check you mean."
 NO_SUCH_TEST = "I can't do that. No test of the plan is called that."
 NO_SUCH_SUGGESTION = "I can't do that. No suggestion here is called that."
 
 
 def _no_result(row: dict, name: str) -> tuple:
-    return ("say", f"“{name}” has no result yet. It gets one when it is run, on Checks.", _link("checks", f"test-{row['item_id']}"), "Open it on Checks")
+    return (
+        "say",
+        f"“{name}” has no result yet. It gets one when it is run, on Checks.",
+        _link("checks", f"test-{row['item_id']}"),
+        "Open it on Checks",
+    )
 
 
 # ------------------------------------------------------------------ which questions fit, for the chips
+
 
 def fitting(page: str, item: str | None, lab_view: dict, proposals: list[dict], shown: list[dict]) -> list[str]:
     """Up to three of the fixed questions that fit this page and the open item, the most particular first. Worked out
@@ -173,14 +208,31 @@ def fitting(page: str, item: str | None, lab_view: dict, proposals: list[dict], 
 
 # ------------------------------------------------------------------ the answers
 
-def answer(copilot: Any, facts: Any, said: dict, page: str, item: str | None, proposals: list[dict], shown: list[dict], out: Any, can: list[dict]) -> dict:
+
+def answer(
+    copilot: Any,
+    facts: Any,
+    said: dict,
+    page: str,
+    item: str | None,
+    proposals: list[dict],
+    shown: list[dict],
+    out: Any,
+    can: list[dict],
+) -> dict:
     question, rest = said["question"], said.get("rest") or ""
     if question == "page_for":
         return _page_for(facts, rest, page, proposals, out, can, "page" in commands.tokens(said.get("said") or ""))
     if question == "next":
         return _next(facts, page, out)
     if not facts.has_file:
-        return out("answer", ASK[question], question=ASK[question], label=LABEL, facts=[fact(words.NO_FILE, _link("inventory/import"), "Open Import")])
+        return out(
+            "answer",
+            ASK[question],
+            question=ASK[question],
+            label=LABEL,
+            facts=[fact(words.NO_FILE, _link("inventory/import"), "Open Import")],
+        )
     if question in ("why_failed", "shows"):
         lab_view = facts.lab()
         names = _row_names(lab_view)
@@ -188,38 +240,81 @@ def answer(copilot: Any, facts: Any, said: dict, page: str, item: str | None, pr
         if picked[0] == "cannot":
             return out("cannot", picked[1], can=can, thread="testing")
         if picked[0] == "say":
-            return out("answer", ASK[question], question=ASK[question], label=LABEL, thread="testing", facts=[fact(picked[1], picked[2], picked[3])])
+            return out(
+                "answer",
+                ASK[question],
+                question=ASK[question],
+                label=LABEL,
+                thread="testing",
+                facts=[fact(picked[1], picked[2], picked[3])],
+            )
         if picked[0] == "which":
             ask = "Why did {} fail?" if question == "why_failed" else "What does {} show?"
-            listed = picked[1][:commands.MAX_OPTIONS]
-            return out("which", commands.which_text(len(listed), len(picked[1])), thread="testing",
-                       options=[{"label": f"{names[r['item_id']]} ({(_newest(r) or {}).get('label') or 'no result yet'})",
-                                 "say": ask.format(commands.sayable(names[r["item_id"]]))} for r in listed])
+            listed = picked[1][: commands.MAX_OPTIONS]
+            return out(
+                "which",
+                commands.which_text(len(listed), len(picked[1])),
+                thread="testing",
+                options=[
+                    {
+                        "label": f"{names[r['item_id']]} ({(_newest(r) or {}).get('label') or 'no result yet'})",
+                        "say": ask.format(commands.sayable(names[r["item_id"]])),
+                    }
+                    for r in listed
+                ],
+            )
         row = picked[1]
-        return _why_failed(row, names[row["item_id"]], out) if question == "why_failed" else _shows(row, names[row["item_id"]], out)
+        return (
+            _why_failed(row, names[row["item_id"]], out)
+            if question == "why_failed"
+            else _shows(row, names[row["item_id"]], out)
+        )
     # the two questions about a suggestion
     chosen = _pick_proposal(rest, item, proposals, shown)
     if chosen[0] == "cannot":
         return out("cannot", chosen[1], can=can)
     if chosen[0] == "none":
-        return out("answer", ASK[question], question=ASK[question], label=LABEL,
-                   facts=[fact("Nothing is proposed in this assessment now, so there is no suggestion to ask about.", _link("advisories"), "Open Advisories")])
+        return out(
+            "answer",
+            ASK[question],
+            question=ASK[question],
+            label=LABEL,
+            facts=[
+                fact(
+                    "Nothing is proposed in this assessment now, so there is no suggestion to ask about.",
+                    _link("advisories"),
+                    "Open Advisories",
+                )
+            ],
+        )
     if chosen[0] == "which":
         ask = "Where did {} come from?" if question == "came_from" else "What happens if I accept {}?"
-        listed = chosen[1][:commands.MAX_OPTIONS]
-        return out("which", commands.which_text(len(listed), len(chosen[1])),
-                   options=[{"label": f"{p['title']} (on {PAGE_LABELS[HOME.get(p['kind'], 'overview')]})",
-                             "say": ask.format(commands.sayable(p["title"]))} for p in listed])
+        listed = chosen[1][: commands.MAX_OPTIONS]
+        return out(
+            "which",
+            commands.which_text(len(listed), len(chosen[1])),
+            options=[
+                {
+                    "label": f"{p['title']} (on {PAGE_LABELS[HOME.get(p['kind'], 'overview')]})",
+                    "say": ask.format(commands.sayable(p["title"])),
+                }
+                for p in listed
+            ],
+        )
     return _came_from(chosen[1], out) if question == "came_from" else _if_accept(copilot, chosen[1], item, out)
 
 
-def _pick_row(rest: str, item: str | None, lab_view: dict, names: dict[int, str], proposals: list[dict], failed_first: bool) -> tuple:
+def _pick_row(
+    rest: str, item: str | None, lab_view: dict, names: dict[int, str], proposals: list[dict], failed_first: bool
+) -> tuple:
     """The one test the question is about: ("row", row); or ("which", rows) to choose from; or ("say", sentence, link,
     label) where the records hold nothing to answer from, said as that; or ("cannot", sentence) where the words name
     something no test is called. Never another test than the one that was named or is open."""
     rows = lab_view.get("rows") or []
     if _names(rest):
-        candidates = [{"names": [r["title"], names[r["item_id"]]], "titles": [names[r["item_id"]]], "r": r} for r in rows]
+        candidates = [
+            {"names": [r["title"], names[r["item_id"]]], "titles": [names[r["item_id"]]], "r": r} for r in rows
+        ]
         found = [c["r"] for c in commands.match(rest, candidates, ignore=_POINTING)]
         if not found:
             return ("cannot", NO_SUCH_TEST)
@@ -227,8 +322,12 @@ def _pick_row(rest: str, item: str | None, lab_view: dict, names: dict[int, str]
         if not have:
             if len(found) == 1:
                 return _no_result(found[0], names[found[0]["item_id"]])
-            return ("say", f"None of the {len(found)} tests that fit has a result yet. Results come from running the test plan on Checks.",
-                    _link("checks", group=PLAN_TAB), "Open Checks")
+            return (
+                "say",
+                f"None of the {len(found)} tests that fit has a result yet. Results come from running the test plan on Checks.",
+                _link("checks", group=PLAN_TAB),
+                "Open Checks",
+            )
         if len(have) == 1:
             return ("row", have[0])
         if failed_first:
@@ -244,7 +343,12 @@ def _pick_row(rest: str, item: str | None, lab_view: dict, names: dict[int, str]
     if kind == "rows":
         have = [r for r in what if _newest(r) is not None]
         if not have:
-            return ("say", "The checks of this advisory have no result yet. They get one when they are run, on Checks.", _link("checks", group=PLAN_TAB), "Open Checks")
+            return (
+                "say",
+                "The checks of this advisory have no result yet. They get one when they are run, on Checks.",
+                _link("checks", group=PLAN_TAB),
+                "Open Checks",
+            )
         return ("row", have[0]) if len(have) == 1 else ("which", have)
     if kind == "other_run":
         return ("say", OTHER_RUN, _link("evidence"), "Open Evidence")
@@ -257,7 +361,12 @@ def _pick_row(rest: str, item: str | None, lab_view: dict, names: dict[int, str]
         return ("row", pool[0])
     if pool:
         return ("which", pool)
-    return ("say", NONE_FAILED if failed_first and with_result else NO_RESULTS, _link("checks", group=PLAN_TAB), "Open Checks")
+    return (
+        "say",
+        NONE_FAILED if failed_first and with_result else NO_RESULTS,
+        _link("checks", group=PLAN_TAB),
+        "Open Checks",
+    )
 
 
 def _evidence(row: dict) -> dict:
@@ -274,7 +383,9 @@ def _why_failed(row: dict, name: str, out: Any) -> dict:
     """The reviewer's result and what the result's own page says about it. The first line repeats the result's word;
     it never says of its own that something did or did not fail."""
     first, after = row.get("result"), row.get("after")
-    result = after if _failed(after) else first if _failed(first) else (after or first)       # the one that failed, the newer one first
+    result = (
+        after if _failed(after) else first if _failed(first) else (after or first)
+    )  # the one that failed, the newer one first
     assert result is not None
     on = f" on {result['component']}" if result.get("component") else ""
     where = _evidence(row)
@@ -291,13 +402,27 @@ def _why_failed(row: dict, name: str, out: Any) -> dict:
         fix = result.get("fix_line")
         if fix:
             listed = f"{fix['lead']} {fix['rest']}".strip()
-            facts.append(fact(f"Evidence says of its fix: “{listed}”.", _link("fixes", fix["fix_id"]), fix.get("button") or "View in Fixes"))
+            facts.append(
+                fact(
+                    f"Evidence says of its fix: “{listed}”.",
+                    _link("fixes", fix["fix_id"]),
+                    fix.get("button") or "View in Fixes",
+                )
+            )
         elif result.get("suggested_fix"):
-            facts.append(fact(f"{result.get('fix_title') or 'Suggested fix'}: {result['suggested_fix']}", where, "See the evidence"))
+            facts.append(
+                fact(
+                    f"{result.get('fix_title') or 'Suggested fix'}: {result['suggested_fix']}",
+                    where,
+                    "See the evidence",
+                )
+            )
     if result is first and after is not None:
         again = f" on {after['component']}" if after.get("component") else ""
         facts.append(fact(f"In the retest{again} it reads {after['label']}.", where, "See the evidence"))
-    return out("answer", f"{ASK['why_failed']} {name}", question=ASK["why_failed"], label=LABEL, facts=facts, thread="testing")
+    return out(
+        "answer", f"{ASK['why_failed']} {name}", question=ASK["why_failed"], label=LABEL, facts=facts, thread="testing"
+    )
 
 
 def _shows(row: dict, name: str, out: Any) -> dict:
@@ -317,6 +442,7 @@ def _pick_proposal(rest: str, item: str | None, proposals: list[dict], shown: li
     """The one suggestion the question is about: ("one", p), ("which", [p, ...]), ("none",) when nothing is proposed
     at all, or ("cannot", sentence) when the words name something no suggestion is called."""
     from app.assistant.engine import _about
+
     if _names(rest):
         # the whole title, word for word, whatever kind word it holds itself ("Fix acme-sign 1.4.2 before ..." is a plan change)
         whole = commands.exact(rest, [{"names": [str(p.get("title") or "")], "p": p} for p in proposals])
@@ -324,7 +450,10 @@ def _pick_proposal(rest: str, item: str | None, proposals: list[dict], shown: li
             return ("one", whole[0]["p"])
         kinds = commands.kinds_named(rest)
         pool = [p for p in proposals if kinds is None or p["kind"] in kinds]
-        found = [c["p"] for c in commands.match(rest, [{"names": commands.names_of(p), "p": p} for p in pool], ignore=_POINTING)]
+        found = [
+            c["p"]
+            for c in commands.match(rest, [{"names": commands.names_of(p), "p": p} for p in pool], ignore=_POINTING)
+        ]
         if not found:
             return ("cannot", NO_SUCH_SUGGESTION)
         return ("one", found[0]) if len(found) == 1 else ("which", found)
@@ -341,8 +470,14 @@ def _came_from(p: dict, out: Any) -> dict:
     view = present_otto.proposal_view(p)
     home = HOME.get(p["kind"], "overview")
     where = view["link"]
-    facts = [fact(f"“{view['title']}” is a proposal marked {view['label']}, on {PAGE_LABELS[home]}. It reads “{view['status']['word']}”.", where, "Open it"),
-             fact(f"{view['why_label']}: {view['why']}", where, "Open it")]
+    facts = [
+        fact(
+            f"“{view['title']}” is a proposal marked {view['label']}, on {PAGE_LABELS[home]}. It reads “{view['status']['word']}”.",
+            where,
+            "Open it",
+        ),
+        fact(f"{view['why_label']}: {view['why']}", where, "Open it"),
+    ]
     facts += [fact(line, where, "Open it") for line in (view.get("lines") or [])[:6]]
     rows = (view.get("history") or {}).get("rows") or []
     facts += [fact(view["decided_line"], where, "Open it")] if not rows and view.get("decided_line") else []
@@ -350,7 +485,14 @@ def _came_from(p: dict, out: Any) -> dict:
     if not p.get("current", True):
         # (its page's own note: what it was about has changed since, so it is no longer proposed there)
         facts.append(fact(present_otto.NO_LONGER_PROPOSED, where, "Open it"))
-    return out("answer", f"{ASK['came_from']} {view['title']}", question=ASK["came_from"], label=LABEL, facts=facts, thread=KIND_THREAD[p["kind"]])
+    return out(
+        "answer",
+        f"{ASK['came_from']} {view['title']}",
+        question=ASK["came_from"],
+        label=LABEL,
+        facts=facts,
+        thread=KIND_THREAD[p["kind"]],
+    )
 
 
 def _if_accept(copilot: Any, p: dict, item: str | None, out: Any) -> dict:
@@ -360,7 +502,13 @@ def _if_accept(copilot: Any, p: dict, item: str | None, out: Any) -> dict:
     button = next((d for d in entry["decisions"] if d["key"] == "accept"), None)
     facts = []
     if button is None:
-        facts.append(fact(f"“{entry['title']}” reads “{entry['badge']['label']}”: there is nothing to accept now.", where, "Open it"))
+        facts.append(
+            fact(
+                f"“{entry['title']}” reads “{entry['badge']['label']}”: there is nothing to accept now.",
+                where,
+                "Open it",
+            )
+        )
         if entry["proposal"].get("decided_line"):
             facts.append(fact(entry["proposal"]["decided_line"], where, "Open it"))
     else:
@@ -368,12 +516,27 @@ def _if_accept(copilot: Any, p: dict, item: str | None, out: Any) -> dict:
         facts += [fact(line, where, "Open it") for line in words.ACCEPT_LINES[p["kind"]]]
         if not button["can"] and button.get("blocked_reason"):
             facts.append(fact(f"It can't be accepted now: {button['blocked_reason']}", where, "Open it"))
-        facts.append(fact(f"In this panel Accept waits for your Confirm. On {home} the Accept button records the decision at the click. Either way it "
-                          "is recorded with who and when, and it words no result.", where, "Open it"))
-    return out("answer", f"{ASK['if_accept']} {entry['title']}", question=ASK["if_accept"], label=LABEL, facts=facts, thread=KIND_THREAD[p["kind"]])
+        facts.append(
+            fact(
+                f"In this panel Accept waits for your Confirm. On {home} the Accept button records the decision at the click. Either way it "
+                "is recorded with who and when, and it words no result.",
+                where,
+                "Open it",
+            )
+        )
+    return out(
+        "answer",
+        f"{ASK['if_accept']} {entry['title']}",
+        question=ASK["if_accept"],
+        label=LABEL,
+        facts=facts,
+        thread=KIND_THREAD[p["kind"]],
+    )
 
 
-def _page_for(facts: Any, rest: str, page: str, proposals: list[dict], out: Any, can: list[dict], said_page: bool) -> dict:
+def _page_for(
+    facts: Any, rest: str, page: str, proposals: list[dict], out: Any, can: list[dict], said_page: bool
+) -> dict:
     """One sentence about a page (its own header sentence, as closely as one line can say it) and what is on it now.
     A page is named by its own name ("Evidence", "the roadmap"); another word for it counts only with "page" said
     ("the tests page"), so "What is the fix for?" is not read as a question about Fixes."""
@@ -394,7 +557,14 @@ def _page_for(facts: Any, rest: str, page: str, proposals: list[dict], out: Any,
             told.append(fact(counted, _link(target), f"Open {label}"))
     else:
         told.append(fact(words.NO_FILE, _link("inventory/import"), "Open Import"))
-    return out("answer", f"What is {label} for?", question=ASK["page_for"], label=LABEL, facts=told, thread=PAGE_THREAD.get(target))
+    return out(
+        "answer",
+        f"What is {label} for?",
+        question=ASK["page_for"],
+        label=LABEL,
+        facts=told,
+        thread=PAGE_THREAD.get(target),
+    )
 
 
 def _waiting(facts: Any, kinds: tuple[str, ...]) -> int:
@@ -416,14 +586,20 @@ def _on_page(facts: Any, page: str) -> str | None:
         rows = facts.lab().get("rows") or []
         failed = sum(1 for r in rows if _failed(_newest(r)))
         done = sum(1 for r in rows if _newest(r) is not None)
-        return (f"On it now, of the test plan: {done} {'test has' if done == 1 else 'tests have'} a result, and {failed} of them "
-                f"{'reads' if failed == 1 else 'read'} as failed.")
+        return (
+            f"On it now, of the test plan: {done} {'test has' if done == 1 else 'tests have'} a result, and {failed} of them "
+            f"{'reads' if failed == 1 else 'read'} as failed."
+        )
     if page == "fixes":
         listed = facts.fixes().get("fixes") or []
         n = sum(1 for f in listed if not f.get("apart"))
         # (phase 6d: a suggestion for a developer's change is listed apart on the page, so it is said apart here too)
         apart = len(listed) - n
-        more = (f" Listed apart: {apart} {'suggestion' if apart == 1 else 'suggestions'} for a developer's change." if apart else "")
+        more = (
+            f" Listed apart: {apart} {'suggestion' if apart == 1 else 'suggestions'} for a developer's change."
+            if apart
+            else ""
+        )
         return f"On it now: {n} {'fix' if n == 1 else 'fixes'}.{more}{wait}"
     return f"On it now:{wait}" if wait else None
 
@@ -434,16 +610,27 @@ def _next(facts: Any, page: str, out: Any) -> dict:
     if not facts.has_file:
         told.append(fact(words.NO_FILE, _link("inventory/import"), "Open Import"))
     elif step and step.get("page"):
-        told.append(fact(f"Next: {step['label']}. {step['text']}", _link(step["page"]), f"Open {PAGE_LABELS.get(step['page'], step['label'])}"))
+        told.append(
+            fact(
+                f"Next: {step['label']}. {step['text']}",
+                _link(step["page"]),
+                f"Open {PAGE_LABELS.get(step['page'], step['label'])}",
+            )
+        )
     else:
         told.append(fact("The Overview names no next step now.", _link("overview"), "Open Overview"))
     for kind in KIND_THREAD:
         n = _waiting(facts, (kind,)) if facts.has_file else 0
         home = HOME.get(kind, "overview")
         if not n or (step and step.get("page") == home):
-            continue                                      # (nothing waits; or the next step already sends there, and says how many)
-        told.append(fact(f"{words.counted(n, kind).capitalize()} {'waits' if n == 1 else 'wait'} for a decision on {PAGE_LABELS[home]}.",
-                         _link(home), f"Open {PAGE_LABELS[home]}"))
+            continue  # (nothing waits; or the next step already sends there, and says how many)
+        told.append(
+            fact(
+                f"{words.counted(n, kind).capitalize()} {'waits' if n == 1 else 'wait'} for a decision on {PAGE_LABELS[home]}.",
+                _link(home),
+                f"Open {PAGE_LABELS[home]}",
+            )
+        )
     # (filed under the thread of the page the next step sends to, so a kept answer is listed in that tab)
     thread = PAGE_THREAD.get(page) or (PAGE_THREAD.get(step["page"]) if step and step.get("page") else None)
     return out("answer", ASK["next"], question=ASK["next"], label=LABEL, facts=told, thread=thread)

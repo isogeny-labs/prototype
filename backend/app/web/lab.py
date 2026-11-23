@@ -1,4 +1,5 @@
 """The Evidence Lab step: results, marking reviewed, Dig deeper, retest and the evidence file."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
@@ -14,11 +15,15 @@ def routes(lab, require_login) -> APIRouter:
     def lab_view(plan_id: int):
         return lab.lab_view(plan_id)
 
-    @router.post("/api/runs/{run_id}/mark-reviewed", dependencies=[Depends(require_login)], responses=shows(models.LabView))
+    @router.post(
+        "/api/runs/{run_id}/mark-reviewed", dependencies=[Depends(require_login)], responses=shows(models.LabView)
+    )
     def mark_reviewed(run_id: int):
         return lab.mark_reviewed(run_id)
 
-    @router.post("/api/runs/{run_id}/dig-deeper", dependencies=[Depends(require_login)], responses=shows(models.LabView))
+    @router.post(
+        "/api/runs/{run_id}/dig-deeper", dependencies=[Depends(require_login)], responses=shows(models.LabView)
+    )
     def dig_deeper(run_id: int):
         return lab.dig_deeper(run_id)
 
@@ -26,7 +31,9 @@ def routes(lab, require_login) -> APIRouter:
     def retest(plan_id: int, body: RetestBody):
         return lab.start_retest(plan_id, body.version, body.component)
 
-    @router.post("/api/plans/{plan_id}/evidence", dependencies=[Depends(require_login)], responses=shows(models.EvidenceExport))
+    @router.post(
+        "/api/plans/{plan_id}/evidence", dependencies=[Depends(require_login)], responses=shows(models.EvidenceExport)
+    )
     def export_evidence(plan_id: int):
         return lab.export_evidence(plan_id)
 

@@ -1,4 +1,5 @@
 """CycloneDX 1.6 CBOM (JSON) -> claims, plus every cryptographic item that did not become a claim."""
+
 from __future__ import annotations
 
 import json
@@ -8,7 +9,15 @@ from urllib.parse import urlsplit
 from app.checks.addresses import AddressError, HostPort, parse_address, validate_host, validate_port
 from app.config import MAX_CLAIMS_PER_FILE
 from app.importer.common import (
-    ImportFileError, NOT_STATED, ParsedClaim, SkippedItem, _places, _server_text, _sorted, _software_claim, _decode,
+    ImportFileError,
+    NOT_STATED,
+    ParsedClaim,
+    SkippedItem,
+    _places,
+    _server_text,
+    _sorted,
+    _software_claim,
+    _decode,
     _where_words,
 )
 from app.names import TLS_VERSIONS, clean_text, normalize_algorithm, normalize_tls_version
@@ -17,6 +26,7 @@ KNOWN_ASSET_TYPES = {"algorithm", "protocol", "certificate", "related-crypto-mat
 
 
 # ---------------------------------------------------------------- CycloneDX 1.6 CBOM
+
 
 def _load_json(data: bytes) -> object:
     text = _decode(data)
@@ -46,7 +56,9 @@ def _endpoint(text: object, where: str) -> HostPort | None:
             return HostPort(validate_host(host), validate_port(port if port is not None else 443))
         return parse_address(text)
     except (AddressError, ValueError) as exc:
-        raise ImportFileError(f"{where}: {clean_text(text, 80)!r} is not a usable address ({exc}).", field=where) from exc
+        raise ImportFileError(
+            f"{where}: {clean_text(text, 80)!r} is not a usable address ({exc}).", field=where
+        ) from exc
 
 
 def _occurrence(text: object, where: str) -> HostPort | None:
@@ -65,7 +77,9 @@ def _occurrence(text: object, where: str) -> HostPort | None:
     try:
         return parse_address(text)
     except AddressError as exc:
-        raise ImportFileError(f"{where}: {clean_text(text, 80)!r} is not a usable address ({exc}).", field=where) from exc
+        raise ImportFileError(
+            f"{where}: {clean_text(text, 80)!r} is not a usable address ({exc}).", field=where
+        ) from exc
 
 
 MAX_COMPONENT_DEPTH = 50
@@ -76,8 +90,11 @@ def _walk_components(items: object, path: str, out: list, depth: int = 1) -> Non
         return
     if depth > MAX_COMPONENT_DEPTH:
         where = path if len(path) <= 120 else path[:60] + "…" + path[-55:]
-        raise ImportFileError(f"{where}: components are nested more than {MAX_COMPONENT_DEPTH} levels deep, "
-                              "which is deeper than Evidence Lab reads.", field=where)
+        raise ImportFileError(
+            f"{where}: components are nested more than {MAX_COMPONENT_DEPTH} levels deep, "
+            "which is deeper than Evidence Lab reads.",
+            field=where,
+        )
     if not isinstance(items, list):
         raise ImportFileError(f"{path} must be a list.", field=path)
     for i, comp in enumerate(items):
@@ -112,10 +129,22 @@ _UNCHECKED_ALGORITHMS = {
     "drbg": ("Random number generator", "Random number generators"),
 }
 _MATERIAL_WORDS = {
-    "public-key": "Public key", "private-key": "Private key", "secret-key": "Secret key", "key": "Key",
-    "password": "Password", "credential": "Credential", "token": "Token", "shared-secret": "Shared secret",
-    "digest": "Digest", "signature": "Signature", "nonce": "Nonce", "seed": "Seed", "salt": "Salt",
-    "initialization-vector": "Initialization vector", "ciphertext": "Ciphertext", "tag": "Tag",
+    "public-key": "Public key",
+    "private-key": "Private key",
+    "secret-key": "Secret key",
+    "key": "Key",
+    "password": "Password",
+    "credential": "Credential",
+    "token": "Token",
+    "shared-secret": "Shared secret",
+    "digest": "Digest",
+    "signature": "Signature",
+    "nonce": "Nonce",
+    "seed": "Seed",
+    "salt": "Salt",
+    "initialization-vector": "Initialization vector",
+    "ciphertext": "Ciphertext",
+    "tag": "Tag",
     "additional-data": "Additional data",
 }
 
@@ -132,7 +161,9 @@ def _skipped_asset(comp: dict, asset_type: str, props: dict, source: str) -> Ski
         primitive = ap.get("primitive")
         if primitive in ("signature", "key-agree", "kem"):
             what = "Signature algorithm" if primitive == "signature" else "Key-exchange algorithm"
-            reason = "Only named as part of a certificate or protocol in the file; not checked on its own in this version"
+            reason = (
+                "Only named as part of a certificate or protocol in the file; not checked on its own in this version"
+            )
         elif primitive in _UNCHECKED_ALGORITHMS:
             what, many = _UNCHECKED_ALGORITHMS[primitive]
             reason = f"{many} are not checked in this version"
@@ -149,11 +180,15 @@ def _check_top_level(doc: object) -> None:
     if not isinstance(doc, dict):
         raise ImportFileError("A CycloneDX file must be a JSON object at the top level.", line=1, field="(top level)")
     if "bomFormat" not in doc:
-        raise ImportFileError('This doesn\'t look like a CycloneDX file: the "bomFormat" field is missing.', field="bomFormat")
+        raise ImportFileError(
+            'This doesn\'t look like a CycloneDX file: the "bomFormat" field is missing.', field="bomFormat"
+        )
     if doc["bomFormat"] != "CycloneDX":
         raise ImportFileError('"bomFormat" must be "CycloneDX".', field="bomFormat")
     if "specVersion" not in doc:
-        raise ImportFileError('The "specVersion" field is missing. Evidence Lab reads CycloneDX 1.6.', field="specVersion")
+        raise ImportFileError(
+            'The "specVersion" field is missing. Evidence Lab reads CycloneDX 1.6.', field="specVersion"
+        )
     if doc["specVersion"] != "1.6":
         raise ImportFileError(
             f'"specVersion" is {clean_text(doc["specVersion"], 20)!r}. Evidence Lab reads CycloneDX 1.6 only.',
@@ -186,8 +221,9 @@ def _collect_assets(doc: dict) -> tuple[dict[str, tuple[str, dict]], list[tuple[
             continue
         props = comp.get("cryptoProperties")
         if not isinstance(props, dict):
-            raise ImportFileError(f"{path} is a cryptographic asset but has no cryptoProperties.",
-                                  field=f"{path}.cryptoProperties")
+            raise ImportFileError(
+                f"{path} is a cryptographic asset but has no cryptoProperties.", field=f"{path}.cryptoProperties"
+            )
         asset_type = props.get("assetType")
         if asset_type not in KNOWN_ASSET_TYPES:
             raise ImportFileError(
@@ -236,8 +272,9 @@ def _dependencies(doc: dict, assets: list, by_ref: dict, service_addr: dict) -> 
         if not isinstance(dep, dict) or not isinstance(dep.get("ref"), str):
             raise ImportFileError(f"dependencies[{i}] needs a ref.", field=f"dependencies[{i}].ref")
         owner = dep["ref"]
-        targets = _str_list(dep.get("dependsOn"), f"dependencies[{i}].dependsOn") + \
-            _str_list(dep.get("provides"), f"dependencies[{i}].provides")
+        targets = _str_list(dep.get("dependsOn"), f"dependencies[{i}].dependsOn") + _str_list(
+            dep.get("provides"), f"dependencies[{i}].provides"
+        )
         for target in targets:
             if target not in asset_refs:
                 continue
@@ -275,7 +312,9 @@ def _occurrences_fallback(assets: list, located: dict):
     return add_loc
 
 
-def _references_between_assets(assets: list, by_ref: dict, asset_refs: set, located: dict, referenced: set, add_loc) -> None:
+def _references_between_assets(
+    assets: list, by_ref: dict, asset_refs: set, located: dict, referenced: set, add_loc
+) -> None:
     # references between assets; a certificate named by a located protocol sits at the same address
     for path, comp, asset_type, props in assets:  # noqa: B007
         if asset_type == "protocol":
@@ -310,6 +349,7 @@ def _algorithms_of_keys(assets: list, referenced: set) -> None:
 
 def _build_claims(assets: list, by_ref: dict, located: dict, software_uses: list, referenced: set):
     """The claims, one asset at a time. The TLS claims are only collected per address here (see _group_tls_by_address)."""
+
     def algorithm_of(ref: object, size: object = None) -> str | None:
         """Plain name of an algorithm asset, e.g. 'ECDSA P-256' (or the file's own spelling if we don't know it)."""
         if not isinstance(ref, str) or ref not in by_ref:
@@ -322,8 +362,9 @@ def _build_claims(assets: list, by_ref: dict, located: dict, software_uses: list
         name = comp.get("name")
         if not isinstance(name, str) or not name.strip():
             return None
-        return normalize_algorithm(name, ap.get("curve"), size or ap.get("parameterSetIdentifier")) \
-            or clean_text(name, 80)
+        return normalize_algorithm(name, ap.get("curve"), size or ap.get("parameterSetIdentifier")) or clean_text(
+            name, 80
+        )
 
     claims: list[ParsedClaim] = []
     tls_by_addr: dict[str, dict] = {}
@@ -341,59 +382,97 @@ def _build_claims(assets: list, by_ref: dict, located: dict, software_uses: list
         if asset_type == "protocol":
             pp = props.get("protocolProperties")
             if not isinstance(pp, dict):
-                raise ImportFileError(f"{path} is a protocol but has no protocolProperties.",
-                                      field=f"{path}.cryptoProperties.protocolProperties")
+                raise ImportFileError(
+                    f"{path} is a protocol but has no protocolProperties.",
+                    field=f"{path}.cryptoProperties.protocolProperties",
+                )
             ptype = pp.get("type")
             vfield = f"{path}.cryptoProperties.protocolProperties.version"
             if not isinstance(ptype, str) or not ptype:
-                raise ImportFileError(f"{path}: the protocol type is missing.",
-                                      field=f"{path}.cryptoProperties.protocolProperties.type")
+                raise ImportFileError(
+                    f"{path}: the protocol type is missing.", field=f"{path}.cryptoProperties.protocolProperties.type"
+                )
             if ptype.lower() != "tls":
                 label = clean_text(f"{ptype.upper()} {pp.get('version') or ''}", 60)
                 detail = {"unsupported_protocol": clean_text(ptype, 30)}
                 for where, kind_, d in _places(places):
-                    claims.append(ParsedClaim(ref, where, kind_, "protocol_versions", label,
-                                              _server_text("protocol_versions", _where_words(where, kind_), {**detail, **d}, label),
-                                              src(path, comp), {**detail, **d}))
+                    claims.append(
+                        ParsedClaim(
+                            ref,
+                            where,
+                            kind_,
+                            "protocol_versions",
+                            label,
+                            _server_text("protocol_versions", _where_words(where, kind_), {**detail, **d}, label),
+                            src(path, comp),
+                            {**detail, **d},
+                        )
+                    )
                 continue
             if pp.get("version") in (None, ""):
                 # Real scanners sometimes list "TLS" without a version. Keep it; Verify will say Couldn't check.
                 detail = {"version_not_stated": True}
                 cs = pp.get("cipherSuites")
                 for k, s in enumerate(cs if isinstance(cs, list) else []):
-                    bad_suites.setdefault(ref, []).append(SkippedItem(
-                        _shown_name(s) if isinstance(s, dict) else "(no name)", "Cipher suite",
-                        f"{path}.cryptoProperties.protocolProperties.cipherSuites[{k}] (bom-ref {clean_text(ref, 80)})",
-                        "The file gives no TLS version for this cipher suite, so it is not checked"))
+                    bad_suites.setdefault(ref, []).append(
+                        SkippedItem(
+                            _shown_name(s) if isinstance(s, dict) else "(no name)",
+                            "Cipher suite",
+                            f"{path}.cryptoProperties.protocolProperties.cipherSuites[{k}] (bom-ref {clean_text(ref, 80)})",
+                            "The file gives no TLS version for this cipher suite, so it is not checked",
+                        )
+                    )
                 for where, kind_, d in _places(places):
                     words = _where_words(where, kind_)
-                    claims.append(ParsedClaim(ref, where, kind_, "protocol_versions", "TLS (version not stated)",
-                                              f"{words} uses TLS (the file does not say which versions)",
-                                              src(path, comp), {**detail, **d}))
+                    claims.append(
+                        ParsedClaim(
+                            ref,
+                            where,
+                            kind_,
+                            "protocol_versions",
+                            "TLS (version not stated)",
+                            f"{words} uses TLS (the file does not say which versions)",
+                            src(path, comp),
+                            {**detail, **d},
+                        )
+                    )
                 continue
             version = normalize_tls_version(pp["version"])
             if not version:
                 raise ImportFileError(
                     f"{path}: {clean_text(pp['version'], 20)!r} is not a TLS version we know (1.0, 1.1, 1.2 or 1.3).",
-                    field=vfield)
+                    field=vfield,
+                )
             suites = []
             cs = pp.get("cipherSuites")
             if cs is not None:
                 if not isinstance(cs, list):
-                    raise ImportFileError(f"{path}: cipherSuites must be a list.",
-                                          field=f"{path}.cryptoProperties.protocolProperties.cipherSuites")
+                    raise ImportFileError(
+                        f"{path}: cipherSuites must be a list.",
+                        field=f"{path}.cryptoProperties.protocolProperties.cipherSuites",
+                    )
                 for k, s in enumerate(cs):
-                    if isinstance(s, dict) and isinstance(s.get("name"), str) and re.fullmatch(r"[A-Za-z0-9_\-]{1,80}", s["name"]):
+                    if (
+                        isinstance(s, dict)
+                        and isinstance(s.get("name"), str)
+                        and re.fullmatch(r"[A-Za-z0-9_\-]{1,80}", s["name"])
+                    ):
                         suites.append(s["name"])
                     else:
-                        bad_suites.setdefault(ref, []).append(SkippedItem(
-                            _shown_name(s) if isinstance(s, dict) else "(no name)", "Cipher suite",
-                            f"{path}.cryptoProperties.protocolProperties.cipherSuites[{k}] (bom-ref {clean_text(ref, 80)})",
-                            "This cipher suite has no name in a form this version can check"))
+                        bad_suites.setdefault(ref, []).append(
+                            SkippedItem(
+                                _shown_name(s) if isinstance(s, dict) else "(no name)",
+                                "Cipher suite",
+                                f"{path}.cryptoProperties.protocolProperties.cipherSuites[{k}] (bom-ref {clean_text(ref, 80)})",
+                                "This cipher suite has no name in a form this version can check",
+                            )
+                        )
             for where, kind_, d in _places(places):
                 key = where if kind_ == "server" else f"unknown:{ref}"
-                group = tls_by_addr.setdefault(key, {"where": where, "kind": kind_, "d": d, "ref": ref,
-                                                     "versions": [], "suites": [], "sources": []})
+                group = tls_by_addr.setdefault(
+                    key,
+                    {"where": where, "kind": kind_, "d": d, "ref": ref, "versions": [], "suites": [], "sources": []},
+                )
                 group["versions"].append(version)
                 group["suites"].extend(suites)
                 group["sources"].append(src(path, comp))
@@ -415,13 +494,24 @@ def _build_claims(assets: list, by_ref: dict, located: dict, software_uses: list
             claimed = alg or NOT_STATED
             for where, kind_, d in _places(places):
                 detail = {**d, "algorithm": normalize_algorithm(alg) if alg else None}
-                claims.append(ParsedClaim(ref, where, kind_, "certificate", claimed,
-                                          _server_text("certificate", _where_words(where, kind_), detail, claimed),
-                                          src(path, comp), detail))
+                claims.append(
+                    ParsedClaim(
+                        ref,
+                        where,
+                        kind_,
+                        "certificate",
+                        claimed,
+                        _server_text("certificate", _where_words(where, kind_), detail, claimed),
+                        src(path, comp),
+                        detail,
+                    )
+                )
         elif asset_type == "algorithm":
             ap = props.get("algorithmProperties") if isinstance(props.get("algorithmProperties"), dict) else {}
             primitive = ap.get("primitive")
-            kind = {"signature": "signature_algorithm", "key-agree": "key_exchange", "kem": "key_exchange"}.get(primitive)
+            kind = {"signature": "signature_algorithm", "key-agree": "key_exchange", "kem": "key_exchange"}.get(
+                primitive
+            )
             if not kind:
                 continue  # hashes, ciphers etc. are not something this version checks; listed as skipped below
             alg = algorithm_of(ref)
@@ -434,9 +524,16 @@ def _build_claims(assets: list, by_ref: dict, located: dict, software_uses: list
                 if not isinstance(name, str) or not name.strip():
                     raise ImportFileError(f"{spath}: the component has no name.", field=f"{spath}.name")
                 version = scomp.get("version")
-                claims.append(_software_claim(sref, f"{spath} (bom-ref {clean_text(sref, 80)}) provides {src(path, comp)}",
-                                              clean_text(name, 100), clean_text(version, 50) if isinstance(version, str) else "",
-                                              alg, kind))
+                claims.append(
+                    _software_claim(
+                        sref,
+                        f"{spath} (bom-ref {clean_text(sref, 80)}) provides {src(path, comp)}",
+                        clean_text(name, 100),
+                        clean_text(version, 50) if isinstance(version, str) else "",
+                        alg,
+                        kind,
+                    )
+                )
             if users:
                 in_a_claim.add(ref)
             if users or ref in referenced:
@@ -444,9 +541,23 @@ def _build_claims(assets: list, by_ref: dict, located: dict, software_uses: list
             in_a_claim.add(ref)
             for where, kind_, d in _places(places):
                 words = _where_words(where, kind_)
-                text = f"{words} signs with {alg}" if kind == "signature_algorithm" else f"{words} uses {alg} for key exchange"
-                claims.append(ParsedClaim(ref, where, kind_, kind, alg, text, src(path, comp),
-                                          {**d, "algorithm": alg, "from_algorithm_asset": True}))
+                text = (
+                    f"{words} signs with {alg}"
+                    if kind == "signature_algorithm"
+                    else f"{words} uses {alg} for key exchange"
+                )
+                claims.append(
+                    ParsedClaim(
+                        ref,
+                        where,
+                        kind_,
+                        kind,
+                        alg,
+                        text,
+                        src(path, comp),
+                        {**d, "algorithm": alg, "from_algorithm_asset": True},
+                    )
+                )
     return claims, tls_by_addr, in_a_claim, bad_suites, src
 
 
@@ -457,21 +568,43 @@ def _group_tls_by_address(claims: list[ParsedClaim], tls_by_addr: dict) -> None:
         words = _where_words(group["where"], group["kind"])
         source = "; ".join(dict.fromkeys(group["sources"]))
         claimed = ", ".join(versions)
-        claims.append(ParsedClaim(group["ref"], group["where"], group["kind"], "protocol_versions", claimed,
-                                  _server_text("protocol_versions", words, detail, claimed), source, detail))
+        claims.append(
+            ParsedClaim(
+                group["ref"],
+                group["where"],
+                group["kind"],
+                "protocol_versions",
+                claimed,
+                _server_text("protocol_versions", words, detail, claimed),
+                source,
+                detail,
+            )
+        )
         suites = list(dict.fromkeys(group["suites"]))
         if suites:
             d2 = {**group["d"], "suites": suites}
             claimed = ", ".join(suites)
-            claims.append(ParsedClaim(group["ref"], group["where"], group["kind"], "cipher_suites", claimed,
-                                      _server_text("cipher_suites", words, d2, claimed), source, d2))
+            claims.append(
+                ParsedClaim(
+                    group["ref"],
+                    group["where"],
+                    group["kind"],
+                    "cipher_suites",
+                    claimed,
+                    _server_text("cipher_suites", words, d2, claimed),
+                    source,
+                    d2,
+                )
+            )
 
 
 def _check_claim_count(claims: list[ParsedClaim]) -> None:
     if not claims:
         raise ImportFileError(
             "This file has cryptographic assets, but none are a kind Evidence Lab checks "
-            "(TLS protocols, certificates, signature or key-exchange algorithms).", field="components")
+            "(TLS protocols, certificates, signature or key-exchange algorithms).",
+            field="components",
+        )
     if len(claims) > MAX_CLAIMS_PER_FILE:
         raise ImportFileError(f"This file has more than {MAX_CLAIMS_PER_FILE} claims.", field="components")
 

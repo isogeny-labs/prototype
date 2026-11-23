@@ -1,10 +1,17 @@
 import type { TestProofBlock } from "../../api";
 import { AskingCode } from "./AskingCode";
 
-const LABEL = "inline-block whitespace-nowrap rounded border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-200";
+const LABEL =
+  "inline-block whitespace-nowrap rounded border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-200";
 
 /** The label on everything that came from a public copy sandbox research made, so it is never taken for a pinned library. */
-export function SandboxCopyLabel({ label = "Sandbox copy", testId = "sandbox-copy-label" }: { label?: string; testId?: string }) {
+export function SandboxCopyLabel({
+  label = "Sandbox copy",
+  testId = "sandbox-copy-label",
+}: {
+  label?: string;
+  testId?: string;
+}) {
   return (
     <span data-testid={testId} className={LABEL}>
       {label}
@@ -17,7 +24,11 @@ export function SandboxCopyLabel({ label = "Sandbox copy", testId = "sandbox-cop
  * block only shows; it has nothing to press but its own folds and the code's Show. */
 export function ProofBlock({ proof, open = false }: { proof: TestProofBlock; open?: boolean }) {
   return (
-    <details data-testid="proof-block" open={open} className="mt-3 min-w-0 rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2">
+    <details
+      data-testid="proof-block"
+      open={open}
+      className="mt-3 min-w-0 rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2"
+    >
       <summary className="cursor-pointer text-[13px] font-medium text-slate-200 hover:text-slate-100">
         <span className="mr-2">{proof.title}</span>
         <SandboxCopyLabel label={proof.label} />
@@ -28,7 +39,11 @@ export function ProofBlock({ proof, open = false }: { proof: TestProofBlock; ope
       </p>
 
       {/* One part of the trial under the other: a table of three columns would not fit a narrow panel. */}
-      <ul data-testid="proof-rows" aria-label={proof.table.columns[0]} className="mt-2 divide-y divide-slate-800 rounded-md border border-slate-800">
+      <ul
+        data-testid="proof-rows"
+        aria-label={proof.table.columns[0]}
+        className="mt-2 divide-y divide-slate-800 rounded-md border border-slate-800"
+      >
         {proof.table.rows.map((row) => (
           <li key={row.key} data-testid="proof-row" data-part={row.key} className="min-w-0 px-3 py-2 text-[13px]">
             <p className="break-words text-slate-100">{row.label}</p>
@@ -52,7 +67,8 @@ export function ProofBlock({ proof, open = false }: { proof: TestProofBlock; ope
       </p>
       <details data-testid="proof-pins" className="mt-1.5 text-xs text-slate-400">
         <summary className="cursor-pointer font-medium text-slate-300 hover:text-slate-100">
-          {proof.registered.pins_title} <span className="tabular-nums text-slate-500">({proof.registered.pins.length})</span>
+          {proof.registered.pins_title}{" "}
+          <span className="tabular-nums text-slate-500">({proof.registered.pins.length})</span>
         </summary>
         <ul className="mt-1.5 space-y-1">
           {proof.registered.pins.map((pin) => (
@@ -85,7 +101,10 @@ export function ProofBlock({ proof, open = false }: { proof: TestProofBlock; ope
           ))}
         </ul>
         {proof.copies.left_out.length > 0 ? (
-          <ul data-testid="proof-left-out" className="mt-1.5 list-disc space-y-1 pl-5 text-[13px] text-slate-400 marker:text-slate-600">
+          <ul
+            data-testid="proof-left-out"
+            className="mt-1.5 list-disc space-y-1 pl-5 text-[13px] text-slate-400 marker:text-slate-600"
+          >
             {proof.copies.left_out.map((line, i) => (
               <li key={i} className="break-words">
                 {line}

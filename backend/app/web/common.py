@@ -1,4 +1,5 @@
 """What the route modules share: the request bodies, the fix-id check, downloads and the error answer."""
+
 from __future__ import annotations
 
 import re
@@ -31,7 +32,9 @@ class AddTestBody(BaseModel):
 
 class RetestBody(BaseModel):
     version: str = Field(max_length=50)
-    component: str | None = Field(default=None, max_length=100)   # phase 4c: which program to swap, when the file names several
+    component: str | None = Field(
+        default=None, max_length=100
+    )  # phase 4c: which program to swap, when the file names several
 
 
 class MigrationSettingBody(BaseModel):
@@ -49,11 +52,11 @@ class MigrationChoiceBody(BaseModel):
 
 class DependencyTieBody(BaseModel):
     top: StrictStr = Field(max_length=600)
-    system: StrictStr = Field(default="", max_length=600)    # "" is "None of these"
+    system: StrictStr = Field(default="", max_length=600)  # "" is "None of these"
 
 
 class DependencyMeasureBody(BaseModel):
-    row: StrictStr | None = Field(default=None, max_length=20)   # one library, or every one that can be measured
+    row: StrictStr | None = Field(default=None, max_length=20)  # one library, or every one that can be measured
 
 
 class ChangeBody(BaseModel):
@@ -91,9 +94,16 @@ def known_shape(fix_id: str) -> str:
 
 def download(filename: str, data: bytes, media_type: str) -> Response:
     """A file to save, never a page of this app: a saved report or patch is opened from disk, where it can reach nothing."""
-    return Response(content=data, media_type=media_type, headers={
-        "Content-Disposition": f'attachment; filename="{filename}"', "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox", "Cache-Control": "no-store"})
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 def shows(model: type[BaseModel]) -> dict:

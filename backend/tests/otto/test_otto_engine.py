@@ -3,6 +3,7 @@ the engine directly, with a stand-in for the lab and the real demo program as te
 no Otto: the whole path through a real assessment is in test_otto_fix.py (the slow set).
 
 The answers used here were written for the tests (they are fixtures, not answers from Claude)."""
+
 import json
 
 import pytest
@@ -14,19 +15,43 @@ from app.run import components
 
 HOW = "Written for a test, not an answer from Claude"
 # The change that turns acme-sign 1.4.2 into exactly our registered 1.4.3, as an answer in the shape Otto asks for.
-GOOD = {"title": "Reject signatures whose r or s is out of range",
-        "summary": "The verify command now refuses a signature whose two numbers are zero or not below the curve order.",
-        "answers": [1, 2],
-        "edits": [{"file": "acme_sign.py", "title": "The range check", "why": "r and s must each be at least 1 and below n.",
-                   "find": ["    except ValueError:", '        return {"valid": False}', "    e = digest_int(message)"],
-                   "put": ["    except ValueError:", '        return {"valid": False}', "    if not (1 <= r < N and 1 <= s < N):",
-                           '        return {"valid": False}', "    e = digest_int(message)"]},
-                  {"file": "acme_sign.py", "title": "The version number", "why": "So the changed program can be told from the one before.",
-                   "find": ['VERSION = "1.4.2"'], "put": ['VERSION = "1.4.3"']}]}
-ADVISORY = {"id": "CVE-2022-21449", "plain_name": "Missing ECDSA signature range check", "pack": "2026.11.1",
-            "quote": "if (rb.signum() == 0 || sb.signum() == 0"}
-WRONG = [{"id": "r0-s0", "comment": "r = 0, s = 0", "flags": [], "expected": "invalid", "got": "accept"},
-         {"id": "s-plus-n", "comment": "s above the allowed range", "flags": [], "expected": "invalid", "got": "accept"}]
+GOOD = {
+    "title": "Reject signatures whose r or s is out of range",
+    "summary": "The verify command now refuses a signature whose two numbers are zero or not below the curve order.",
+    "answers": [1, 2],
+    "edits": [
+        {
+            "file": "acme_sign.py",
+            "title": "The range check",
+            "why": "r and s must each be at least 1 and below n.",
+            "find": ["    except ValueError:", '        return {"valid": False}', "    e = digest_int(message)"],
+            "put": [
+                "    except ValueError:",
+                '        return {"valid": False}',
+                "    if not (1 <= r < N and 1 <= s < N):",
+                '        return {"valid": False}',
+                "    e = digest_int(message)",
+            ],
+        },
+        {
+            "file": "acme_sign.py",
+            "title": "The version number",
+            "why": "So the changed program can be told from the one before.",
+            "find": ['VERSION = "1.4.2"'],
+            "put": ['VERSION = "1.4.3"'],
+        },
+    ],
+}
+ADVISORY = {
+    "id": "CVE-2022-21449",
+    "plain_name": "Missing ECDSA signature range check",
+    "pack": "2026.11.1",
+    "quote": "if (rb.signum() == 0 || sb.signum() == 0",
+}
+WRONG = [
+    {"id": "r0-s0", "comment": "r = 0, s = 0", "flags": [], "expected": "invalid", "got": "accept"},
+    {"id": "s-plus-n", "comment": "s above the allowed range", "flags": [], "expected": "invalid", "got": "accept"},
+]
 
 
 def _other_way() -> dict:
@@ -49,6 +74,7 @@ def otto_is_here(monkeypatch):
     """These tests ask the engine directly, with a stand-in for the lab, so they run where the harness is not installed
     too. The engine asks whether it is (a decision on Otto's proposal is recorded in its ledger): here it is."""
     from app.otto import harness
+
     here = harness.OttoStatus(True, None, "isogeny-labs/otto", "a" * 40, "0.1.0", None)
     monkeypatch.setattr(harness, "status", lambda *a, **k: here)
 
@@ -57,12 +83,23 @@ def _request(mode: str, template_only: bool = False) -> dict:
     """The question the Fixes code asks: a failed server test (not Otto's business), a failed signing test and the
     failed advisory check, with the program's code as text; and, beside it, who is asking."""
     source = components.lookup("acme-sign", "1.4.2").read_text(encoding="utf-8")
-    failed = [{"kind": "tls_versions", "reason_code": None, "detail": {"accepted_outside_claim": ["TLS 1.2"]}},
-              {"kind": "bad_signatures", "reason_code": None, "detail": {"wrong": WRONG}},
-              {"kind": research.ADVISORY_KIND, "reason_code": None, "detail": {"wrong": WRONG[:1]}, "advisory": ADVISORY,
-               "title": "Advisory check: Missing ECDSA signature range check (CVE-2022-21449)"}]
-    return {"component": {"name": "acme-sign", "version": "1.4.2"}, "failed": failed, "files": {"acme_sign.py": source},
-            "asking": {"plan_id": 7, "mode": mode, "template_only": template_only}}
+    failed = [
+        {"kind": "tls_versions", "reason_code": None, "detail": {"accepted_outside_claim": ["TLS 1.2"]}},
+        {"kind": "bad_signatures", "reason_code": None, "detail": {"wrong": WRONG}},
+        {
+            "kind": research.ADVISORY_KIND,
+            "reason_code": None,
+            "detail": {"wrong": WRONG[:1]},
+            "advisory": ADVISORY,
+            "title": "Advisory check: Missing ECDSA signature range check (CVE-2022-21449)",
+        },
+    ]
+    return {
+        "component": {"name": "acme-sign", "version": "1.4.2"},
+        "failed": failed,
+        "files": {"acme_sign.py": source},
+        "asking": {"plan_id": 7, "mode": mode, "template_only": template_only},
+    }
 
 
 class StandInLab:
@@ -74,9 +111,20 @@ class StandInLab:
 
     def _step(self, answer: dict, source: str, prompt: str) -> model.Step:
         text = json.dumps(answer)
-        return model.Step(step="write_fix", source=source, model="claude-opus-5-5" if source == "live" else None, prompt=prompt, answer=text,
-                          prompt_sha256=model.sha256_text(prompt), answer_sha256=model.sha256_text(text), input_tokens=0, output_tokens=0,
-                          cost_nano_usd=0, at="2026-11-17T12:00:00Z", how=HOW)
+        return model.Step(
+            step="write_fix",
+            source=source,
+            model="claude-opus-5-5" if source == "live" else None,
+            prompt=prompt,
+            answer=text,
+            prompt_sha256=model.sha256_text(prompt),
+            answer_sha256=model.sha256_text(text),
+            input_tokens=0,
+            output_tokens=0,
+            cost_nano_usd=0,
+            at="2026-11-17T12:00:00Z",
+            how=HOW,
+        )
 
     def otto_stored_step(self, plan_id, step, digest):
         return self.stored
@@ -99,12 +147,22 @@ class StandInLab:
                 if isinstance(lab.live_answer, Exception):
                     raise lab.live_answer
                 return lab._step(lab.live_answer, "live", prompt)
+
         return Client()
 
     def otto_record_step(self, plan_id, advisory_id, step, outcome, refusal) -> int:
-        self.kept.append({"plan_id": plan_id, "advisory": advisory_id, "source": step.source, "outcome": outcome, "refusal": refusal})
-        self.stored = {"id": len(self.kept), "answer": step.answer, "source": step.source, "how": step.how, "model": step.model,
-                       "at": step.at, "claim_id": "sha256:" + "0" * 64}
+        self.kept.append(
+            {"plan_id": plan_id, "advisory": advisory_id, "source": step.source, "outcome": outcome, "refusal": refusal}
+        )
+        self.stored = {
+            "id": len(self.kept),
+            "answer": step.answer,
+            "source": step.source,
+            "how": step.how,
+            "model": step.model,
+            "at": step.at,
+            "claim_id": "sha256:" + "0" * 64,
+        }
         return len(self.kept)
 
 
@@ -114,21 +172,39 @@ def _engine(**lab) -> tuple[OttoEngine, StandInLab]:
 
 
 def _is_template(reply: dict) -> bool:
-    return reply["template_id"] == research.RANGE_CHECK["id"] and reply.get("written_by") is None and reply.get("otto") is None
+    return (
+        reply["template_id"] == research.RANGE_CHECK["id"]
+        and reply.get("written_by") is None
+        and reply.get("otto") is None
+    )
 
 
 def test_ottos_change_is_offered_when_it_gives_a_registered_program():
     engine, lab = _engine(recorded=GOOD)
     reply = engine.propose_change(_request("view"))
-    assert reply["written_by"] == "otto" and reply["proposed_by"] == fixes.OTTO_ID and reply["label"] == "Written by Otto"
+    assert (
+        reply["written_by"] == "otto" and reply["proposed_by"] == fixes.OTTO_ID and reply["label"] == "Written by Otto"
+    )
     assert reply["template_id"] == "otto-cve-2022-21449" and reply["branch"] == "fix/otto-cve-2022-21449"
     assert reply["files"]["acme_sign.py"] == components.lookup("acme-sign", "1.4.3").read_text(encoding="utf-8")
-    assert reply["answers"] == [1, 2]                  # places in the request: the signing test and the advisory check, never the server test
-    assert reply["otto"]["source"] == "recorded" and reply["otto"]["advisory"] == "CVE-2022-21449" and reply["otto"]["pending"] is False
-    assert lab.kept == [] and lab.asked == 0           # looking at a page keeps nothing and asks nothing
+    assert reply["answers"] == [
+        1,
+        2,
+    ]  # places in the request: the signing test and the advisory check, never the server test
+    assert (
+        reply["otto"]["source"] == "recorded"
+        and reply["otto"]["advisory"] == "CVE-2022-21449"
+        and reply["otto"]["pending"] is False
+    )
+    assert lab.kept == [] and lab.asked == 0  # looking at a page keeps nothing and asks nothing
     # what Otto was shown: the program's failed tests only, the advisory and the code
     prompt = lab.prompts[-1]
-    assert "CVE-2022-21449" in prompt and 'VERSION = "1.4.2"' in prompt and "case r0-s0" in prompt and "TLS 1.2" not in prompt
+    assert (
+        "CVE-2022-21449" in prompt
+        and 'VERSION = "1.4.2"' in prompt
+        and "case r0-s0" in prompt
+        and "TLS 1.2" not in prompt
+    )
     # the click keeps the step, once, as used
     again = engine.propose_change(_request("connect"))
     assert again["files"] == reply["files"] and [k["outcome"] for k in lab.kept] == ["used"] and lab.asked == 0
@@ -152,6 +228,7 @@ def test_without_the_harness_the_fix_template_is_the_fallback(monkeypatch):
     that can't be done, so the fix template is offered in its place, and the page says why. Nothing is asked."""
     from app.otto import harness
     from app.otto.engine import NOT_INSTALLED_NOTE
+
     missing = harness.OttoStatus(False, harness.NOT_FETCHED, "isogeny-labs/otto", "a" * 40, "0.1.0", None)
     monkeypatch.setattr(harness, "status", lambda *a, **k: missing)
     engine, lab = _engine(recorded=GOOD, live=GOOD, live_ready=True)
@@ -180,7 +257,11 @@ def test_an_answer_that_is_no_clean_change_is_not_offered_either():
     bad["edits"][0]["find"] = ["    this line is not in the file"]
     engine, lab = _engine(recorded=bad)
     shown = engine.propose_change(_request("view"))
-    assert _is_template(shown) and "could not be used" in shown["otto_note"] and "does not apply to the code" in shown["otto_note"]
+    assert (
+        _is_template(shown)
+        and "could not be used" in shown["otto_note"]
+        and "does not apply to the code" in shown["otto_note"]
+    )
     assert _is_template(engine.propose_change(_request("connect"))) and lab.kept[0]["outcome"] == "refused"
 
 
@@ -195,16 +276,21 @@ def test_with_no_answer_and_live_otto_off_the_template_is_offered_and_says_why()
 def test_live_otto_asks_only_at_the_click():
     engine, lab = _engine(live=GOOD, live_ready=True)
     pending = engine.propose_change(_request("view"))
-    assert pending["written_by"] == "otto" and pending["otto"]["pending"] is True and pending["edits"] == [] and lab.asked == 0
-    assert pending["files"] == _request("view")["files"]              # it holds no change yet
-    assert pending["label"] == "Not written yet"                      # and is not labelled as Otto's before it is written
+    assert (
+        pending["written_by"] == "otto"
+        and pending["otto"]["pending"] is True
+        and pending["edits"] == []
+        and lab.asked == 0
+    )
+    assert pending["files"] == _request("view")["files"]  # it holds no change yet
+    assert pending["label"] == "Not written yet"  # and is not labelled as Otto's before it is written
     connected = engine.propose_change(_request("connect"))
     assert lab.asked == 1 and connected["otto"]["source"] == "live" and connected["otto"]["pending"] is False
     assert connected["files"]["acme_sign.py"] == components.lookup("acme-sign", "1.4.3").read_text(encoding="utf-8")
     assert [(k["source"], k["outcome"]) for k in lab.kept] == [("live", "used")]
     engine.propose_change(_request("view"))
     engine.propose_change(_request("connect"))
-    assert lab.asked == 1 and len(lab.kept) == 1                      # the stored answer is used from then on
+    assert lab.asked == 1 and len(lab.kept) == 1  # the stored answer is used from then on
 
 
 def test_with_live_otto_on_the_recorded_answer_is_not_used():
@@ -217,19 +303,25 @@ def test_with_live_otto_on_the_recorded_answer_is_not_used():
     assert connected["files"]["acme_sign.py"] == components.lookup("acme-sign", "1.4.3").read_text(encoding="utf-8")
     # with the switch off again, an assessment that has no stored step works on the recorded answer
     engine, lab = _engine(recorded=_other_way(), live=GOOD, live_ready=False)
-    assert _is_template(engine.propose_change(_request("connect"))) and lab.asked == 0 and lab.kept[0]["source"] == "recorded"
+    assert (
+        _is_template(engine.propose_change(_request("connect")))
+        and lab.asked == 0
+        and lab.kept[0]["source"] == "recorded"
+    )
 
 
 def test_a_live_answer_that_cannot_be_used_is_refused_at_the_click_and_then_the_template_is_offered():
     engine, lab = _engine(live=_other_way(), live_ready=True)
     assert engine.propose_change(_request("view"))["otto"]["pending"] is True
     with pytest.raises(OttoCouldNot) as refused:
-        engine.propose_change(_request("connect"))      # the person asked for Otto's change and there is none to connect
+        engine.propose_change(_request("connect"))  # the person asked for Otto's change and there is none to connect
     assert str(refused.value) == f"The written change could not be used: {NOT_REGISTERED}"
-    assert [(k["source"], k["outcome"], k["refusal"]) for k in lab.kept] == [("live", "refused", NOT_REGISTERED)] and lab.asked == 1
+    assert [(k["source"], k["outcome"], k["refusal"]) for k in lab.kept] == [
+        ("live", "refused", NOT_REGISTERED)
+    ] and lab.asked == 1
     shown = engine.propose_change(_request("view"))
     assert _is_template(shown) and "byte for byte" in shown["otto_note"]
-    assert _is_template(engine.propose_change(_request("connect")))          # the next click connects what the page offers
+    assert _is_template(engine.propose_change(_request("connect")))  # the next click connects what the page offers
     assert lab.asked == 1 and len(lab.kept) == 1
 
 
@@ -237,7 +329,9 @@ def test_a_live_call_that_fails_says_so_at_the_click_and_keeps_nothing():
     engine, lab = _engine(live=model.LiveCallFailed("Claude answered with an error (401)."), live_ready=True)
     with pytest.raises(OttoCouldNot) as failed:
         engine.propose_change(_request("connect"))
-    assert str(failed.value) == "The change could not be written: Claude answered with an error (401)." and lab.kept == []
+    assert (
+        str(failed.value) == "The change could not be written: Claude answered with an error (401)." and lab.kept == []
+    )
 
 
 def test_the_fix_template_is_asked_about_alone_and_a_plan_without_an_advisory_check_never_reaches_otto():

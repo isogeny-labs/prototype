@@ -3,6 +3,7 @@ were built from (research/recorded) and the research ledger (research/lab). Thes
 
 They decide no result and repeat none as an answer key: what each test and each fix did on public copies is in the
 packs themselves, judged by Otto's harness, and the answer key for them is written separately."""
+
 import hashlib
 import json
 import shutil
@@ -67,7 +68,10 @@ def test_the_shipped_packs_read_with_the_shipped_key_and_follow_each_other():
         assert [a["id"] for a in pack.pack["advisories"]] == list(ids)
         assert not pack.made_here and pack.signer == build.SHIP_SIGNER == pack.pack["signer"]
         assert pack.pack["otto"]["commit"] == lock.commit and pack.pack["otto"]["repository"] == lock.repository
-        assert pack.pack["research"]["answers"] == "recorded" and "recorded during the build" in pack.pack["research"]["answers_note"]
+        assert (
+            pack.pack["research"]["answers"] == "recorded"
+            and "recorded during the build" in pack.pack["research"]["answers_note"]
+        )
     # the folder holds nothing else, and the app's default updates folder is this one
     assert sorted(p.name for p in OTTO_PACKS_DIR.iterdir()) == ["2026.11.1.json", "2026.11.2.json"]
 
@@ -84,17 +88,22 @@ def test_a_shipped_test_or_fix_is_only_what_its_trial_on_public_copies_supports(
             if test["state"] == "ready":
                 arms = test["trial"]["arms"]
                 assert test["trial"]["outcome"] == "supported" and test["trial"]["replayed"] is True
-                assert arms["affected"]["wrong"] > 0 == arms["fixed"]["wrong"] and arms["accept-all"]["right"] < arms["accept-all"]["total"]
+                assert (
+                    arms["affected"]["wrong"] > 0 == arms["fixed"]["wrong"]
+                    and arms["accept-all"]["right"] < arms["accept-all"]["total"]
+                )
                 assert pack.design(test["design_sha256"]) is not None
             else:
-                assert fix["state"] == "none"          # no test, no fix to prove
+                assert fix["state"] == "none"  # no test, no fix to prove
             if fix["state"] == "proven":
                 trial = fix["trial"]
                 assert trial["outcome"] == "supported" and trial["replayed"] is True
                 assert trial["arms"]["fixed"]["failing"] == 0 < trial["arms"]["affected"]["failing"]
             elif fix["state"] == "not_proven":
                 assert fix["trial"]["outcome"] != "supported" or fix["trial"]["arms"]["fixed"]["failing"] > 0
-            assert not any(word in text.lower() for text in _our_words(advisory) for word in BANNED + ("secure",)), advisory["id"]
+            assert not any(word in text.lower() for text in _our_words(advisory) for word in BANNED + ("secure",)), (
+                advisory["id"]
+            )
     assert set(states) == {aid for _, ids in build.SHIP_PLAN for aid in ids} and len(states) == 6
     # no check is shipped twice under two names: every ready test selects cases of its own
     selections = [tuple(sorted(t["design"]["cases"]["ids"])) for pack in _shipped() for t in pack.pack["tests"]]
@@ -104,17 +113,25 @@ def test_a_shipped_test_or_fix_is_only_what_its_trial_on_public_copies_supports(
     # each source says both where a person would look and the address the quoted text was read from on that day
     for pack in _shipped():
         for advisory in pack.pack["advisories"]:
-            assert all(s["url"].startswith("https://") and s["read_from"].startswith("https://") and s["fetched"] for s in advisory["sources"])
+            assert all(
+                s["url"].startswith("https://") and s["read_from"].startswith("https://") and s["fetched"]
+                for s in advisory["sources"]
+            )
 
 
 def test_every_recorded_answer_was_asked_by_the_build_or_by_the_app_and_says_how_it_was_made():
     recorded = _recorded()
     assert recorded and all(a["recorded"]["how"] == RECORDED_HOW for a in recorded.values())
-    asked = {}                                              # prompt fingerprint -> the step of a shipped pack that used it
+    asked = {}  # prompt fingerprint -> the step of a shipped pack that used it
     for pack in _shipped():
         for advisory in pack.pack["advisories"]:
             for step in advisory["steps"]:
-                assert step["source"] == "recorded" and step["model"] is None and step["cost_nano_usd"] == 0 and step["how"] == RECORDED_HOW
+                assert (
+                    step["source"] == "recorded"
+                    and step["model"] is None
+                    and step["cost_nano_usd"] == 0
+                    and step["how"] == RECORDED_HOW
+                )
                 asked[step["prompt_sha256"]] = step
     by_prompt = {a["prompt_sha256"]: a for a in recorded.values()}
     # every step of a pack has its recorded answer here, word for word ...
@@ -124,10 +141,16 @@ def test_every_recorded_answer_was_asked_by_the_build_or_by_the_app_and_says_how
     # five answers of the sandbox demo (a prototype: one advisory about starkbank-ecdsa, taken all the way on recorded
     # answers; tools/record_sandbox_answers.py holds their text and writes them)
     from tools import record_sandbox_answers as demo
+
     others = [a for digest, a in by_prompt.items() if digest not in asked]
     sandbox = [a for a in others if a["step"] != "write_fix"]
-    assert sorted(a["step"] for a in others) == sorted(["write_fix", "read_advisory", "design_test", "propose_fix", "write_wrapper", "write_wrapper"])
-    texts = [json.dumps(part, indent=2, ensure_ascii=False) + "\n" for part in (demo.READING, demo.DESIGN, demo.FIX, *demo.ASKING.values())]
+    assert sorted(a["step"] for a in others) == sorted(
+        ["write_fix", "read_advisory", "design_test", "propose_fix", "write_wrapper", "write_wrapper"]
+    )
+    texts = [
+        json.dumps(part, indent=2, ensure_ascii=False) + "\n"
+        for part in (demo.READING, demo.DESIGN, demo.FIX, *demo.ASKING.values())
+    ]
     assert sorted(a["answer"] for a in sandbox) == sorted(texts)
 
 
@@ -143,18 +166,27 @@ def test_the_recorded_answers_still_fit_the_prompts_the_research_asks():
         reading = prompts.check_reading(read["answer"], advisory)
         assert model.sha256_text(prompts.design_test_prompt(advisory, reading)) in by_prompt, advisory["id"]
         # a fix is asked for only once a test held on public copies
-        assert (model.sha256_text(prompts.propose_fix_prompt(advisory, reading)) in by_prompt) == ready[advisory["id"]], advisory["id"]
+        assert (model.sha256_text(prompts.propose_fix_prompt(advisory, reading)) in by_prompt) == ready[
+            advisory["id"]
+        ], advisory["id"]
 
 
 def test_the_newest_pack_was_built_with_the_research_scripts_as_they_are_now():
     """A pack names the scripts it was built with, by fingerprint. If one of them is changed, build the next pack with
     it (the shipped packs stay as they are) and point this test at that pack."""
     newest = _shipped()[-1].pack["otto"]
-    here = {"check_model_step.py": "ottolab/pinned/check_model_step.py", "trial.py": "ottolab/pinned/trial.py",
-            "ottolab/agent.py": "ottolab/agent.py", "ottolab/prompts.py": "ottolab/prompts.py", "ottolab/research.py": "ottolab/research.py"}
+    here = {
+        "check_model_step.py": "ottolab/pinned/check_model_step.py",
+        "trial.py": "ottolab/pinned/trial.py",
+        "ottolab/agent.py": "ottolab/agent.py",
+        "ottolab/prompts.py": "ottolab/prompts.py",
+        "ottolab/research.py": "ottolab/research.py",
+    }
     assert set(newest["scripts"]) == set(here)
     for name, path in here.items():
-        assert hashlib.sha256((BACKEND / path).read_bytes()).hexdigest() == newest["scripts"][name], f"{path} changed after the packs were built"
+        assert hashlib.sha256((BACKEND / path).read_bytes()).hexdigest() == newest["scripts"][name], (
+            f"{path} changed after the packs were built"
+        )
     # the two pinned scripts are in the research ledger's folder as they were registered
     for name in ("trial.py", "check_model_step.py"):
         assert (build.LAB / name).read_bytes() == (BACKEND / "ottolab" / "pinned" / name).read_bytes()
@@ -172,7 +204,7 @@ def test_the_recorded_change_for_acme_sign_gives_the_program_registered_as_ottos
     answer itself is as it was; an answer is never asked for again to get a different one."""
     answer = next(a for a in _recorded().values() if a["step"] == "write_fix")
     source = components.lookup("acme-sign", "1.4.2").read_text(encoding="utf-8")
-    assert 'Program: acme-sign 1.4.2' in answer["prompt"] and source in answer["prompt"]
+    assert "Program: acme-sign 1.4.2" in answer["prompt"] and source in answer["prompt"]
     change = fixes.check_change(answer["answer"], {"acme_sign.py": source}, 3)
     assert change["answers"] == [0, 1, 2] and 'VERSION = "1.4.3"' in change["files"]["acme_sign.py"]
     built = {"acme_sign.py": change["files"]["acme_sign.py"].encode("utf-8")}
@@ -181,14 +213,23 @@ def test_the_recorded_change_for_acme_sign_gives_the_program_registered_as_ottos
     assert components.registered_version("acme-sign", built) == components.OTTO_VERSION == "1.4.3-otto"
     ours = components.lookup("acme-sign", "1.4.3").read_text(encoding="utf-8").split("\n")
     theirs = change["files"]["acme_sign.py"].split("\n")
-    assert len(ours) == len(theirs) and sum(1 for a, b in zip(ours, theirs, strict=True) if a != b) == 1      # one line, no more
-    usable = OttoEngine._usable(answer["answer"], {"name": "acme-sign", "version": "1.4.2"}, {"acme_sign.py": source}, 3)
+    assert (
+        len(ours) == len(theirs) and sum(1 for a, b in zip(ours, theirs, strict=True) if a != b) == 1
+    )  # one line, no more
+    usable = OttoEngine._usable(
+        answer["answer"], {"name": "acme-sign", "version": "1.4.2"}, {"acme_sign.py": source}, 3
+    )
     assert usable["title"] == change["title"]
     # it is a version only a change leads to: a retest does not offer it until that change is merged
-    assert components.OTTO_VERSION not in components.versions_of("acme-sign") and components.version_note("acme-sign", components.OTTO_VERSION)
+    assert components.OTTO_VERSION not in components.versions_of("acme-sign") and components.version_note(
+        "acme-sign", components.OTTO_VERSION
+    )
     # the test harness knows the program, and its slowed control, by the same key (the whole list of what can run)
     driver = (DEMO_DIR / "components" / "harness" / "driver.py").read_text(encoding="utf-8")
-    assert '"acme-sign-1.4.3-otto": [ACME_143_OTTO]' in driver and '"control-slow:acme-sign-1.4.3-otto": [SLOW, ACME_143_OTTO]' in driver
+    assert (
+        '"acme-sign-1.4.3-otto": [ACME_143_OTTO]' in driver
+        and '"control-slow:acme-sign-1.4.3-otto": [SLOW, ACME_143_OTTO]' in driver
+    )
 
 
 @pytest.mark.needs_otto
@@ -201,7 +242,9 @@ def test_the_shipped_packs_install_and_their_tests_fit_the_demo(tmp_path):
         assert lab.check_pack_updates()["packs"]["update"]["version"] == "2026.11.1"
         lab.install_pack("2026.11.1")
         done = lab.install_pack("2026.11.2")
-        assert [p["version"] for p in done["packs"]["installed"]] == ["2026.11.1", "2026.11.2"] and done["packs"]["update"] is None
+        assert [p["version"] for p in done["packs"]["installed"]] == ["2026.11.1", "2026.11.2"] and done["packs"][
+            "update"
+        ] is None
         assert "recorded during the build" in done["answers"]["line"] and done["answers"]["live"] is False
         view = lab.advisories_view(plan.id)
         assert [r["id"] for r in view["rows"]] == [aid for _, ids in build.SHIP_PLAN for aid in ids]
@@ -209,22 +252,32 @@ def test_the_shipped_packs_install_and_their_tests_fit_the_demo(tmp_path):
         assert len(ready) == view["waiting"]["count"] == 3 and all(r["fits"] == ["acme-sign 1.4.2"] for r in ready)
         assert all(r["proposal"]["label"] == "Proposed" for r in ready)
         assert all(r["test"]["label"] and r["test"]["reason"] and r["result"]["label"] for r in view["rows"])
-        assert all(r["panel"]["publisher"]["text"] and r["panel"]["publisher"]["href"].startswith("https://") for r in view["rows"])
+        assert all(
+            r["panel"]["publisher"]["text"] and r["panel"]["publisher"]["href"].startswith("https://")
+            for r in view["rows"]
+        )
         text = " ".join(_our_words(view)).lower()
         assert not any(word in text for word in BANNED)
-        assert text.count("secure") == 1 and "doesn't prove a system secure" in view["standing_line"]     # the standing line, nowhere else
+        assert (
+            text.count("secure") == 1 and "doesn't prove a system secure" in view["standing_line"]
+        )  # the standing line, nowhere else
         before = len(lab.plan_view(plan.id)["tests"])
         added = helpers.accept_checks(lab, plan.id)
         tests = lab.plan_view(plan.id)["tests"]
         assert len(tests) == before + 3 and added["waiting"]["count"] == 0 and not lab.jobs.busy(plan.id)
-        assert all(t["status"] != "done" for t in tests if t["kind"] == "advisory_cases")          # added, not run
+        assert all(t["status"] != "done" for t in tests if t["kind"] == "advisory_cases")  # added, not run
         # each new card says which advisory it came from, with the way to it; no other card does
         for card in tests:
             came_from = card["title"].rsplit("(", 1)[-1].rstrip(")") if card["kind"] == "advisory_cases" else None
-            assert card.get("advisory") == ({"label": f"From advisory {came_from}", "link": {"page": "advisories", "item": came_from}}
-                                            if came_from else None)
-            assert ("advisory" in card) == (came_from is not None)          # every other card is exactly as it was
-            assert card.get("from_otto") == ("From Otto" if came_from else None) and card["can_remove"] is (came_from is None)
+            assert card.get("advisory") == (
+                {"label": f"From advisory {came_from}", "link": {"page": "advisories", "item": came_from}}
+                if came_from
+                else None
+            )
+            assert ("advisory" in card) == (came_from is not None)  # every other card is exactly as it was
+            assert card.get("from_otto") == ("From Otto" if came_from else None) and card["can_remove"] is (
+                came_from is None
+            )
             assert ("from_otto" in card) == ("remove_blocked" in card) == (came_from is not None)
     finally:
         lab.stop()
@@ -253,8 +306,13 @@ def test_the_evidence_report_links_a_shipped_advisory_to_its_publisher_and_the_f
         raw = lab.evidence_file(made["id"], "json")[1]
         path = tmp_path / "evidence.json"
         path.write_bytes(raw)
-        done = subprocess.run([sys.executable, "-m", "evidence", "verify", str(path), "--data-dir", str(lab.settings.data_dir)], cwd=BACKEND,
-                              capture_output=True, text=True, timeout=300)
+        done = subprocess.run(
+            [sys.executable, "-m", "evidence", "verify", str(path), "--data-dir", str(lab.settings.data_dir)],
+            cwd=BACKEND,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
         assert done.returncode == 0 and done.stdout.startswith("Evidence verified"), done.stdout + done.stderr
     finally:
         lab.stop()
@@ -262,13 +320,21 @@ def test_the_evidence_report_links_a_shipped_advisory_to_its_publisher_and_the_f
 
 def test_the_report_never_draws_a_link_that_is_not_ours_or_a_known_publishers():
     from app.evidence import export
+
     drawn = export.el("a", export.t("the source"), href="https://github.com/openjdk/jdk17u", publisher=True)
     assert drawn == '<a href="https://github.com/openjdk/jdk17u" rel="noreferrer noopener">the source</a>'
-    for href in ("https://example.com/x", "http://github.com/openjdk/jdk17u", "https://user@github.com/x", "https://github.com:8443/x",
-                 "javascript:alert(1)", "", None):
+    for href in (
+        "https://example.com/x",
+        "http://github.com/openjdk/jdk17u",
+        "https://user@github.com/x",
+        "https://github.com:8443/x",
+        "javascript:alert(1)",
+        "",
+        None,
+    ):
         with pytest.raises(ValueError):
             export.el("a", export.t("a link"), href=href, publisher=True)
-    with pytest.raises(ValueError):                    # a publisher's address is drawn only where an advisory's source is
+    with pytest.raises(ValueError):  # a publisher's address is drawn only where an advisory's source is
         export.el("a", export.t("the source"), href="https://github.com/openjdk/jdk17u")
 
 
@@ -278,7 +344,15 @@ def test_the_research_ledger_passes_ottos_own_audit(tmp_path):
     checker run again. On a copy, so the shipped folder is never written to."""
     copy = tmp_path / "lab"
     shutil.copytree(build.LAB, copy)
-    done = subprocess.run([sys.executable, "-m", "ottolab.build", "audit", "--lab", str(copy)], cwd=BACKEND, capture_output=True, text=True,
-                          timeout=900)
+    done = subprocess.run(
+        [sys.executable, "-m", "ottolab.build", "audit", "--lab", str(copy)],
+        cwd=BACKEND,
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
     assert done.returncode == 0, done.stdout + done.stderr
-    assert "chain intact, every decision re-derived, every pinned checker run again" in done.stdout and "PROBLEM" not in done.stdout
+    assert (
+        "chain intact, every decision re-derived, every pinned checker run again" in done.stdout
+        and "PROBLEM" not in done.stdout
+    )

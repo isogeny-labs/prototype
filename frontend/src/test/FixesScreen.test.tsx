@@ -37,7 +37,15 @@ beforeEach(() => {
 /** Holds the selected fix, as the app does. */
 function Harness({ start, group = null }: { start: string | null; group?: string | null }) {
   const [selected, setSelected] = useState(start);
-  return <FixesScreen planId={1} selectedId={selected} onSelect={setSelected} onRetestStarted={() => (handedOver += 1)} group={group} />;
+  return (
+    <FixesScreen
+      planId={1}
+      selectedId={selected}
+      onSelect={setSelected}
+      onRetestStarted={() => (handedOver += 1)}
+      group={group}
+    />
+  );
 }
 
 async function open(view: FixesView, routes: Routes = {}, start: string | null = null) {
@@ -73,7 +81,10 @@ const groupSection = (label: string) => {
 };
 const shownGroups = () => screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"));
 const rows = () => screen.getAllByTestId("fix-row");
-const selectedTitles = () => listItems().filter((b) => b.getAttribute("aria-current") === "true").map((b) => b.textContent);
+const selectedTitles = () =>
+  listItems()
+    .filter((b) => b.getAttribute("aria-current") === "true")
+    .map((b) => b.textContent);
 const sections = () => screen.queryAllByTestId("fix-section");
 const section = (key: string) => sections().find((s) => s.getAttribute("data-section") === key)!;
 const fold = (key: string) => within(section(key)).getAllByRole("button")[0]!;
@@ -105,7 +116,12 @@ describe("Fixes, the page", () => {
     expect(screen.getByTestId("detail-panel")).not.toBeNull();
 
     expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
-    expect(within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: "acme-sign accepts out-of-range signatures" })).not.toBeNull();
+    expect(
+      within(screen.getByTestId("detail-panel")).getByRole("heading", {
+        level: 2,
+        name: "acme-sign accepts out-of-range signatures",
+      }),
+    ).not.toBeNull();
     expect(text(inSummary().getByTestId("fix-source"))).toBe(
       "Came from 2 failed tests on signing component acme-sign 1.4.2: Official test vectors and Bad signatures.",
     );
@@ -133,9 +149,11 @@ describe("Fixes, the page", () => {
     expect(all).not.toMatch(/score|time.to.hack|upload|mockup/i);
     expect(document.querySelector('input:not([type="checkbox"]):not([type="search"]), textarea, form')).toBeNull();
     // The only choice list is the status filter of the table (the groups are tabs).
-    expect(Array.from(document.querySelectorAll("select")).map((s) => s.closest("label")?.textContent?.match(/^(Group|Status)/)?.[0])).toEqual([
-      "Status",
-    ]);
+    expect(
+      Array.from(document.querySelectorAll("select")).map(
+        (s) => s.closest("label")?.textContent?.match(/^(Group|Status)/)?.[0],
+      ),
+    ).toEqual(["Status"]);
   });
 
   it("opens on the fix it was asked for, and on the first one when that fix is not in the list", async () => {
@@ -171,7 +189,9 @@ describe("Fixes, the page", () => {
     await screen.findByTestId("fix-list");
     expect(shownGroups()).toEqual(["verification"]); // nothing anywhere: the first tab
     expect(
-      ["Verification", "Crypto tests", "Migration", "Dependencies"].map((label) => within(groupSection(label)).getByTestId("group-empty").textContent),
+      ["Verification", "Crypto tests", "Migration", "Dependencies"].map(
+        (label) => within(groupSection(label)).getByTestId("group-empty").textContent,
+      ),
     ).toEqual([
       "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Crypto tests.",
       "No failed test has a fix.",
@@ -183,7 +203,12 @@ describe("Fixes, the page", () => {
     expect(screen.queryByTestId("fix-summary")).toBeNull();
     // Nothing to press but the four tabs.
     expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Verification",
+      "Crypto tests",
+      "Migration",
+      "Dependencies",
+    ]);
   });
 
   it("says so when the fixes can't be loaded", async () => {
@@ -220,14 +245,26 @@ interface Expected {
 
 const PASSED =
   "All 3 tests that run the changed code passed, every control behaved as expected, and the 3 server tests came out the same as before.";
-const CHANGE: Expected["sections"][number] = ["The change", "3 lines added and 1 removed, in 1 file (acme_sign.py)", true];
-const DETAILS: Expected["sections"][number] = ["Technical details", "Repository, branches, commits, fingerprints and mode", false];
+const CHANGE: Expected["sections"][number] = [
+  "The change",
+  "3 lines added and 1 removed, in 1 file (acme_sign.py)",
+  true,
+];
+const DETAILS: Expected["sections"][number] = [
+  "Technical details",
+  "Repository, branches, commits, fingerprints and mode",
+  false,
+];
 const PROOF_PASSED_FOLD: Expected["sections"][number] = [
   "Proof",
   "Passed: all 3 tests that run the changed code passed, every control behaved as expected, and the 3 server tests came out the same as before.",
   false,
 ];
-const proven = { whatLabel: "What it fixes", what: /^Adds the missing range check to acme-sign's signature check, so it now rejects/, serverLine: SERVER_LINE };
+const proven = {
+  whatLabel: "What it fixes",
+  what: /^Adds the missing range check to acme-sign's signature check, so it now rejects/,
+  serverLine: SERVER_LINE,
+};
 const unproven = {
   whatLabel: "What it changes",
   what: /^Adds a range check on the two signature numbers \(r and s\) to acme-sign's signature check/,
@@ -245,7 +282,8 @@ const STATUSES: Expected[] = [
     serverLine: SERVER_LINE_UNPROVEN,
     proofState: "not_started",
     proofBadge: null,
-    proof: "Not started. It starts by itself once the code is connected: every locked test in your plan is rerun on the changed code. This takes about a minute.",
+    proof:
+      "Not started. It starts by itself once the code is connected: every locked test in your plan is rerun on the changed code. This takes about a minute.",
     pullRequest: null,
     who: /^You pick the reviewers once the proof has passed\.$/,
     buttons: ["Connect demo code"],
@@ -299,7 +337,11 @@ const STATUSES: Expected[] = [
     off: [],
     primary: [],
     note: /^Reruns all 6 tests in your plan\. The change is offered only if the proof passes\.$/,
-    sections: [CHANGE, ["Proof", "Did not pass: 1 of the 3 tests that run the changed code did not pass.", false], DETAILS],
+    sections: [
+      CHANGE,
+      ["Proof", "Did not pass: 1 of the 3 tests that run the changed code did not pass.", false],
+      DETAILS,
+    ],
   },
   {
     view: fixesViews.waiting,
@@ -307,7 +349,8 @@ const STATUSES: Expected[] = [
     word: "Waiting for approval",
     ...proven,
     ...passed,
-    pullRequest: /^#1 Reject signatures whose r or s is out of range\. Open since .+\. It stays inside the app; nothing is sent anywhere else\.$/,
+    pullRequest:
+      /^#1 Reject signatures whose r or s is out of range\. Open since .+\. It stays inside the app; nothing is sent anywhere else\.$/,
     who: /^You\(the person logged in\)✓ Approved .+Demo reviewer ADemo dataApprove as Demo reviewer AThis version has one login/,
     buttons: ["Approve as Demo reviewer A", "Merge pull request", "Download patch"],
     off: ["Merge pull request"],
@@ -347,72 +390,92 @@ const STATUSES: Expected[] = [
 ];
 
 describe("Fixes, the code fix in each status", () => {
-  it.each(STATUSES.map((expected) => [expected.key, expected] as const))("%s: its words and exactly its buttons", async (_key, expected) => {
-    await open(expected.view);
+  it.each(STATUSES.map((expected) => [expected.key, expected] as const))(
+    "%s: its words and exactly its buttons",
+    async (_key, expected) => {
+      await open(expected.view);
 
-    // The status, in the summary and in the list, in the backend's word.
-    expect(status().getAttribute("data-status")).toBe(expected.key);
-    expect(status().textContent).toBe(expected.word);
-    expect(within(rows()[0]!).getByTestId("fix-status").textContent).toBe(expected.word);
+      // The status, in the summary and in the list, in the backend's word.
+      expect(status().getAttribute("data-status")).toBe(expected.key);
+      expect(status().textContent).toBe(expected.word);
+      expect(within(rows()[0]!).getByTestId("fix-status").textContent).toBe(expected.word);
 
-    // What it does. Until the proof has passed, the screen must not say that it fixes anything.
-    const rowLabels = Array.from(summary().querySelectorAll("dt")).map((dt) => dt.textContent);
-    expect(rowLabels).toEqual(
-      expected.pullRequest
-        ? [expected.whatLabel, "Proof", "Pull request", "Who approves"]
-        : [expected.whatLabel, "Proof", "Who approves"],
-    );
-    expect(text(inSummary().getByTestId("fix-what").firstElementChild)).toMatch(expected.what);
-    expect(inSummary().getByTestId("server-line").textContent).toBe(expected.serverLine);
+      // What it does. Until the proof has passed, the screen must not say that it fixes anything.
+      const rowLabels = Array.from(summary().querySelectorAll("dt")).map((dt) => dt.textContent);
+      expect(rowLabels).toEqual(
+        expected.pullRequest
+          ? [expected.whatLabel, "Proof", "Pull request", "Who approves"]
+          : [expected.whatLabel, "Proof", "Who approves"],
+      );
+      expect(text(inSummary().getByTestId("fix-what").firstElementChild)).toMatch(expected.what);
+      expect(inSummary().getByTestId("server-line").textContent).toBe(expected.serverLine);
 
-    // The proof row.
-    const proof = inSummary().getByTestId("fix-proof");
-    expect(proof.getAttribute("data-state")).toBe(expected.proofState);
-    const badge = within(proof).queryByTestId("result-badge");
-    expect(badge ? [badge.lastElementChild?.textContent, badge.getAttribute("data-tone")] : null).toEqual(expected.proofBadge);
-    expect(text(proof.querySelector("p"))).toBe(expected.proof);
-    // A spinner only while the proof runs, always beside words.
-    expect(proof.querySelector(".animate-spin") !== null).toBe(expected.key === "proving");
-    expect(status().querySelector(".animate-spin") !== null).toBe(expected.key === "proving");
+      // The proof row.
+      const proof = inSummary().getByTestId("fix-proof");
+      expect(proof.getAttribute("data-state")).toBe(expected.proofState);
+      const badge = within(proof).queryByTestId("result-badge");
+      expect(badge ? [badge.lastElementChild?.textContent, badge.getAttribute("data-tone")] : null).toEqual(
+        expected.proofBadge,
+      );
+      expect(text(proof.querySelector("p"))).toBe(expected.proof);
+      // A spinner only while the proof runs, always beside words.
+      expect(proof.querySelector(".animate-spin") !== null).toBe(expected.key === "proving");
+      expect(status().querySelector(".animate-spin") !== null).toBe(expected.key === "proving");
 
-    const pullRequest = inSummary().queryByTestId("fix-pull-request");
-    if (expected.pullRequest) expect(text(pullRequest)).toMatch(expected.pullRequest);
-    else expect(pullRequest).toBeNull();
+      const pullRequest = inSummary().queryByTestId("fix-pull-request");
+      if (expected.pullRequest) expect(text(pullRequest)).toMatch(expected.pullRequest);
+      else expect(pullRequest).toBeNull();
 
-    expect(text(inSummary().getByTestId("fix-approvers"))).toMatch(expected.who);
+      expect(text(inSummary().getByTestId("fix-approvers"))).toMatch(expected.who);
 
-    // The buttons: the ones the view sent, in its order, and no other.
-    expect(summaryButtons().map((b) => b.textContent)).toEqual(expected.buttons);
-    expect(summaryButtons().filter((b) => b.disabled).map((b) => b.textContent)).toEqual(expected.off);
-    expect(summaryButtons().filter((b) => b.className.includes("bg-sky-500")).map((b) => b.textContent)).toEqual(expected.primary);
-    const actions = inSummary().queryByTestId("fix-actions");
-    if (expected.note) expect(text(actions?.querySelector("p"))).toMatch(expected.note);
-    else expect(actions).toBeNull();
+      // The buttons: the ones the view sent, in its order, and no other.
+      expect(summaryButtons().map((b) => b.textContent)).toEqual(expected.buttons);
+      expect(
+        summaryButtons()
+          .filter((b) => b.disabled)
+          .map((b) => b.textContent),
+      ).toEqual(expected.off);
+      expect(
+        summaryButtons()
+          .filter((b) => b.className.includes("bg-sky-500"))
+          .map((b) => b.textContent),
+      ).toEqual(expected.primary);
+      const actions = inSummary().queryByTestId("fix-actions");
+      if (expected.note) expect(text(actions?.querySelector("p"))).toMatch(expected.note);
+      else expect(actions).toBeNull();
 
-    // The folded sections, or the sentence that stands in for them.
-    expect(
-      sections().map((s) => {
-        const key = s.getAttribute("data-section")!;
-        const words = fold(key).lastElementChild!;
-        return [words.firstElementChild!.textContent, words.lastElementChild!.textContent, isOpen(key)];
-      }),
-    ).toEqual(expected.sections);
-    const standIn = screen.queryByTestId("fix-sections-note");
-    if (expected.sections.length === 0) {
-      expect(standIn?.textContent).toBe("The change, its proof and the technical details appear below once the code is connected.");
-    } else {
-      expect(standIn).toBeNull();
-    }
-  });
+      // The folded sections, or the sentence that stands in for them.
+      expect(
+        sections().map((s) => {
+          const key = s.getAttribute("data-section")!;
+          const words = fold(key).lastElementChild!;
+          return [words.firstElementChild!.textContent, words.lastElementChild!.textContent, isOpen(key)];
+        }),
+      ).toEqual(expected.sections);
+      const standIn = screen.queryByTestId("fix-sections-note");
+      if (expected.sections.length === 0) {
+        expect(standIn?.textContent).toBe(
+          "The change, its proof and the technical details appear below once the code is connected.",
+        );
+      } else {
+        expect(standIn).toBeNull();
+      }
+    },
+  );
 
-  it.each(["not_connected", "proving", "failed"] as const)("%s: nothing on the screen calls the change ready or says it fixes anything", async (key) => {
-    await open(fixesViews[key]);
-    if (key !== "not_connected") fireEvent.click(fold("proof"));
-    // The subline's own rule ("ready for review only after its proof has passed") is the one place the word may stand.
-    const all = (document.body.textContent ?? "").replace(screen.getByTestId("fixes-subline").textContent ?? "", "");
-    expect(all).not.toMatch(/ready for review|ready to merge|fix ready|what it fixes|this fixes|proof passed|\bpassed:/i);
-    expect(all).toContain(SERVER_LINE_UNPROVEN);
-  });
+  it.each(["not_connected", "proving", "failed"] as const)(
+    "%s: nothing on the screen calls the change ready or says it fixes anything",
+    async (key) => {
+      await open(fixesViews[key]);
+      if (key !== "not_connected") fireEvent.click(fold("proof"));
+      // The subline's own rule ("ready for review only after its proof has passed") is the one place the word may stand.
+      const all = (document.body.textContent ?? "").replace(screen.getByTestId("fixes-subline").textContent ?? "", "");
+      expect(all).not.toMatch(
+        /ready for review|ready to merge|fix ready|what it fixes|this fixes|proof passed|\bpassed:/i,
+      );
+      expect(all).toContain(SERVER_LINE_UNPROVEN);
+    },
+  );
 
   // Phase 5a: one set of status chips everywhere. Each status has its tone in the shared chip, always with its word.
   it.each([
@@ -517,7 +580,10 @@ describe("Fixes, the buttons", () => {
       }),
     });
     const rows = () => screen.getAllByTestId("approval-row");
-    expect(rows().map((row) => within(row).getByRole("button").textContent)).toEqual(["Approve", "Approve as Demo reviewer A"]);
+    expect(rows().map((row) => within(row).getByRole("button").textContent)).toEqual([
+      "Approve",
+      "Approve as Demo reviewer A",
+    ]);
     // Your own approval is the main button; a demo reviewer's is the quieter one.
     expect(button("Approve").className).toContain("bg-sky-500");
     expect(button("Approve as Demo reviewer A").className).not.toContain("bg-sky-500");
@@ -571,7 +637,9 @@ describe("Fixes, the buttons", () => {
   });
 
   it("stays on Fixes and shows the reason when the retest is refused", async () => {
-    await open(fixesViews.merged, { [`POST ${FIX}/retest`]: refusal("A retest is running. Wait until it has finished.") });
+    await open(fixesViews.merged, {
+      [`POST ${FIX}/retest`]: refusal("A retest is running. Wait until it has finished."),
+    });
     fireEvent.click(button("Retest now"));
     expect(text(await screen.findByRole("alert"))).toBe("A retest is running. Wait until it has finished.");
     expect(handedOver).toBe(0);
@@ -590,7 +658,11 @@ describe("Fixes, the buttons", () => {
     // The same box the other steps use.
     expect(alert.className).toContain("border-amber-500/50");
     expect(status().textContent).toBe("Ready for review");
-    expect((screen.getAllByRole("checkbox") as HTMLInputElement[]).map((box) => box.checked)).toEqual([true, false, true]);
+    expect((screen.getAllByRole("checkbox") as HTMLInputElement[]).map((box) => box.checked)).toEqual([
+      true,
+      false,
+      true,
+    ]);
     expect(button("Open pull request").disabled).toBe(false);
     expect(sections().map((s) => s.getAttribute("data-section"))).toEqual(["change", "proof", "details"]);
     expect(calls(fetchMock)).toEqual([`GET ${FIXES}`, `POST ${FIX}/pull-request`]);
@@ -613,7 +685,11 @@ describe("Fixes, the confirm box before a merge", () => {
       "This puts the change on the main branch of the app's own copy of the demo repository acme-sign. After the merge, that branch holds acme-sign 1.4.3.",
       "Every reviewer has approved. The app deploys nothing, and a merge can't be undone here.",
     ]);
-    expect(within(box).getAllByRole("button").map((b) => b.textContent)).toEqual(["Cancel", "Confirm merge"]);
+    expect(
+      within(box)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Cancel", "Confirm merge"]);
     // The keyboard starts on Cancel, and Tab stays inside the box.
     const cancel = within(box).getByRole("button", { name: "Cancel" });
     const confirm = within(box).getByRole("button", { name: "Confirm merge" });
@@ -669,7 +745,9 @@ describe("Fixes, the confirm box before a merge", () => {
   });
 
   it("shows the reason when the merge is refused, and stays unmerged", async () => {
-    await open(fixesViews.ready_to_merge, { [`POST ${FIX}/merge`]: refusal("The main branch has moved since this change was made.") });
+    await open(fixesViews.ready_to_merge, {
+      [`POST ${FIX}/merge`]: refusal("The main branch has moved since this change was made."),
+    });
     fireEvent.click(button("Merge pull request"));
     fireEvent.click(button("Confirm merge"));
     expect(text(await screen.findByRole("alert"))).toBe("The main branch has moved since this change was made.");
@@ -682,7 +760,8 @@ describe("Fixes, the folded sections", () => {
   it("starts with the change open and the others closed; a click opens and closes each", async () => {
     const fetchMock = await open(fixesViews.ready);
     // Each section's title is a heading, and the heading is the button that folds it.
-    for (const s of sections()) expect(within(s).getByRole("heading", { level: 3 }).firstElementChild?.tagName).toBe("BUTTON");
+    for (const s of sections())
+      expect(within(s).getByRole("heading", { level: 3 }).firstElementChild?.tagName).toBe("BUTTON");
     expect(["change", "proof", "details"].map(isOpen)).toEqual([true, false, false]);
     expect(within(section("proof")).queryByTestId("proof-table")).toBeNull();
     expect(within(section("details")).queryByTestId("detail-fact")).toBeNull();
@@ -694,7 +773,9 @@ describe("Fixes, the folded sections", () => {
     expect(within(section("change")).queryByTestId("change-part")).toBeNull();
     expect(within(section("proof")).getAllByTestId("proof-table")).toHaveLength(2);
     // The one line stays on a section whether it is open or not.
-    expect(within(section("proof")).getByTestId("fix-section-line").textContent).toMatch(/^Passed: all 3 tests that run the changed code passed/);
+    expect(within(section("proof")).getByTestId("fix-section-line").textContent).toMatch(
+      /^Passed: all 3 tests that run the changed code passed/,
+    );
 
     fireEvent.click(fold("proof"));
     expect(isOpen("proof")).toBe(false);
@@ -752,11 +833,19 @@ describe("Fixes, the folded sections", () => {
       "Tests that run the changed code measured",
       "Tests that don't run this code (they test the server) measured",
     ]);
-    expect(tables.map((table) => Array.from(within(table).getByTestId("proof-columns").children).map((c) => c.textContent))).toEqual([
+    expect(
+      tables.map((table) => Array.from(within(table).getByTestId("proof-columns").children).map((c) => c.textContent)),
+    ).toEqual([
       ["Test", "Before: acme-sign 1.4.2", "On the changed code", "Rule check"],
       ["Test", "Before", "Rerun for this proof", "Rule check"],
     ]);
-    expect(tables.map((table) => within(table).getAllByTestId("proof-row").map((row) => row.getAttribute("data-kind")))).toEqual([
+    expect(
+      tables.map((table) =>
+        within(table)
+          .getAllByTestId("proof-row")
+          .map((row) => row.getAttribute("data-kind")),
+      ),
+    ).toEqual([
       ["official_vectors", "bad_signatures", "speed_size"],
       ["tls_versions", "certificate", "pq_readiness"],
     ]);
@@ -770,8 +859,14 @@ describe("Fixes, the folded sections", () => {
     expect(vectors.getByText("Official test vectors")).not.toBeNull();
     expect(badge(vectors.getByTestId("proof-cell-before"))).toEqual(["Failed", "fail"]);
     expect(badge(vectors.getByTestId("proof-cell-proof"))).toEqual(["Passed", "pass"]);
-    expect(within(vectors.getByTestId("proof-cell-proof")).getByText("484 of 484 official cases right.")).not.toBeNull();
-    expect(within(vectors.getByTestId("proof-cell-proof")).getByText("Control: a deliberately broken signer failed this test, as expected.")).not.toBeNull();
+    expect(
+      within(vectors.getByTestId("proof-cell-proof")).getByText("484 of 484 official cases right."),
+    ).not.toBeNull();
+    expect(
+      within(vectors.getByTestId("proof-cell-proof")).getByText(
+        "Control: a deliberately broken signer failed this test, as expected.",
+      ),
+    ).not.toBeNull();
     expect(within(vectors.getByTestId("proof-cell-before")).queryByText(/^Control/)).toBeNull();
 
     // A server test that failed before and fails again counts as "same as before": the code change can't touch it.
@@ -780,7 +875,10 @@ describe("Fixes, the folded sections", () => {
     expect(badge(tls.getByTestId("proof-cell-proof"))).toEqual(["Failed", "fail"]);
     expect(tls.getByText("Server still accepts TLS 1.2. This change doesn't touch the server.")).not.toBeNull();
 
-    const checks = (el: HTMLElement) => within(el).getAllByTestId("proof-check").map((c) => [c.getAttribute("data-ok"), text(c)]);
+    const checks = (el: HTMLElement) =>
+      within(el)
+        .getAllByTestId("proof-check")
+        .map((c) => [c.getAttribute("data-ok"), text(c)]);
     expect(proof.getAllByTestId("proof-row").map((r) => checks(r)[0])).toEqual([
       ["true", "✓Passed"],
       ["true", "✓Passed"],
@@ -793,10 +891,11 @@ describe("Fixes, the folded sections", () => {
     const verdict = proof.getByTestId("proof-verdict");
     expect(verdict.getAttribute("data-tone")).toBe("pass");
     expect(verdict.className).toContain("border-sky-400/35");
-    expect(within(verdict).getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual([
-      "Why it is ready for review",
-      "What this proof shows, and what it doesn't",
-    ]);
+    expect(
+      within(verdict)
+        .getAllByRole("heading", { level: 4 })
+        .map((h) => h.textContent),
+    ).toEqual(["Why it is ready for review", "What this proof shows, and what it doesn't"]);
     expect(checks(verdict)).toEqual([
       ["true", "✓All 3 tests that run the changed code passed."],
       ["true", "✓Every control behaved as expected."],
@@ -823,9 +922,20 @@ describe("Fixes, the folded sections", () => {
     expect(verdict.getAttribute("data-tone")).toBe("fail");
     expect(verdict.className).toContain("border-amber-400/50");
     expect(verdict.className).not.toContain("sky");
-    expect(within(verdict).getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual(["Why this change is not offered"]);
-    expect(within(verdict).getAllByTestId("proof-check").map((c) => [c.getAttribute("data-ok"), text(c)])).toEqual([
-      ["false", "✕1 of the 3 tests that run the changed code did not pass: Official test vectors, Couldn't run (it took too long)."],
+    expect(
+      within(verdict)
+        .getAllByRole("heading", { level: 4 })
+        .map((h) => h.textContent),
+    ).toEqual(["Why this change is not offered"]);
+    expect(
+      within(verdict)
+        .getAllByTestId("proof-check")
+        .map((c) => [c.getAttribute("data-ok"), text(c)]),
+    ).toEqual([
+      [
+        "false",
+        "✕1 of the 3 tests that run the changed code did not pass: Official test vectors, Couldn't run (it took too long).",
+      ],
       ["true", "✓Every control behaved as expected in the tests that ran."],
       ["true", "✓The 3 server tests came out the same as before."],
     ]);
@@ -843,9 +953,13 @@ describe("Fixes, the folded sections", () => {
     const bar = within(cell(0)).getByRole("progressbar", { name: "Official test vectors: Running" });
     expect(bar.getAttribute("aria-valuenow")).toBe("44");
     expect(text(within(cell(1)).getByTestId("proof-waiting"))).toBe("Runningchecking 12 of 16 signatures");
-    expect(within(cell(1)).getByRole("progressbar", { name: "Bad signatures: Running" }).getAttribute("aria-valuenow")).toBe("37");
+    expect(
+      within(cell(1)).getByRole("progressbar", { name: "Bad signatures: Running" }).getAttribute("aria-valuenow"),
+    ).toBe("37");
     // A test that waits its turn to measure says so and has no bar.
-    expect(text(within(cell(2)).getByTestId("proof-waiting"))).toBe("Runningwaiting for the other tests to finish, so the timing is clean");
+    expect(text(within(cell(2)).getByTestId("proof-waiting"))).toBe(
+      "Runningwaiting for the other tests to finish, so the timing is clean",
+    );
     expect(within(cell(2)).queryByRole("progressbar")).toBeNull();
     for (const i of [0, 1, 2, 5]) {
       expect(within(cell(i)).queryByTestId("result-badge")).toBeNull();
@@ -861,7 +975,9 @@ describe("Fixes, the folded sections", () => {
       const check = within(rows[i]!).getByTestId("proof-check");
       expect([check.getAttribute("data-ok"), text(check)]).toEqual(["null", "•Not checked yet"]);
     }
-    expect(proof.queryAllByTestId("proof-check").filter((check) => check.getAttribute("data-ok") !== "null")).toEqual([]);
+    expect(proof.queryAllByTestId("proof-check").filter((check) => check.getAttribute("data-ok") !== "null")).toEqual(
+      [],
+    );
     // No verdict before the proof has ended.
     expect(proof.queryByTestId("proof-verdict")).toBeNull();
   });
@@ -881,7 +997,8 @@ describe("Fixes, the folded sections", () => {
       "Mode",
       "Evidence fingerprint of the proof (SHA-256)",
     ]);
-    const value = (label: string) => facts.find((fact) => fact.firstElementChild?.textContent === label)!.lastElementChild as HTMLElement;
+    const value = (label: string) =>
+      facts.find((fact) => fact.firstElementChild?.textContent === label)!.lastElementChild as HTMLElement;
     expect(text(value("Repository"))).toBe("acme-sign Demo data, the app's own copy. Nothing is sent anywhere else.");
     expect(within(value("Repository")).getByText("Demo data").className).toContain("violet");
     expect(text(value("Starting point"))).toBe("branch main, commit 3f9c2ab (acme-sign 1.4.2)");
@@ -922,11 +1039,14 @@ describe("Fixes, where a change came from (phase 5c)", () => {
   /** The chips beside the status of the open fix: its status word, the backend's labels, and Demo data. */
   const chips = () => Array.from(status().parentElement!.children).map((chip) => chip.textContent);
 
-  it.each([["Written by Otto"], ["From Otto"], ["From a fix template"]])("shows the label the backend gives a fix beside its status: %s", async (label) => {
-    await open(withLabels([label]));
-    expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
-    expect(chips()).toEqual([fixesWithTemplate.fixes[0]!.status.word, label, "Demo data"]);
-  });
+  it.each([["Written by Otto"], ["From Otto"], ["From a fix template"]])(
+    "shows the label the backend gives a fix beside its status: %s",
+    async (label) => {
+      await open(withLabels([label]));
+      expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
+      expect(chips()).toEqual([fixesWithTemplate.fixes[0]!.status.word, label, "Demo data"]);
+    },
+  );
 
   it("shows every label when a fix has more than one, and none of its own when it has none", async () => {
     const word = fixesWithTemplate.fixes[0]!.status.word;
@@ -961,7 +1081,9 @@ describe("Fixes, where a change came from (phase 5c)", () => {
     // In the list, the advisory check is one of the places the fix came from.
     fireEvent.click(screen.getByRole("button", { name: "Close details" }));
     const row = within(rows()[0]!);
-    expect(row.getAllByTestId("came-from-link").map((a) => a.textContent)).toEqual(fix.came_from_links!.map((c) => c.label));
+    expect(row.getAllByTestId("came-from-link").map((a) => a.textContent)).toEqual(
+      fix.came_from_links!.map((c) => c.label),
+    );
     expect(fix.came_from_links!.at(-1)!.link).toEqual({ page: "evidence", item: `test-${advisoryCheckRow.item_id}` });
   });
 });
@@ -969,7 +1091,9 @@ describe("Fixes, where a change came from (phase 5c)", () => {
 describe("Fixes, a text-only suggestion", () => {
   it("shows what it suggests, that it has no proof, and no button at all", async () => {
     const fetchMock = await open(fixesViews.ready, {}, TLS_FIX);
-    expect(within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" })).not.toBeNull();
+    expect(
+      within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" }),
+    ).not.toBeNull();
     expect(text(inSummary().getByTestId("fix-source"))).toBe(
       "Came from 1 failed test on server localhost:8443: Old TLS versions. The file claims TLS 1.3 only.",
     );
@@ -977,9 +1101,16 @@ describe("Fixes, a text-only suggestion", () => {
     expect(status().textContent).toBe("Text only");
     expect(status().className).toContain("border-dashed");
     // No "From a fix template" label here: the app has not made this change.
-    expect(Array.from(status().parentElement!.children).map((chip) => chip.textContent)).toEqual(["Text only", "Demo data"]);
+    expect(Array.from(status().parentElement!.children).map((chip) => chip.textContent)).toEqual([
+      "Text only",
+      "Demo data",
+    ]);
 
-    expect(Array.from(summary().querySelectorAll("dt")).map((dt) => dt.textContent)).toEqual(["What it suggests", "Proof", "Who approves"]);
+    expect(Array.from(summary().querySelectorAll("dt")).map((dt) => dt.textContent)).toEqual([
+      "What it suggests",
+      "Proof",
+      "Who approves",
+    ]);
     expect(text(inSummary().getByTestId("fix-what"))).toMatch(/^A server setting, not a code change: /);
     expect(inSummary().queryByTestId("server-line")).toBeNull();
     const proof = inSummary().getByTestId("fix-proof");
@@ -995,7 +1126,12 @@ describe("Fixes, a text-only suggestion", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
     // The only buttons left are the two findings, the fold of the suggestion and the panel's close button (and its
     // width handle); the groups are tabs.
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Verification",
+      "Crypto tests",
+      "Migration",
+      "Dependencies",
+    ]);
     expect(screen.getAllByRole("button").map((b) => b.textContent?.replace(/^[▾▸]/, ""))).toEqual([
       "acme-sign accepts out-of-range signatures",
       "Server accepts TLS 1.2",
@@ -1028,7 +1164,10 @@ describe("Fixes, a text-only suggestion", () => {
     expect(text(body.getByTestId("suggestion-warning"))).toBe(
       "!Before you switch TLS 1.2 off: older clients and partner systems that can't use TLS 1.3 will no longer be able to connect.",
     );
-    expect(body.getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual(["Where the setting lives", "Two ways to fix it"]);
+    expect(body.getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual([
+      "Where the setting lives",
+      "Two ways to fix it",
+    ]);
 
     const table = within(body.getByRole("table"));
     expect(table.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
@@ -1060,14 +1199,18 @@ describe("Fixes, a text-only suggestion", () => {
     ]);
     expect(options.map((o) => within(o).getAllByRole("listitem").length)).toEqual([3, 3]);
     expect(within(options[0]!).getByText("%{SSL_PROTOCOL}x").className).toContain("font-mono");
-    expect(within(options[1]!).getByText("This test checks TLS versions only. It will not show whether the old cipher suite is gone.")).not.toBeNull();
+    expect(
+      within(options[1]!).getByText(
+        "This test checks TLS versions only. It will not show whether the old cipher suite is gone.",
+      ),
+    ).not.toBeNull();
 
     // The exact settings: each line of each block is the setting itself, with nothing added for the line breaks.
     const exact = body.getByTestId("suggestion-exact");
     expect(within(exact).getByText("Option 2: the exact settings")).not.toBeNull();
-    expect(Array.from(exact.querySelectorAll("pre")).map((pre) => Array.from(pre.children).map((line) => line.textContent))).toEqual(
-      tlsSuggestion.exact!.blocks.map((block) => block.code.split("\n")),
-    );
+    expect(
+      Array.from(exact.querySelectorAll("pre")).map((pre) => Array.from(pre.children).map((line) => line.textContent)),
+    ).toEqual(tlsSuggestion.exact!.blocks.map((block) => block.code.split("\n")));
     expect(exact.querySelectorAll("wbr").length).toBeGreaterThan(0);
   });
 
@@ -1118,7 +1261,9 @@ describe("Fixes, published advisories on a text fix", () => {
       advisories.items[0]!.href,
     );
     const intro = body.querySelector("p")!;
-    expect(intro.compareDocumentPosition(within(body).getByTestId("advisories")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      intro.compareDocumentPosition(within(body).getByTestId("advisories")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("draws no box when advisories is null or missing", async () => {
@@ -1196,7 +1341,11 @@ describe("Fixes, while something runs", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Demo reviewer A/ }));
     await waitFor(() => expect(polls).toBe(2), { timeout: 3000 });
     await pause(50);
-    expect((screen.getAllByRole("checkbox") as HTMLInputElement[]).map((box) => box.checked)).toEqual([true, true, false]);
+    expect((screen.getAllByRole("checkbox") as HTMLInputElement[]).map((box) => box.checked)).toEqual([
+      true,
+      true,
+      false,
+    ]);
   });
 });
 
@@ -1205,14 +1354,25 @@ describe("Fixes, the four work groups", () => {
     mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
     render(<Harness start={null} />);
     await screen.findAllByTestId("fix-row");
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Verification",
+      "Crypto tests",
+      "Migration",
+      "Dependencies",
+    ]);
     expect(shownGroups()).toEqual(["encryption"]);
     // The counts are the backend's, word for word: the code fix is in review, the text-only one is open.
-    expect(within(groupSection("Crypto tests")).getByTestId("group-counts").textContent).toBe("Open 1 · In progress 1 · Done 0");
-    expect(within(groupSection("Crypto tests")).getByTestId("group-question").textContent).toBe("Is the cryptography built right?");
+    expect(within(groupSection("Crypto tests")).getByTestId("group-counts").textContent).toBe(
+      "Open 1 · In progress 1 · Done 0",
+    );
+    expect(within(groupSection("Crypto tests")).getByTestId("group-question").textContent).toBe(
+      "Is the cryptography built right?",
+    );
     expect(screen.queryByRole("combobox", { name: "Group" })).toBeNull();
     // Another tab: one group only, and the fix that was open belongs to the tab before, so its panel closes.
-    expect(within(groupSection("Migration")).getByTestId("group-counts").textContent).toBe("Open 0 · In progress 0 · Done 0");
+    expect(within(groupSection("Migration")).getByTestId("group-counts").textContent).toBe(
+      "Open 0 · In progress 0 · Done 0",
+    );
     expect(shownGroups()).toEqual(["migration"]);
     expect(screen.queryAllByTestId("fix-row")).toHaveLength(0);
     expect(screen.queryByTestId("fix-summary")).toBeNull();
@@ -1248,7 +1408,8 @@ describe("Fixes, the four work groups", () => {
     mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
     render(<Harness start={null} />);
     await screen.findAllByTestId("fix-row");
-    const matches = () => screen.getAllByRole("tab").map((t) => within(t).queryByTestId("group-tab-matches")?.textContent ?? null);
+    const matches = () =>
+      screen.getAllByRole("tab").map((t) => within(t).queryByTestId("group-tab-matches")?.textContent ?? null);
     expect(matches()).toEqual([null, null, null, null]);
     fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "TLS" } });
     expect(matches()).toEqual(["0", "1", "0", "0"]);
@@ -1259,7 +1420,9 @@ describe("Fixes, the four work groups", () => {
 
   it("with the panel closed shows where each fix came from, and names a fix of another group in a foot line, not twice", async () => {
     const groups = fixGroups(fixesViews.ready.fixes).map((g) =>
-      g.key === "migration" ? { ...g, also: [{ fix_id: TLS_FIX, title: "Server accepts TLS 1.2", group_label: "Crypto tests" }] } : g,
+      g.key === "migration"
+        ? { ...g, also: [{ fix_id: TLS_FIX, title: "Server accepts TLS 1.2", group_label: "Crypto tests" }] }
+        : g,
     );
     mockApi({ [`GET ${FIXES}`]: { body: { ...fixesViews.ready, groups } } });
     render(<Harness start={null} />);
@@ -1267,7 +1430,11 @@ describe("Fixes, the four work groups", () => {
     fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
     // where it came from sits under its Came from line (22 November 2026)
     expect(rows().map((row) => Array.from(row.children).map((cell) => text(cell)))).toEqual([
-      ["acme-sign accepts out-of-range signatures", "Came from 2 failed tests: Official test vectors, Bad signatures Proven in the lab", "Ready for review"],
+      [
+        "acme-sign accepts out-of-range signatures",
+        "Came from 2 failed tests: Official test vectors, Bad signatures Proven in the lab",
+        "Ready for review",
+      ],
       ["Server accepts TLS 1.2", "Came from 1 failed test: Old TLS versions Observed live", "Text only"],
     ]);
     // The fix shows once, in its own group; Migration only links to it.
@@ -1288,10 +1455,14 @@ describe("Fixes, the table and its detail panel", () => {
     render(<Harness start={null} />);
     await screen.findAllByTestId("fix-row");
     // As before the panel: the page opens on the first fix.
-    expect(within(screen.getByTestId("detail-panel")).getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(CODE_FIX);
+    expect(within(screen.getByTestId("detail-panel")).getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(
+      CODE_FIX,
+    );
     // The cards: how many fixes, then one per status the backend sent, labelled with the backend's own word.
     const cardLabels = screen.getAllByTestId("summary-card").map((c) => c.querySelector("p")?.textContent);
-    const cardValues = screen.getAllByTestId("summary-card").map((c) => c.querySelector("p:nth-of-type(2)")?.textContent);
+    const cardValues = screen
+      .getAllByTestId("summary-card")
+      .map((c) => c.querySelector("p:nth-of-type(2)")?.textContent);
     const words = [...new Set(fixesViews.ready.fixes.map((f) => f.status.word))];
     expect(cardLabels).toEqual(["Fixes", ...words]);
     expect(cardValues).toEqual([
@@ -1344,7 +1515,7 @@ describe("Fixes, the table and its detail panel", () => {
     }
     render(<Outside />);
     await screen.findAllByTestId("fix-row");
-    expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);   // the first fix, until one is chosen
+    expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX); // the first fix, until one is chosen
     fireEvent.click(screen.getByRole("button", { name: "View in Fixes" }));
     expect(summary().getAttribute("data-fix-id")).toBe(TLS_FIX);
   });
@@ -1374,7 +1545,8 @@ describe("Fixes, the table and its detail panel", () => {
 describe("Fixes, a suggestion for a developer's change (phase 6d)", () => {
   // The backend lists it apart: `apart` on the entry, the group's `apart` part with its own heading, and counts without it.
   const base = fixesViews.ready;
-  const NOTE = "A developer's change is not the system until someone merges it. A suggestion listed here is not counted with the assessment's findings.";
+  const NOTE =
+    "A developer's change is not the system until someone merges it. A suggestion listed here is not counted with the assessment's findings.";
   const fromChange = {
     ...base.fixes[1]!,
     id: "fix-change-bd2fc0912345",
@@ -1388,7 +1560,9 @@ describe("Fixes, a suggestion for a developer's change (phase 6d)", () => {
     list_title: `Open findings with a fix (${counted.length})`,
     fixes: [...counted, fromChange],
     groups: fixGroups(counted).map((g) =>
-      g.key === "encryption" ? { ...g, apart: { label: "From a developer's change", note: NOTE, fix_ids: [fromChange.id] } } : g,
+      g.key === "encryption"
+        ? { ...g, apart: { label: "From a developer's change", note: NOTE, fix_ids: [fromChange.id] } }
+        : g,
     ),
   });
 
@@ -1399,7 +1573,9 @@ describe("Fixes, a suggestion for a developer's change (phase 6d)", () => {
     await screen.findAllByTestId("fix-row");
     // the page's count, the cards and the group's counts are of the assessment's own findings
     expect(screen.getByRole("heading", { name: `Open findings with a fix (${base.fixes.length})` })).toBeTruthy();
-    const cards = screen.getAllByTestId("summary-card").map((c) => [c.querySelector("p")?.textContent, c.querySelector("p:nth-of-type(2)")?.textContent]);
+    const cards = screen
+      .getAllByTestId("summary-card")
+      .map((c) => [c.querySelector("p")?.textContent, c.querySelector("p:nth-of-type(2)")?.textContent]);
     expect(cards[0]).toEqual(["Fixes", String(base.fixes.length)]);
     expect(cards.some(([label]) => label === "Text only")).toBe(base.fixes.some((f) => f.status.word === "Text only"));
     const encryption = groupSection("Crypto tests");
@@ -1416,14 +1592,18 @@ describe("Fixes, a suggestion for a developer's change (phase 6d)", () => {
     const listed = within(apart).getAllByTestId("fix-apart-row");
     expect(listed).toHaveLength(1);
     expect(listed[0]!.textContent).toContain("Take the range check out again: 2 tests that passed now fail");
-    expect(listed[0]!.textContent).toContain("Text only");     // (beside the open panel a row is the entry and its status)
+    expect(listed[0]!.textContent).toContain("Text only"); // (beside the open panel a row is the entry and its status)
     expect(calls(fetchMock)).toEqual([`GET ${FIXES}`]);
   });
 
   it("opens from its row like every entry, calling nothing more", async () => {
     const fetchMock = mockApi({ [`GET ${FIXES}`]: { body: withApart(base.fixes) } });
     render(<Harness start={null} />);
-    fireEvent.click(within((await screen.findAllByTestId("fix-apart-row"))[0]!).getByRole("button", { name: /Take the range check out again/ }));
+    fireEvent.click(
+      within((await screen.findAllByTestId("fix-apart-row"))[0]!).getByRole("button", {
+        name: /Take the range check out again/,
+      }),
+    );
     await waitFor(() => expect(summary().getAttribute("aria-label")).toContain("Take the range check out again"));
     expect(status().textContent).toBe("Text only");
     expect(calls(fetchMock).filter((c) => !c.startsWith("GET "))).toEqual([]);
@@ -1446,15 +1626,21 @@ describe("Fixes, a suggestion for a developer's change (phase 6d)", () => {
     mockApi({ [`GET ${FIXES}`]: { body: withApart(base.fixes) } });
     render(<Harness start={CODE_FIX} />);
     await screen.findAllByTestId("fix-apart-row");
-    fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "no such words anywhere" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), {
+      target: { value: "no such words anywhere" },
+    });
     await waitFor(() => expect(screen.queryAllByTestId("fix-apart-row")).toEqual([]));
     expect(within(screen.getByTestId("fix-apart")).getByText("None of these match this search.")).toBeTruthy();
     // the heading keeps the number that are listed, not the number that match
     expect(screen.getByTestId("fix-apart-title").textContent).toBe("From a developer's change (1)");
-    fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "revert-range-check" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), {
+      target: { value: "revert-range-check" },
+    });
     await waitFor(() => expect(screen.getAllByTestId("fix-apart-row")).toHaveLength(1));
     // it is counted nowhere, not in the number the tab shows while a search is on either: the tab counts its fixes
-    expect(within(screen.getByRole("tab", { name: "Crypto tests" })).getByTestId("group-tab-matches").textContent).toBe("0");
+    expect(within(screen.getByRole("tab", { name: "Crypto tests" })).getByTestId("group-tab-matches").textContent).toBe(
+      "0",
+    );
   });
 });
 
@@ -1469,17 +1655,19 @@ describe("Fixes, the summary counts each status word", () => {
     mockApi({ [`GET ${FIXES}`]: { body: { ...base, fixes, groups: fixGroups(fixes) } } });
     render(<Harness start={null} />);
     await screen.findAllByTestId("fix-row");
-    const cards = screen.getAllByTestId("summary-card").map((c) => [c.querySelector("p")?.textContent, c.querySelector("p:nth-of-type(2)")?.textContent]);
+    const cards = screen
+      .getAllByTestId("summary-card")
+      .map((c) => [c.querySelector("p")?.textContent, c.querySelector("p:nth-of-type(2)")?.textContent]);
     expect(cards).toEqual([
       ["Fixes", "2"],
       ["Ready to try", "1"],
       ["Ready to download", "1"],
     ]);
-    expect(Array.from((screen.getByRole("combobox", { name: "Status" }) as HTMLSelectElement).options).map((o) => o.textContent)).toEqual([
-      "All statuses",
-      "Ready to try",
-      "Ready to download",
-    ]);
+    expect(
+      Array.from((screen.getByRole("combobox", { name: "Status" }) as HTMLSelectElement).options).map(
+        (o) => o.textContent,
+      ),
+    ).toEqual(["All statuses", "Ready to try", "Ready to download"]);
   });
 });
 
@@ -1488,11 +1676,19 @@ describe("Fixes, the summary counts each status word", () => {
 describe("Fixes, where each fix came from", () => {
   it("draws one tag per fix row and, in the panel, its sentence under Came from and the proof's own tag beside its word", async () => {
     const fetchMock = await open(fixesViews.ready);
-    expect(rows().map((r) => within(r).getAllByTestId("source-tag").map((t) => t.getAttribute("data-source")))).toEqual([["lab"], ["live"]]);
+    expect(
+      rows().map((r) =>
+        within(r)
+          .getAllByTestId("source-tag")
+          .map((t) => t.getAttribute("data-source")),
+      ),
+    ).toEqual([["lab"], ["live"]]);
     expect(text(inSummary().getByTestId("source-line"))).toBe(
       "Proven in the lab From tests that failed on a copy of acme-sign 1.4.2 on this computer. Your live system was not touched.",
     );
-    const proofTags = inSummary().getAllByTestId("source-tag").filter((t) => !t.closest("[data-testid='source-line']"));
+    const proofTags = inSummary()
+      .getAllByTestId("source-tag")
+      .filter((t) => !t.closest("[data-testid='source-line']"));
     expect(proofTags.map((t) => t.textContent)).toEqual(["Proven in the lab"]);
     expect(proofTags[0]!.closest("p, div")!.textContent).toContain("Proof passed");
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
@@ -1500,7 +1696,10 @@ describe("Fixes, where each fix came from", () => {
 
   it("a proof that has not finished has no tag", async () => {
     await open(fixesViews.proving);
-    expect(inSummary().getAllByTestId("source-tag").filter((t) => !t.closest("[data-testid='source-line']"))).toEqual([]);
+    expect(
+      inSummary()
+        .getAllByTestId("source-tag")
+        .filter((t) => !t.closest("[data-testid='source-line']")),
+    ).toEqual([]);
   });
 });
-

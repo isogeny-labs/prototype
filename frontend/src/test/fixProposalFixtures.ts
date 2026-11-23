@@ -39,7 +39,17 @@ export function proofRow(
           meaning: "Run on a copy on this computer, never on your live system.",
           note: PROOF_ROW_NOTES[key],
         };
-  return { key, label, badge: { label: word, tone } as FixProofRow["badge"], text, line: `${label}: ${word}. ${text}`, links, ledger, note, source_tag };
+  return {
+    key,
+    label,
+    badge: { label: word, tone } as FixProofRow["badge"],
+    text,
+    line: `${label}: ${word}. ${text}`,
+    links,
+    ledger,
+    note,
+    source_tag,
+  };
 }
 
 /** Under the second row: what the row is about (a public copy of the updated version, not the system you run). */
@@ -51,15 +61,36 @@ export const researchLedger: AdvisoryLedger = {
   title: "Otto ledger entries",
   count: 2,
   entries: [
-    { seq: 41, kind: "Registered", id: "31469ae34ab1", at: "2026-11-18T00:31:00+00:00", what: "Trial registered: the fix for CVE-2024-42460" },
-    { seq: 47, kind: "Judged", id: "d01078b87c71", at: "2026-11-18T00:36:00+00:00", what: "Trial judged against thresholds fixed before the first run" },
+    {
+      seq: 41,
+      kind: "Registered",
+      id: "31469ae34ab1",
+      at: "2026-11-18T00:31:00+00:00",
+      what: "Trial registered: the fix for CVE-2024-42460",
+    },
+    {
+      seq: 47,
+      kind: "Judged",
+      id: "d01078b87c71",
+      at: "2026-11-18T00:36:00+00:00",
+      what: "Trial judged against thresholds fixed before the first run",
+    },
   ],
   note: "From Otto's research ledger, a hash chain kept with the Otto harness: the test and the fix were registered, tried and judged before the pack was signed.",
 };
 
-const TRIAL_LINK = (advisory: string) => [{ label: "See the trial on Advisories", link: { page: "advisories", item: advisory } }];
+const TRIAL_LINK = (advisory: string) => [
+  { label: "See the trial on Advisories", link: { page: "advisories", item: advisory } },
+];
 
-export const publicPassed = proofRow("public", "Passed", "pass", "6.5.6 fails the advisory check; 6.5.7 passes.", TRIAL_LINK("CVE-2024-42460"), researchLedger);
+export const publicPassed = proofRow(
+  "public",
+  "Passed",
+  "pass",
+  "6.5.6 fails the advisory check; 6.5.7 passes.",
+  TRIAL_LINK("CVE-2024-42460"),
+  researchLedger,
+);
 export const publicNotProven = proofRow(
   "public",
   "Not proven",
@@ -70,7 +101,9 @@ export const publicNotProven = proofRow(
 );
 /** Where the retest is started: the row says "press Retest", and the button ("Retest new version") is on Checks, under
  * Retests by version (the 5c fixes). */
-export const RETEST_LINK: FixProofRow["links"] = [{ label: "Retest new version is on Checks", link: { page: "checks", item: null, group: "encryption" } }];
+export const RETEST_LINK: FixProofRow["links"] = [
+  { label: "Retest new version is on Checks", link: { page: "checks", item: null, group: "encryption" } },
+];
 export const hereNotYet = proofRow("here", "Not yet", "neutral", "Update the library, then press Retest.", RETEST_LINK);
 export const herePassed = proofRow(
   "here",
@@ -118,8 +151,19 @@ export const updateRejected = (reason = "We replace elliptic next month"): OttoP
 });
 
 /** What names a proposal, kept when its state changes. */
-function pick(p: OttoProposal): Pick<OttoProposal, "id" | "kind" | "kind_label" | "title" | "why" | "why_label" | "lines" | "link"> {
-  return { id: p.id, kind: p.kind, kind_label: p.kind_label, title: p.title, why: p.why, why_label: p.why_label, lines: p.lines, link: p.link };
+function pick(
+  p: OttoProposal,
+): Pick<OttoProposal, "id" | "kind" | "kind_label" | "title" | "why" | "why_label" | "lines" | "link"> {
+  return {
+    id: p.id,
+    kind: p.kind,
+    kind_label: p.kind_label,
+    title: p.title,
+    why: p.why,
+    why_label: p.why_label,
+    lines: p.lines,
+    link: p.link,
+  };
 }
 
 /** A library's fix from Otto (text only): the publisher's fixed version, its two proof rows and its proposal. */
@@ -128,8 +172,13 @@ export function updateFix(over: Partial<FixDetail> = {}): FixDetail {
     ...tlsFix,
     id: UPDATE_FIX,
     title: "Update elliptic to 6.5.7",
-    list_source: "Came from 1 failed test: Advisory check: Wrongly encoded signature accepted (CVE-2024-42460) on elliptic 6.5.6",
-    source: [t("Came from 1 failed test on signing component "), m("elliptic 6.5.6"), t(": Advisory check: Wrongly encoded signature accepted (CVE-2024-42460).")],
+    list_source:
+      "Came from 1 failed test: Advisory check: Wrongly encoded signature accepted (CVE-2024-42460) on elliptic 6.5.6",
+    source: [
+      t("Came from 1 failed test on signing component "),
+      m("elliptic 6.5.6"),
+      t(": Advisory check: Wrongly encoded signature accepted (CVE-2024-42460)."),
+    ],
     labels: ["From Otto"],
     is_demo: false,
     what: {
@@ -143,10 +192,20 @@ export function updateFix(over: Partial<FixDetail> = {}): FixDetail {
       ],
       server_line: null,
     },
-    proof: { state: "none", badge: null, text: "In the two rows below: on public copies, and in this assessment.", muted: null },
+    proof: {
+      state: "none",
+      badge: null,
+      text: "In the two rows below: on public copies, and in this assessment.",
+      muted: null,
+    },
     proof_rows: [publicPassed, hereNotYet],
     proposal: updateProposal(),
-    approvers: { text: "Whoever looks after this software, outside this app.", options: null, rows: null, footnote: null },
+    approvers: {
+      text: "Whoever looks after this software, outside this app.",
+      options: null,
+      rows: null,
+      footnote: null,
+    },
     sections: [],
     ...over,
   };
@@ -157,7 +216,11 @@ export const javaFix: FixDetail = updateFix({
   id: "fix-advisory-cases-21",
   title: "Update openjdk to 17.0.3",
   proof_rows: [publicNotProven, hereNotYet],
-  proposal: updateProposal({ id: "fix-update-21", title: "Update openjdk to 17.0.3", link: { page: "fixes", item: "fix-advisory-cases-21" } }),
+  proposal: updateProposal({
+    id: "fix-update-21",
+    title: "Update openjdk to 17.0.3",
+    link: { page: "fixes", item: "fix-advisory-cases-21" },
+  }),
 });
 
 /** Otto's own change for acme-sign, before the code is connected, as a proposal nobody has decided yet: Connect demo

@@ -5,7 +5,29 @@ import type { FixesView, OttoProposal } from "../api";
 import { FixesScreen } from "../components/FixesScreen";
 import { LinkProvider } from "../components/related";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
-import { CODE_PROPOSAL, codeAccepted, codeProposal, CONNECT_NOTE, fixesWith, HERE_LABEL, HERE_NOTE, hereNotYet, herePassed, javaFix, NOT_ACCEPTED, ottoCodeFix, PUBLIC_LABEL, publicNotProven, publicPassed, UPDATE_FIX, UPDATE_PROPOSAL, updateAccepted, updateFix, updateProposal, updateRejected } from "./fixProposalFixtures";
+import {
+  CODE_PROPOSAL,
+  codeAccepted,
+  codeProposal,
+  CONNECT_NOTE,
+  fixesWith,
+  HERE_LABEL,
+  HERE_NOTE,
+  hereNotYet,
+  herePassed,
+  javaFix,
+  NOT_ACCEPTED,
+  ottoCodeFix,
+  PUBLIC_LABEL,
+  publicNotProven,
+  publicPassed,
+  UPDATE_FIX,
+  UPDATE_PROPOSAL,
+  updateAccepted,
+  updateFix,
+  updateProposal,
+  updateRejected,
+} from "./fixProposalFixtures";
 import { CODE_FIX, TLS_FIX, tlsFix } from "./fixesFixtures";
 import { calls, mockApi, text } from "./fixtures";
 
@@ -19,7 +41,12 @@ const CONNECT = "POST /api/plans/1/fixes/connect";
 const decide = (id: string, decision: string) => `POST /api/plans/1/otto/proposals/${id}/${decision}`;
 /** The Related block every open fix asks for (nothing recorded here). */
 const related = (...fixIds: string[]): Routes =>
-  Object.fromEntries(fixIds.map((id) => [`GET /api/plans/1/related?key=${encodeURIComponent(`fix:${id}`)}`, { body: { key: `fix:${id}`, related: [] } }]));
+  Object.fromEntries(
+    fixIds.map((id) => [
+      `GET /api/plans/1/related?key=${encodeURIComponent(`fix:${id}`)}`,
+      { body: { key: `fix:${id}`, related: [] } },
+    ]),
+  );
 
 function Harness({ start, readOnly = false }: { start: string | null; readOnly?: boolean }) {
   const [selected, setSelected] = useState(start);
@@ -81,8 +108,14 @@ describe("Fixes, a library's fix from Otto: the two proof rows", () => {
     // the second row says plainly what a retest here runs on; the first row is the pack's trial and has no such note
     expect(text(within(here!).getByTestId("proof-row-note"))).toBe(HERE_NOTE);
     // 22 November 2026: where each row came from, beside its word: the pack's trial ran on public copies here; "Not yet" has none
-    expect(within(onPublic!).getAllByTestId("source-tag").map((t) => t.textContent)).toEqual(["Proven in the lab"]);
-    expect(within(onPublic!).getByTestId("source-tag").getAttribute("title")).toBe("Run on a copy on this computer, never on your live system.");
+    expect(
+      within(onPublic!)
+        .getAllByTestId("source-tag")
+        .map((t) => t.textContent),
+    ).toEqual(["Proven in the lab"]);
+    expect(within(onPublic!).getByTestId("source-tag").getAttribute("title")).toBe(
+      "Run on a copy on this computer, never on your live system.",
+    );
     expect(within(here!).queryAllByTestId("source-tag")).toEqual([]);
     expect(within(onPublic!).queryByTestId("proof-row-note")).toBeNull();
     // The fix is still text only, and still labelled as Otto's.
@@ -121,7 +154,9 @@ describe("Fixes, a library's fix from Otto: the two proof rows", () => {
     expect(text(within(onPublic!).getByTestId("proof-row-badge"))).toBe("Not proven");
     expect(onPublic!.getAttribute("data-tone")).toBe("warn");
     expect(text(within(onPublic!).getByTestId("proof-row-text"))).toBe(publicNotProven.text);
-    expect(publicNotProven.text).toBe("17.0.2 fails the advisory check and 17.0.3 passes it, but another locked test still fails on 17.0.3.");
+    expect(publicNotProven.text).toBe(
+      "17.0.2 fails the advisory check and 17.0.3 passes it, but another locked test still fails on 17.0.3.",
+    );
     expect(text(within(here!).getByTestId("proof-row-badge"))).toBe("Not yet");
     // The title no longer says whether it is proven: the two rows do.
     expect(text(screen.getByTestId("detail-panel").querySelector("h2"))).toBe("Update openjdk to 17.0.3");
@@ -144,7 +179,9 @@ describe("Fixes, a library's fix from Otto: the two proof rows", () => {
     await open(fixesWith([updateFix(), tlsFix]), TLS_FIX);
     expect(inSummary().queryAllByTestId("proof-row")).toHaveLength(0);
     expect(rowNames()).toEqual(["What it suggests", "Proof", "Who approves"]);
-    expect(text(inSummary().getByTestId("fix-proof"))).toBe("None. This suggestion is text only: the app has not applied it or tested it.");
+    expect(text(inSummary().getByTestId("fix-proof"))).toBe(
+      "None. This suggestion is text only: the app has not applied it or tested it.",
+    );
     // ... and it is not a proposal: no card, no mark in the list.
     expect(inSummary().queryByTestId("fix-proposal")).toBeNull();
     expect(within(listRow(TLS_FIX)).queryByTestId("fix-proposal-mark")).toBeNull();
@@ -158,7 +195,9 @@ describe("Fixes, a fix of Otto's is a proposal: a person decides", () => {
     expect(cardStatus()).toBe("Proposed");
     expect(text(card().getByTestId("proposal-title"))).toBe("Update elliptic to 6.5.7");
     expect(text(card().getByTestId("proposal-why"))).toContain("its publisher names 6.5.7 as the fixed version");
-    expect(text(card().getByTestId("proposal-note"))).toBe("Accept records your decision. It runs nothing and changes nothing on any system.");
+    expect(text(card().getByTestId("proposal-note"))).toBe(
+      "Accept records your decision. It runs nothing and changes nothing on any system.",
+    );
     expect((card().getByTestId("proposal-accept") as HTMLButtonElement).disabled).toBe(false);
     expect((card().getByTestId("proposal-reject") as HTMLButtonElement).disabled).toBe(false);
     // Looking at it asked for the view and nothing else.
@@ -168,14 +207,18 @@ describe("Fixes, a fix of Otto's is a proposal: a person decides", () => {
   it("Accept records one decision and then reads the Fixes view again", async () => {
     const before = fixesWith([updateFix()]);
     const after = fixesWith([updateFix({ proposal: updateAccepted() })]);
-    const fetchMock = await open([before, after], UPDATE_FIX, { [decide(UPDATE_PROPOSAL, "accept")]: { body: updateAccepted() } });
+    const fetchMock = await open([before, after], UPDATE_FIX, {
+      [decide(UPDATE_PROPOSAL, "accept")]: { body: updateAccepted() },
+    });
     fireEvent.click(card().getByTestId("proposal-accept"));
     await waitFor(() => expect(cardStatus()).toBe("Accepted"));
     expect(asked(fetchMock)).toEqual([FIXES, decide(UPDATE_PROPOSAL, "accept"), FIXES]);
     expect(posted(fetchMock)).toEqual({});
     // What the view now sends: who decided and when, what comes next, and Undo in place of Accept and Reject.
     expect(text(card().getByTestId("proposal-decided"))).toBe("Accepted by You on 18 November 2026, 10:02 UTC.");
-    expect(text(card().getByTestId("proposal-effect"))).toBe("Next: whoever owns the software updates it; then press Retest.");
+    expect(text(card().getByTestId("proposal-effect"))).toBe(
+      "Next: whoever owns the software updates it; then press Retest.",
+    );
     expect(card().queryByTestId("proposal-accept")).toBeNull();
     expect((card().getByTestId("proposal-undo") as HTMLButtonElement).disabled).toBe(false);
     // The list says the same.
@@ -186,7 +229,9 @@ describe("Fixes, a fix of Otto's is a proposal: a person decides", () => {
     const reason = "We replace elliptic next month";
     const before = fixesWith([updateFix()]);
     const after = fixesWith([updateFix({ proposal: updateRejected(reason) })]);
-    const fetchMock = await open([before, after], UPDATE_FIX, { [decide(UPDATE_PROPOSAL, "reject")]: { body: updateRejected(reason) } });
+    const fetchMock = await open([before, after], UPDATE_FIX, {
+      [decide(UPDATE_PROPOSAL, "reject")]: { body: updateRejected(reason) },
+    });
     fireEvent.click(card().getByTestId("proposal-reject"));
     const box = screen.getByTestId("proposal-reject-dialog");
     expect(text(box)).toContain("It is not deleted");
@@ -207,9 +252,13 @@ describe("Fixes, a fix of Otto's is a proposal: a person decides", () => {
 
   it("Undo of an accept records one decision, reads the view again, and the proposal is open for a decision once more", async () => {
     const accepted = fixesWith([updateFix({ proposal: updateAccepted() })]);
-    const undone = updateProposal({ decided_line: "Accept undone by You on 18 November 2026, 10:05 UTC. It is open for a decision again." });
+    const undone = updateProposal({
+      decided_line: "Accept undone by You on 18 November 2026, 10:05 UTC. It is open for a decision again.",
+    });
     const again = fixesWith([updateFix({ proposal: undone })]);
-    const fetchMock = await open([accepted, again], UPDATE_FIX, { [decide(UPDATE_PROPOSAL, "undo")]: { body: undone } });
+    const fetchMock = await open([accepted, again], UPDATE_FIX, {
+      [decide(UPDATE_PROPOSAL, "undo")]: { body: undone },
+    });
     expect(cardStatus()).toBe("Accepted");
     fireEvent.click(card().getByTestId("proposal-undo"));
     await waitFor(() => expect(cardStatus()).toBe("Proposed"));
@@ -221,7 +270,9 @@ describe("Fixes, a fix of Otto's is a proposal: a person decides", () => {
   it("Reconsider takes a rejected proposal up again", async () => {
     const rejected = fixesWith([updateFix({ proposal: updateRejected() })]);
     const again = fixesWith([updateFix()]);
-    const fetchMock = await open([rejected, again], UPDATE_FIX, { [decide(UPDATE_PROPOSAL, "reconsider")]: { body: updateProposal() } });
+    const fetchMock = await open([rejected, again], UPDATE_FIX, {
+      [decide(UPDATE_PROPOSAL, "reconsider")]: { body: updateProposal() },
+    });
     fireEvent.click(card().getByTestId("proposal-reconsider"));
     await waitFor(() => expect(cardStatus()).toBe("Proposed"));
     expect(asked(fetchMock)).toEqual([FIXES, decide(UPDATE_PROPOSAL, "reconsider"), FIXES]);
@@ -240,8 +291,15 @@ describe("Fixes, a fix of Otto's is a proposal: a person decides", () => {
 
   it("an accept that can no longer be undone has Undo switched off, with the reason", async () => {
     const reason = "A retest has run on the updated version, so this accept stands.";
-    const proposal: OttoProposal = { ...updateAccepted(), buttons: [{ key: "undo", label: "Undo", can: false, blocked_reason: reason }], note: null };
-    const fetchMock = await open(fixesWith([updateFix({ proof_rows: [publicPassed, herePassed], proposal })]), UPDATE_FIX);
+    const proposal: OttoProposal = {
+      ...updateAccepted(),
+      buttons: [{ key: "undo", label: "Undo", can: false, blocked_reason: reason }],
+      note: null,
+    };
+    const fetchMock = await open(
+      fixesWith([updateFix({ proof_rows: [publicPassed, herePassed], proposal })]),
+      UPDATE_FIX,
+    );
     expect((card().getByTestId("proposal-undo") as HTMLButtonElement).disabled).toBe(true);
     expect(text(card().getByTestId("proposal-blocked"))).toBe(reason);
     fireEvent.click(card().getByTestId("proposal-undo"));
@@ -296,9 +354,18 @@ describe("Fixes, Otto's own change: nothing runs without a click", () => {
 
   it("a rejected change keeps Connect demo code off, and stays listed as Not added with its reason", async () => {
     const reason = "We fix this ourselves";
-    const rejected = { ...updateRejected(reason), ...{ id: CODE_PROPOSAL, title: codeProposal().title, why: codeProposal().why, lines: codeProposal().lines } };
+    const rejected = {
+      ...updateRejected(reason),
+      ...{ id: CODE_PROPOSAL, title: codeProposal().title, why: codeProposal().why, lines: codeProposal().lines },
+    };
     const view = fixesWith([
-      { ...ottoCodeFix(rejected), actions: { buttons: [{ action: "connect", label: "Connect demo code", primary: true, enabled: false }], note: "This proposal was rejected, so its change is not added. Reconsider takes it up again." } },
+      {
+        ...ottoCodeFix(rejected),
+        actions: {
+          buttons: [{ action: "connect", label: "Connect demo code", primary: true, enabled: false }],
+          note: "This proposal was rejected, so its change is not added. Reconsider takes it up again.",
+        },
+      },
       tlsFix,
     ]);
     const fetchMock = await open(view, CODE_FIX);
@@ -315,12 +382,16 @@ describe("Fixes, the list: Otto's fixes say they are proposals", () => {
     await open(fixesWith([updateFix(), javaFix, tlsFix]), UPDATE_FIX);
     const marked = () => within(listRow(UPDATE_FIX));
     // Beside the open panel the table is in its compact form: the mark sits under the name there too.
-    expect(screen.getAllByTestId("data-table").every((table) => table.getAttribute("data-compact") === "true")).toBe(true);
+    expect(screen.getAllByTestId("data-table").every((table) => table.getAttribute("data-compact") === "true")).toBe(
+      true,
+    );
     expect(marked().getByTestId("fix-proposal-label").textContent).toBe("From Otto");
     expect(text(marked().getByTestId("fix-proposal-status"))).toBe("Proposed");
     fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
     await waitFor(() => expect(screen.queryByTestId("fix-summary")).toBeNull());
-    expect(screen.getAllByTestId("data-table").some((table) => table.getAttribute("data-compact") === "true")).toBe(false);
+    expect(screen.getAllByTestId("data-table").some((table) => table.getAttribute("data-compact") === "true")).toBe(
+      false,
+    );
     expect(marked().getByTestId("fix-proposal-label").textContent).toBe("From Otto");
     expect(text(marked().getByTestId("fix-proposal-status"))).toBe("Proposed");
     // Every fix of Otto's carries it; a fix that is not Otto's carries none.
@@ -331,10 +402,14 @@ describe("Fixes, the list: Otto's fixes say they are proposals", () => {
   it("finds a fix by the word its proposal stands at", async () => {
     await open(fixesWith([updateFix({ proposal: updateRejected("Not this quarter") }), tlsFix]), TLS_FIX);
     fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "not added" } });
-    await waitFor(() => expect(screen.getAllByTestId("fix-row").map((r) => r.getAttribute("data-key"))).toEqual([UPDATE_FIX, TLS_FIX]));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("fix-row").map((r) => r.getAttribute("data-key"))).toEqual([UPDATE_FIX, TLS_FIX]),
+    );
     // (the open fix stays listed whatever the search; the other one is there because its proposal's word matches)
     fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "no such words" } });
-    await waitFor(() => expect(screen.getAllByTestId("fix-row").map((r) => r.getAttribute("data-key"))).toEqual([TLS_FIX]));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("fix-row").map((r) => r.getAttribute("data-key"))).toEqual([TLS_FIX]),
+    );
   });
 });
 

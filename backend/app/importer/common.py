@@ -1,4 +1,5 @@
 """What both file readers share: the error, the shapes they produce, and small helpers."""
+
 from __future__ import annotations
 
 import re
@@ -8,7 +9,14 @@ from app.checks.addresses import HostPort
 from app.config import MAX_UPLOAD_BYTES
 from app.names import clean_text, join_and
 
-KIND_ORDER = ["post_quantum", "protocol_versions", "cipher_suites", "key_exchange", "certificate", "signature_algorithm"]
+KIND_ORDER = [
+    "post_quantum",
+    "protocol_versions",
+    "cipher_suites",
+    "key_exchange",
+    "certificate",
+    "signature_algorithm",
+]
 NOT_STATED = "(not stated in the file)"
 CSV_HEADER = ["location", "type", "claim", "value"]
 
@@ -38,8 +46,9 @@ class ParsedClaim:
 @dataclass
 class SkippedItem:
     """Something in the file that this version does not check. Shown under the claims, never dropped silently."""
-    name: str    # what the file calls it, e.g. "SHA-256"
-    what: str    # plain words, e.g. "Hash algorithm"
+
+    name: str  # what the file calls it, e.g. "SHA-256"
+    what: str  # plain words, e.g. "Hash algorithm"
     source: str  # where in the file, same style as ParsedClaim.source
     reason: str
 
@@ -47,10 +56,11 @@ class SkippedItem:
 @dataclass
 class ParsedSetting:
     """A setting the file gives for a system (phase 4a): used by the migration plan. Not a claim: nothing checks it."""
-    location: str       # the server address, or "name version" of a software component
+
+    location: str  # the server address, or "name version" of a software component
     location_kind: str  # server | software
-    field: str          # lifespan | exposure | can_change
-    value: str          # short | long ; internet | internal ; yes | no
+    field: str  # lifespan | exposure | can_change
+    value: str  # short | long ; internet | internal ; yes | no
     source: str
 
 
@@ -63,6 +73,7 @@ class ParsedFile:
 
 
 # ---------------------------------------------------------------- shared helpers
+
 
 def _decode(data: bytes) -> str:
     if len(data) > MAX_UPLOAD_BYTES:
@@ -110,14 +121,21 @@ def parse_software_location(text: str) -> tuple[str, str] | None:
     return clean_text(m.group(1), 100), clean_text(m.group(2), 50)
 
 
-def _software_claim(ref: str, source: str, name: str, version: str, algorithm: str,
-                    kind: str = "signature_algorithm") -> ParsedClaim:
+def _software_claim(
+    ref: str, source: str, name: str, version: str, algorithm: str, kind: str = "signature_algorithm"
+) -> ParsedClaim:
     label = f"{name} {version}".strip()
     return ParsedClaim(
-        ref=ref, location=label, location_kind="software", kind=kind, claimed_value=algorithm,
-        text=f"signing component is {label} implementing {algorithm}" if kind == "signature_algorithm"
+        ref=ref,
+        location=label,
+        location_kind="software",
+        kind=kind,
+        claimed_value=algorithm,
+        text=f"signing component is {label} implementing {algorithm}"
+        if kind == "signature_algorithm"
         else f"software component {label} uses {algorithm} for key exchange",
-        source=source, detail={"component": name, "version": version, "algorithm": algorithm},
+        source=source,
+        detail={"component": name, "version": version, "algorithm": algorithm},
     )
 
 

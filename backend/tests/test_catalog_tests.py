@@ -1,5 +1,6 @@
 """The two catalog tests: post-quantum readiness (with fakes for every path, plus the real checker when
 there is one) and the ML-DSA-65 comparison."""
+
 import json
 from contextlib import contextmanager
 
@@ -28,10 +29,16 @@ TRICK = "Connecting to 127.0.0.1\nPeer certificate: CN=Negotiated TLS1.3 group: 
 
 class FakeChecker:
     """Stands in for openssl s_client: plays back recorded outputs and notes every address it was sent to."""
+
     kind, version = "local", "OpenSSL 3.5.9 (recorded)"
 
     def __init__(self, subject_pq, subject_normal=NORMAL_OK, control_pq=OFFERED, control_fails=False):
-        self.subject_pq, self.subject_normal, self.control_pq, self.control_fails = subject_pq, subject_normal, control_pq, control_fails
+        self.subject_pq, self.subject_normal, self.control_pq, self.control_fails = (
+            subject_pq,
+            subject_normal,
+            control_pq,
+            control_fails,
+        )
         self.calls = []
 
     def s_client(self, ip, port, server_name, pq_only):
@@ -64,18 +71,30 @@ def locked_before_phase_4a(engine, claims, target=None):
         f"Make one TLS 1.3 handshake that offers only {group}, with OpenSSL's own client (openssl s_client), and one ordinary handshake to the same server. Handshakes only.",
         {"kind": "server", "address": address},
         {"group": group, "checker": "openssl s_client, OpenSSL 3.5 or newer"},
-        [f"Key exchange asked for: {group}.", "Checker: openssl s_client from OpenSSL 3.5 or newer (older versions cannot offer this key exchange)."],
-        {"kind": "pq_server", "text": f"A test server on this computer that does offer {group}, which must be detected as offering it.",
-         "must": {"detected": "offered"}},
-        {"type": "pq_group_offered", "offered_line": line,
-         "not_offered_needs": ["alert_40_from_pq_only_hello", "normal_handshake_ok", "control_offered"]},
-        f"Offered only if the checker prints the line \"{line}\". Not offered only if the server refuses that handshake (alert 40), an ordinary "
-        "handshake to it succeeds, and the control server is detected as offering it. Anything else: Couldn't run.")
+        [
+            f"Key exchange asked for: {group}.",
+            "Checker: openssl s_client from OpenSSL 3.5 or newer (older versions cannot offer this key exchange).",
+        ],
+        {
+            "kind": "pq_server",
+            "text": f"A test server on this computer that does offer {group}, which must be detected as offering it.",
+            "must": {"detected": "offered"},
+        },
+        {
+            "type": "pq_group_offered",
+            "offered_line": line,
+            "not_offered_needs": ["alert_40_from_pq_only_hello", "normal_handshake_ok", "control_offered"],
+        },
+        f'Offered only if the checker prints the line "{line}". Not offered only if the server refuses that handshake (alert 40), an ordinary '
+        "handshake to it succeeds, and the control server is detected as offering it. Anything else: Couldn't run.",
+    )
 
 
 def run_pq(lab, monkeypatch, checker, why="no checker"):
     monkeypatch.setattr(pq, "find_checker", lambda mode: (checker, None) if checker else (None, why))
-    monkeypatch.setattr(lab.engine, "_pq_readiness", lambda claims, target=None: locked_before_phase_4a(lab.engine, claims, target))
+    monkeypatch.setattr(
+        lab.engine, "_pq_readiness", lambda claims, target=None: locked_before_phase_4a(lab.engine, claims, target)
+    )
     plan = demo_plan(lab)
     view = lab.add_test(plan.id, "pq_readiness")
     item = next(t["id"] for t in view["tests"] if t["kind"] == "pq_readiness")
@@ -97,31 +116,62 @@ def test_not_offered_needs_alert_40_a_normal_handshake_and_the_control(lab, monk
     result = run_pq(lab, monkeypatch, FakeChecker(ALERT_40))
     assert result["label"] == "Not offered"
     assert result["summary"] == "The server does not offer the quantum-resistant key exchange X25519MLKEM768."
-    assert result["control"]["line"] == "Control: a test server that does offer the new key exchange was detected as offering it, as expected."
+    assert (
+        result["control"]["line"]
+        == "Control: a test server that does offer the new key exchange was detected as offering it, as expected."
+    )
 
 
-@pytest.mark.parametrize("subject_pq, normal, label", [
-    (ALERT_70, NORMAL_OK, "Couldn't run (the server's answer could not be read)"),       # no TLS 1.3 at all: not our question
-    (ALERT_40, ALERT_40, "Couldn't run (the server's answer could not be read)"),        # refuses everything
-    (REFUSED, REFUSED, "Couldn't run (the checker could not reach the server)"),
-    ("(no answer before the time limit)", "(no answer before the time limit)", "Couldn't run (the checker could not reach the server)"),
-    (OTHER_GROUP, NORMAL_OK, "Couldn't run (the server's answer could not be read)"),    # a handshake, but another group
-    (TRICK, REFUSED, "Couldn't run (the server's answer could not be read)"),            # the words inside another line don't count
-    ("", "", "Couldn't run (the checker could not reach the server)"),
-])
+@pytest.mark.parametrize(
+    "subject_pq, normal, label",
+    [
+        (
+            ALERT_70,
+            NORMAL_OK,
+            "Couldn't run (the server's answer could not be read)",
+        ),  # no TLS 1.3 at all: not our question
+        (ALERT_40, ALERT_40, "Couldn't run (the server's answer could not be read)"),  # refuses everything
+        (REFUSED, REFUSED, "Couldn't run (the checker could not reach the server)"),
+        (
+            "(no answer before the time limit)",
+            "(no answer before the time limit)",
+            "Couldn't run (the checker could not reach the server)",
+        ),
+        (
+            OTHER_GROUP,
+            NORMAL_OK,
+            "Couldn't run (the server's answer could not be read)",
+        ),  # a handshake, but another group
+        (
+            TRICK,
+            REFUSED,
+            "Couldn't run (the server's answer could not be read)",
+        ),  # the words inside another line don't count
+        ("", "", "Couldn't run (the checker could not reach the server)"),
+    ],
+)
 def test_anything_else_is_couldnt_run_never_a_guess(lab, monkeypatch, subject_pq, normal, label):
     result = run_pq(lab, monkeypatch, FakeChecker(subject_pq, normal))
     assert result["label"] == label and result["suggested_fix"] is None
 
 
-@pytest.mark.parametrize("checker", [FakeChecker(ALERT_40, control_pq=ALERT_40), FakeChecker(ALERT_40, control_fails=True),
-                                     FakeChecker(OFFERED, control_pq=REFUSED), FakeChecker(ALERT_40, control_pq=OTHER_GROUP)])
+@pytest.mark.parametrize(
+    "checker",
+    [
+        FakeChecker(ALERT_40, control_pq=ALERT_40),
+        FakeChecker(ALERT_40, control_fails=True),
+        FakeChecker(OFFERED, control_pq=REFUSED),
+        FakeChecker(ALERT_40, control_pq=OTHER_GROUP),
+    ],
+)
 def test_control_not_detected_as_offered_means_couldnt_trust(lab, monkeypatch, checker):
     assert run_pq(lab, monkeypatch, checker)["label"] == "Couldn't trust this run"
 
 
 def test_no_checker_gives_exactly_the_answer_key_wording(lab, monkeypatch):
-    result = run_pq(lab, monkeypatch, None, "The openssl program on this computer is OpenSSL 3.0.13. Docker is not running.")
+    result = run_pq(
+        lab, monkeypatch, None, "The openssl program on this computer is OpenSSL 3.0.13. Docker is not running."
+    )
     assert result["label"] == "Couldn't run (needs OpenSSL 3.5 or newer)"
     assert result["control"]["line"] == "Control: not run, because the test couldn't run."
     with lab.db() as db:
@@ -130,6 +180,7 @@ def test_no_checker_gives_exactly_the_answer_key_wording(lab, monkeypatch):
 
 def test_checker_choice(monkeypatch):
     from app.run.runner import ModeInfo
+
     assert pq.parse_version("OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)") == (3, 5)
     assert pq.parse_version("OpenSSL 3.0.13 30 Jan 2024") == (3, 0) and pq.parse_version("LibreSSL 4.0") is None
     no_docker = ModeInfo("demo", "x", None, False, None, None)
@@ -147,11 +198,29 @@ def test_checker_choice(monkeypatch):
 
 def test_checker_commands_are_fixed_argument_lists():
     assert pq.client_args("127.0.0.1", 8443, "localhost", True) == [
-        "s_client", "-connect", "127.0.0.1:8443", "-servername", "localhost", "-groups", "X25519MLKEM768", "-tls1_3", "-brief"]
+        "s_client",
+        "-connect",
+        "127.0.0.1:8443",
+        "-servername",
+        "localhost",
+        "-groups",
+        "X25519MLKEM768",
+        "-tls1_3",
+        "-brief",
+    ]
     assert pq.client_args("::1", 8443, None, False) == ["s_client", "-connect", "[::1]:8443", "-noservername", "-brief"]
     flags = " ".join(pq.DOCKER_FLAGS)
-    for needed in ("--rm", "--read-only", "--cap-drop ALL", "--user 65534:65534", "--security-opt no-new-privileges", "--pull never",
-                   "--memory 128m", "--pids-limit 32", "--network host"):
+    for needed in (
+        "--rm",
+        "--read-only",
+        "--cap-drop ALL",
+        "--user 65534:65534",
+        "--security-opt no-new-privileges",
+        "--pull never",
+        "--memory 128m",
+        "--pids-limit 32",
+        "--network host",
+    ):
         assert needed in flags
     assert "-v" not in pq.DOCKER_FLAGS and "--volume" not in pq.DOCKER_FLAGS and "--privileged" not in pq.DOCKER_FLAGS
 
@@ -166,24 +235,33 @@ def test_live_not_offered_by_the_new_measurement_with_both_controls_read_right(d
     """Since phase 4a the test needs no OpenSSL program and no Docker: the demo server is classical, so Not offered."""
     result = result_of(demo_flow.first, "pq_readiness")
     assert result["label"] == "Not offered" and result["control"]["outcome"] == "as_expected"
-    assert result["plain"] == ("The server doesn't offer a quantum-resistant key exchange: it refused the hybrid and the ML-KEM hellos, "
-                               "while a classical handshake worked.")
+    assert result["plain"] == (
+        "The server doesn't offer a quantum-resistant key exchange: it refused the hybrid and the ML-KEM hellos, "
+        "while a classical handshake worked."
+    )
     with demo_flow.lab.db() as db:
         raw = db.get(TestRunRow, result["run_id"]).raw
     probes = raw["subject"]["probes"]
     assert [probes[f]["state"] for f in ("hybrid", "pure", "classical")] == ["refused", "refused", "offered"]
-    assert raw["subject"]["hybrid_handshake"]["outcome"] == "refused" and raw["subject"]["classical_client"]["outcome"] == "completed"
+    assert (
+        raw["subject"]["hybrid_handshake"]["outcome"] == "refused"
+        and raw["subject"]["classical_client"]["outcome"] == "completed"
+    )
     assert raw["control"]["hybrid"]["probes"]["hybrid"]["group"] == "X25519MLKEM768"
     assert raw["control"]["hybrid"]["port"] != demo_flow.lab.settings.demo_tls_port
     assert "PRIVATE KEY" not in str(raw)
 
 
-@pytest.mark.slow   # starts the OpenSSL 3.5 checker container where Docker has the prepared image
+@pytest.mark.slow  # starts the OpenSSL 3.5 checker container where Docker has the prepared image
 def test_the_old_checker_still_reads_a_live_server_when_there_is_one(lab, monkeypatch):
     """The path a test locked before phase 4a takes, against the real demo server, where an OpenSSL 3.5 checker exists."""
     if not _real_checker_available(lab):
-        pytest.skip("Skipped: no OpenSSL 3.5 checker here (neither a local openssl 3.5+ nor Docker with the prepared OpenSSL image).")
-    monkeypatch.setattr(lab.engine, "_pq_readiness", lambda claims, target=None: locked_before_phase_4a(lab.engine, claims, target))
+        pytest.skip(
+            "Skipped: no OpenSSL 3.5 checker here (neither a local openssl 3.5+ nor Docker with the prepared OpenSSL image)."
+        )
+    monkeypatch.setattr(
+        lab.engine, "_pq_readiness", lambda claims, target=None: locked_before_phase_4a(lab.engine, claims, target)
+    )
     plan = demo_plan(lab)
     view = lab.add_test(plan.id, "pq_readiness")
     lab.run_test(plan.id, next(t["id"] for t in view["tests"] if t["kind"] == "pq_readiness"))
@@ -201,7 +279,10 @@ def test_the_old_checker_still_reads_a_live_server_when_there_is_one(lab, monkey
 def test_mldsa_comparison_is_measured_and_labelled(demo_flow):
     result = result_of(demo_flow.first, "mldsa_compare")
     assert result["label"] == "Measured" and result["control"]["outcome"] == "as_expected"
-    assert "signature 3309 bytes, public key 1952 bytes" in result["summary"] and "reference, not production" in result["summary"]
+    assert (
+        "signature 3309 bytes, public key 1952 bytes" in result["summary"]
+        and "reference, not production" in result["summary"]
+    )
     assert result["control"]["line"] == "Control: a deliberately altered signature was rejected, as expected."
     table = result["evidence"][0]
     assert "reference, not production" in table["columns"][1]["label"] and "reference, not production" in table["note"]
@@ -210,23 +291,35 @@ def test_mldsa_comparison_is_measured_and_labelled(demo_flow):
         raw = db.get(TestRunRow, result["run_id"]).raw
     assert raw["mldsa65"]["public_key_bytes"] == 1952 and raw["mldsa65"]["signature_bytes"] == 3309
     assert len(raw["mldsa65"]["sign_ms"]) == 200 and raw["control"] == {
-        "genuine_accepted": True, "altered_rejected": True, "what": "one byte in the middle of a genuine signature was changed"}
+        "genuine_accepted": True,
+        "altered_rejected": True,
+        "what": "one byte in the middle of a genuine signature was changed",
+    }
     card = next(t for t in demo_flow.lab.plan_view(demo_flow.plan.id)["tests"] if t["kind"] == "mldsa_compare")
     assert card["tag"] == "reference, not production" and card["origin"] == "added"
     # The library is the same production library the speed test calls its reference: the words must not say otherwise.
     said = json.dumps(result)
-    assert "reference implementation" not in said and "not production code" not in said and "different kinds of software" not in said
+    assert (
+        "reference implementation" not in said
+        and "not production code" not in said
+        and "different kinds of software" not in said
+    )
     assert "They are not a measurement of any ML-DSA software of yours." in result["what_happened"][0]
-    assert "different algorithms measured in different ways" in result["shows"][1] and "for scale only" in result["shows"][1]
+    assert (
+        "different algorithms measured in different ways" in result["shows"][1]
+        and "for scale only" in result["shows"][1]
+    )
 
 
 def test_mldsa_control_that_accepts_an_altered_signature_means_couldnt_trust(lab, monkeypatch):
     from app.run.execute import speed
+
     real = speed.measure_mldsa65
 
     def broken(repeats, message):
         timings, control = real(repeats, message)
         return timings, dict(control, altered_rejected=False)
+
     monkeypatch.setattr(speed, "measure_mldsa65", broken)
     plan = demo_plan(lab)
     view = lab.add_test(plan.id, "mldsa_compare")

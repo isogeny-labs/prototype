@@ -1,5 +1,6 @@
 """What the Change watch page draws (phase 6d): `change_watch_state` in the words of `app/present/changewatch.py`,
 with the reviewer's own word for each run before and now. It only reads."""
+
 from __future__ import annotations
 
 from typing import Any, Callable
@@ -11,9 +12,13 @@ from app.present import changewatch as words
 from app.present import source as present_source
 from app.present.fixes import DEVELOPER_CHANGE_FIX_LINE
 
-BEFORE_FROM = {"first": "This assessment's own run of the test.", "retest": "From a retest of this assessment.",
-               "proof": "From the proof of a fix.", "watch": "From an earlier run of a change's picked tests.",
-               "watch_base": "From an earlier run of a change's picked tests."}
+BEFORE_FROM = {
+    "first": "This assessment's own run of the test.",
+    "retest": "From a retest of this assessment.",
+    "proof": "From the proof of a fix.",
+    "watch": "From an earlier run of a change's picked tests.",
+    "watch_base": "From an earlier run of a change's picked tests.",
+}
 MADE_HERE = "No reviewed result on the code before was there, so the test also ran on that code in this run."
 
 
@@ -37,8 +42,15 @@ class ChangeWatchViewMixin:
         if result is None:
             return None
         on = f"{run.component_name} {run.component_version}" if run.component_name and run.component_version else None
-        return {"run_id": run.id, "label": result["label"], "tone": result["tone"], "plain": result["plain"], "ran_on": on, "link": link,
-                "source_tag": present_source.of_test(kind, result)}
+        return {
+            "run_id": run.id,
+            "label": result["label"],
+            "tone": result["tone"],
+            "plain": result["plain"],
+            "ran_on": on,
+            "link": link,
+            "source_tag": present_source.of_test(kind, result),
+        }
 
     @staticmethod
     def _run_link(run: TestRunRow | None) -> dict | None:
@@ -64,15 +76,24 @@ class ChangeWatchViewMixin:
         results = []
         for row in (run or {}).get("tests") or []:
             before_run = db.get(TestRunRow, row["before"]["run_id"]) if row["before"] is not None else None
-            results.append({
-                # (a test that has left the plan since is still named by what it is)
-                "item_id": row["item_id"], "title": titles.get(row["item_id"]) or research.title_of(row["kind"]),
-                "before": self._watch_side(db, row["before"], self._run_link(before_run), row["kind"]),
-                "before_note": (words_or_none(row, before_run)),
-                "now": self._watch_side(db, row["now"], self._run_link(db.get(TestRunRow, row["now"]["run_id"]) if row["now"] is not None else None),
-                                        row["kind"]),
-                "job": row["job"], "differs": words.OUTCOME_WORDS.get(row["outcome"]) if row["outcome"] else None,
-                "outcome": row["outcome"]})
+            results.append(
+                {
+                    # (a test that has left the plan since is still named by what it is)
+                    "item_id": row["item_id"],
+                    "title": titles.get(row["item_id"]) or research.title_of(row["kind"]),
+                    "before": self._watch_side(db, row["before"], self._run_link(before_run), row["kind"]),
+                    "before_note": (words_or_none(row, before_run)),
+                    "now": self._watch_side(
+                        db,
+                        row["now"],
+                        self._run_link(db.get(TestRunRow, row["now"]["run_id"]) if row["now"] is not None else None),
+                        row["kind"],
+                    ),
+                    "job": row["job"],
+                    "differs": words.OUTCOME_WORDS.get(row["outcome"]) if row["outcome"] else None,
+                    "outcome": row["outcome"],
+                }
+            )
         status = words.status_view(change, program)
         files = [words.file_view(f) for f in change["files"]]
         touched = ", ".join(f"{f['name']} ({f['what'].lower()})" for f in files) or None
@@ -82,29 +103,68 @@ class ChangeWatchViewMixin:
         if change["base"] is not None:
             on = f" ({program['name']} {change['starts_from']['version']})" if change.get("starts_from") else ""
             starts = f"Starts from commit {words.short_commit(change['base'])}{on}, {words._count(change['commits'], 'commit')} on the branch."
-        gives = (f"Its code is, byte for byte, {program['name']} {change['gives']['version']}, one of our registered demo programs."
-                 if change.get("gives") else (words.NOT_OURS if change["touches_program"] and not change.get("problem") else None))
+        gives = (
+            f"Its code is, byte for byte, {program['name']} {change['gives']['version']}, one of our registered demo programs."
+            if change.get("gives")
+            else (words.NOT_OURS if change["touches_program"] and not change.get("problem") else None)
+        )
         return {
-            "id": change["id"], "title": change["title"], "branch": change["branch"], "commit": words.short_commit(change["head"]),
-            "author": change["author"], "is_demo": change["is_demo"], "when": words.when_words(change["when"]),
-            "files_line": touched, "picked_line": f"{len(change['picked'])} of {words._count(len(change['picked']) + len(change['not_picked']), 'test')} picked",
-            "status": status, "flags_count": len(flags) + change["more_flags"],
+            "id": change["id"],
+            "title": change["title"],
+            "branch": change["branch"],
+            "commit": words.short_commit(change["head"]),
+            "author": change["author"],
+            "is_demo": change["is_demo"],
+            "when": words.when_words(change["when"]),
+            "files_line": touched,
+            "picked_line": f"{len(change['picked'])} of {words._count(len(change['picked']) + len(change['not_picked']), 'test')} picked",
+            "status": status,
+            "flags_count": len(flags) + change["more_flags"],
             "panel": {
-                "message": change["message"], "starts_from": starts, "gives": gives, "files": files,
-                "picked": [{"item_id": t["item_id"], "title": t["title"], "reason": words.pick_reason(t, program),
-                            "link": {"page": "checks", "item": f"test-{t['item_id']}", "group": None}} for t in change["picked"]],
-                "not_picked": [{"item_id": t["item_id"], "title": t["title"], "reason": words.pick_reason(t, program),
-                                "link": {"page": "checks", "item": f"test-{t['item_id']}", "group": None}} for t in change["not_picked"]],
-                "picked_empty": words.nothing_picked(change, program) if not change["picked"] and not change.get("problem") else None,
+                "message": change["message"],
+                "starts_from": starts,
+                "gives": gives,
+                "files": files,
+                "picked": [
+                    {
+                        "item_id": t["item_id"],
+                        "title": t["title"],
+                        "reason": words.pick_reason(t, program),
+                        "link": {"page": "checks", "item": f"test-{t['item_id']}", "group": None},
+                    }
+                    for t in change["picked"]
+                ],
+                "not_picked": [
+                    {
+                        "item_id": t["item_id"],
+                        "title": t["title"],
+                        "reason": words.pick_reason(t, program),
+                        "link": {"page": "checks", "item": f"test-{t['item_id']}", "group": None},
+                    }
+                    for t in change["not_picked"]
+                ],
+                "picked_empty": words.nothing_picked(change, program)
+                if not change["picked"] and not change.get("problem")
+                else None,
                 "run": words.run_view(change, program, picked_titles, blocked),
                 "last_run": (words.when_words(run["started_at"]) if run is not None else None),
                 "results": results,
-                "flags": flags, "flags_note": words.FLAGS_NOTE if flags else None,
-                "more_flags": (f"{words._count(change['more_flags'], 'more flag')} of the same kind are not listed." if change["more_flags"] else None),
+                "flags": flags,
+                "flags_note": words.FLAGS_NOTE if flags else None,
+                "more_flags": (
+                    f"{words._count(change['more_flags'], 'more flag')} of the same kind are not listed."
+                    if change["more_flags"]
+                    else None
+                ),
                 # while tests that passed fail on this change, Fixes has an entry for it (ChangeWatchMixin._fixes_for_developer_changes)
                 "fix_line": DEVELOPER_CHANGE_FIX_LINE if change["status"] == "passed_before_fails_now" else None,
-                "fix": ({"page": "fixes", "item": f"fix-{change['id']}", "group": None} if change["status"] == "passed_before_fails_now" else None),
-            }}
+                "fix": (
+                    {"page": "fixes", "item": f"fix-{change['id']}", "group": None}
+                    if change["status"] == "passed_before_fails_now"
+                    else None
+                ),
+            },
+        }
 
     def change_watch_view(self, plan_id: int) -> dict:
         """The Change watch page: the Changes view. It reads the connected repository each time it is asked."""
@@ -112,17 +172,41 @@ class ChangeWatchViewMixin:
         code, program = state["code"], state["code"]["program"]
         running = self._running(plan_id)
         blocked = BUSY[running] if running else None
-        line = {"not_connected": words.NOT_CONNECTED, "no_code": words.NO_CODE, "unreadable": words.UNREADABLE}.get(code["state"])
+        line = {"not_connected": words.NOT_CONNECTED, "no_code": words.NO_CODE, "unreadable": words.UNREADABLE}.get(
+            code["state"]
+        )
         with self.db() as db:
-            changes = [self._change_view(db, c, program, blocked) for c in state["changes"]] if program is not None else []
+            changes = (
+                [self._change_view(db, c, program, blocked) for c in state["changes"]] if program is not None else []
+            )
         return {
-            "plan_id": plan_id, "title": words.TITLE, "subline": words.SUBLINE,
-            "code": {"state": code["state"], "line": line,
-                     "link": {"page": "fixes", "item": None, "group": None} if code["state"] == "not_connected" else None,
-                     "connected_line": (f"Connected: the demo repository {code['repository']}, branch {code['branch']}." if code["state"] == "connected" else None)},
-            "menu": {"button": words.MENU_BUTTON, "note": words.MENU_NOTE,
-                     "items": [{"key": m["key"], "title": m["title"], "what_it_does": m["what_it_does"], "can": m["blocked"] is None,
-                                "blocked_reason": words.MENU_BLOCKED.get(m["blocked"]) if m["blocked"] else None} for m in state["menu"]]},
+            "plan_id": plan_id,
+            "title": words.TITLE,
+            "subline": words.SUBLINE,
+            "code": {
+                "state": code["state"],
+                "line": line,
+                "link": {"page": "fixes", "item": None, "group": None} if code["state"] == "not_connected" else None,
+                "connected_line": (
+                    f"Connected: the demo repository {code['repository']}, branch {code['branch']}."
+                    if code["state"] == "connected"
+                    else None
+                ),
+            },
+            "menu": {
+                "button": words.MENU_BUTTON,
+                "note": words.MENU_NOTE,
+                "items": [
+                    {
+                        "key": m["key"],
+                        "title": m["title"],
+                        "what_it_does": m["what_it_does"],
+                        "can": m["blocked"] is None,
+                        "blocked_reason": words.MENU_BLOCKED.get(m["blocked"]) if m["blocked"] else None,
+                    }
+                    for m in state["menu"]
+                ],
+            },
             "changes": changes,
             "empty": words.EMPTY if code["state"] == "connected" and not changes else None,
             # (the page asks again while anything runs for this plan: until it has finished, Run is off with the reason)

@@ -1,4 +1,5 @@
 """The open routes: who is logged in, first-time password setup, and login."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response
@@ -23,8 +24,9 @@ def routes(lab, set_cookie) -> APIRouter:
             if not auth.setup_required(db):
                 return error_response(409, "A password has already been created. Log in with it.")
             if len(body.password) < auth.MIN_PASSWORD_LENGTH:
-                return error_response(422, f"Choose a password of at least {auth.MIN_PASSWORD_LENGTH} characters.",
-                                      field="password")
+                return error_response(
+                    422, f"Choose a password of at least {auth.MIN_PASSWORD_LENGTH} characters.", field="password"
+                )
             auth.create_password(db, body.password)
             set_cookie(response, auth.new_session(db))
         return {"ok": True}

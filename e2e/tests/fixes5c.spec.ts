@@ -16,16 +16,43 @@
 import { expect, test, type Locator, type Page, type Request } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { continueToChecks, enterApp, layoutProblems, openFreshAssessment, openGroupTab, openPageGroup, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import {
+  continueToChecks,
+  enterApp,
+  layoutProblems,
+  openFreshAssessment,
+  openGroupTab,
+  openPageGroup,
+  screenshotFolder,
+  startCopy,
+  stepLink,
+  stopCopy,
+  type Copy,
+} from "./shared";
 
 const SHOTS = screenshotFolder("phase5c-fixes");
 const RANGE = "Missing ECDSA signature range check";
 const RANGE_CHECK = `Advisory check: ${RANGE} (CVE-2022-21449)`;
 // A time as the screens write it, for a viewer in New York: "18 November 2026, 7:46 pm EST".
-const LOCAL_TIME = /\d{1,2} (January|February|March|April|May|June|July|August|September|October|November|December) 20\d\d, \d{1,2}:\d\d [ap]m E[SD]T/;
+const LOCAL_TIME =
+  /\d{1,2} (January|February|March|April|May|June|July|August|September|October|November|December) 20\d\d, \d{1,2}:\d\d [ap]m E[SD]T/;
 // What no sentence may say (the phrases Kevin listed, and the same verbs in another tense).
-const BANNED = ["Otto wrote", "Otto writes", "Otto proposes", "Otto proposed", "in Otto's words", "In Otto's words", "Why Otto proposes it", "Otto found",
-                "Otto finds", "Otto has ", "Otto's proposal", "Otto asked", "Otto asks", "Otto no longer"];
+const BANNED = [
+  "Otto wrote",
+  "Otto writes",
+  "Otto proposes",
+  "Otto proposed",
+  "in Otto's words",
+  "In Otto's words",
+  "Why Otto proposes it",
+  "Otto found",
+  "Otto finds",
+  "Otto has ",
+  "Otto's proposal",
+  "Otto asked",
+  "Otto asks",
+  "Otto no longer",
+];
 
 const unanswered = new WeakMap<Page, number>();
 
@@ -46,12 +73,17 @@ function watchRequests(page: Page): void {
 async function settled(page: Page): Promise<void> {
   let last = "";
   await expect
-    .poll(async () => {
-      const now = await page.evaluate(() => `${document.documentElement.scrollHeight}/${document.querySelectorAll("main *, aside *").length}`);
-      const same = now === last && (unanswered.get(page) ?? 0) === 0;
-      last = now;
-      return same;
-    }, { timeout: 30_000, intervals: [250] })
+    .poll(
+      async () => {
+        const now = await page.evaluate(
+          () => `${document.documentElement.scrollHeight}/${document.querySelectorAll("main *, aside *").length}`,
+        );
+        const same = now === last && (unanswered.get(page) ?? 0) === 0;
+        last = now;
+        return same;
+      },
+      { timeout: 30_000, intervals: [250] },
+    )
     .toBe(true);
 }
 
@@ -64,7 +96,12 @@ async function shots(page: Page, name: string, how: { view?: boolean } = {}): Pr
     await page.evaluate((t) => {
       document.documentElement.dataset.theme = t;
     }, theme);
-    await page.screenshot({ path: path.join(SHOTS, `${name}-${theme}.png`), fullPage: !how.view, animations: "disabled", scale: "css" });
+    await page.screenshot({
+      path: path.join(SHOTS, `${name}-${theme}.png`),
+      fullPage: !how.view,
+      animations: "disabled",
+      scale: "css",
+    });
   }
   await page.evaluate(() => {
     document.documentElement.dataset.theme = "dark";
@@ -85,14 +122,17 @@ async function installPack(page: Page, version: string): Promise<void> {
   await expect(packs.getByTestId("otto-update-line")).toContainText(version);
   await packs.getByTestId("otto-install-update").click();
   const box = page.getByTestId("otto-install-dialog");
-  const installed = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/otto/packs/install" && r.request().method() === "POST");
+  const installed = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/otto/packs/install" && r.request().method() === "POST",
+  );
   await box.getByTestId("otto-install-confirm").click();
   expect((await installed).status()).toBe(200);
   await expect(packs.locator(`[data-testid="otto-pack-card"][data-version="${version}"]`)).toBeVisible();
 }
 
 const part = (page: Page, key: string): Locator => page.locator(`[data-testid="part-section"][data-part="${key}"]`);
-const advisoryRow = (page: Page, id: string): Locator => page.locator(`[data-testid="advisory-row"][data-advisory="${id}"]`);
+const advisoryRow = (page: Page, id: string): Locator =>
+  page.locator(`[data-testid="advisory-row"][data-advisory="${id}"]`);
 
 async function cardStatuses(page: Page): Promise<string[]> {
   return page.getByTestId("test-card").evaluateAll((all) => all.map((c) => c.getAttribute("data-status") ?? ""));
@@ -134,7 +174,9 @@ async function openInNewTab(page: Page, panel: Locator, backTo: string): Promise
 test.describe.configure({ mode: "serial" });
 test.use({ actionTimeout: 60_000 });
 
-test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the viewer's zone, and the New tag", async ({ browser }) => {
+test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the viewer's zone, and the New tag", async ({
+  browser,
+}) => {
   test.setTimeout(25 * 60_000);
   let copy: Copy | null = null;
   try {
@@ -144,17 +186,24 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     watchRequests(page);
     await enterApp(page);
     const otto = await (await page.request.get("/api/otto")).json();
-    test.skip(!otto.harness.installed, `Skipped: ${otto.harness.line} Run ./run-demo.sh once (or: cd backend && .venv/bin/python -m app.prepare --otto).`);
+    test.skip(
+      !otto.harness.installed,
+      `Skipped: ${otto.harness.line} Run ./run-demo.sh once (or: cd backend && .venv/bin/python -m app.prepare --otto).`,
+    );
     // the browser of this walk is a viewer in New York
     expect(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)).toBe("America/New_York");
 
     await installPack(page, "2026.11.1");
     await openFreshAssessment(page, "5c fixes walk");
-    const imported = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/import/demo" && r.request().method() === "POST");
+    const imported = page.waitForResponse(
+      (r) => new URL(r.url()).pathname === "/api/import/demo" && r.request().method() === "POST",
+    );
     await page.getByRole("button", { name: "Use demo file" }).click();
     expect((await imported).status()).toBe(200);
     // fixes 4 and 5: Import's line says what may apply, marked From Otto, and not who found it
-    await expect(page.getByTestId("import-otto-text")).toHaveText("2 checks may apply: 2 published weaknesses with a test, for acme-sign 1.4.2.");
+    await expect(page.getByTestId("import-otto-text")).toHaveText(
+      "2 checks may apply: 2 published weaknesses with a test, for acme-sign 1.4.2.",
+    );
     await expect(page.getByTestId("import-otto")).toContainText("From Otto");
     await expectNoBannedWords(page, "Import");
     await page.getByTestId("address-confirm").click();
@@ -173,7 +222,14 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await expect(tags.first()).toHaveAttribute("title", "Arrived with test pack 2026.11.1");
     await expect(tags.first().locator(".sr-only")).toHaveText("New: arrived with test pack 2026.11.1");
     // the column is "Proposal" (fix 4)
-    await expect(page.getByTestId("advisories-table").getByRole("columnheader")).toHaveText(["Advisory", "Published", "Fits", "Test", "Proposal", "Result here"]);
+    await expect(page.getByTestId("advisories-table").getByRole("columnheader")).toHaveText([
+      "Advisory",
+      "Published",
+      "Fits",
+      "Test",
+      "Proposal",
+      "Result here",
+    ]);
     expect(await layoutProblems(page), "Advisories with the New tags").toEqual([]);
     await shots(page, "01-advisories-new-with-one-pack");
 
@@ -181,15 +237,22 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await advisoryRow(page, "CVE-2022-21449").click();
     let panel = page.locator('[data-testid="advisory-panel"][data-advisory="CVE-2022-21449"]');
     await expect(panel.getByRole("heading", { level: 2 })).toContainText(RANGE);
-    await expect(panel.getByRole("heading", { level: 2 }).getByTestId("advisory-new")).toHaveAttribute("title", "Arrived with test pack 2026.11.1");
+    await expect(panel.getByRole("heading", { level: 2 }).getByTestId("advisory-new")).toHaveAttribute(
+      "title",
+      "Arrived with test pack 2026.11.1",
+    );
     const proposal = panel.getByTestId("otto-proposal");
     await expect(proposal.getByTestId("proposal-label")).toHaveText("From Otto");
-    const accepted = page.waitForResponse((r) => /\/otto\/proposals\/[^/]+\/accept$/.test(new URL(r.url()).pathname) && r.request().method() === "POST");
+    const accepted = page.waitForResponse(
+      (r) => /\/otto\/proposals\/[^/]+\/accept$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
+    );
     await proposal.getByTestId("proposal-accept").click();
     expect((await accepted).status()).toBe(200);
     await expect(proposal.getByTestId("proposal-status")).toHaveText("Added");
     // fix 6: the time in the server's sentence is written in the viewer's own zone
-    await expect(proposal.getByTestId("proposal-decided")).toHaveText(new RegExp(`^Accepted by You on ${LOCAL_TIME.source}\\.$`));
+    await expect(proposal.getByTestId("proposal-decided")).toHaveText(
+      new RegExp(`^Accepted by You on ${LOCAL_TIME.source}\\.$`),
+    );
     await expect(panel.getByText("What Claude was asked")).toBeVisible();
     await expectNoBannedWords(page, "Advisories, with a panel open");
     await shots(page, "02-advisory-panel-new-and-local-time");
@@ -198,10 +261,12 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     // (since 20 November 2026 the work groups are tabs: the parts are on the Crypto tests tab)
     await openPageGroup(page, "Checks", "Crypto tests");
     await expect(page.getByTestId("test-card")).toHaveCount(6);
-    await expect(page.getByTestId("part-section")).toHaveCount(3);          // no server change was tried: no fourth part
+    await expect(page.getByTestId("part-section")).toHaveCount(3); // no server change was tried: no fourth part
     await expect(part(page, "plan").getByRole("heading", { level: 3 })).toContainText("Test plan");
     await expect(part(page, "plan").getByTestId("part-count").first()).toHaveText("6 tests");
-    await expect(part(page, "plan").getByTestId("part-note")).toHaveText("First runs, on the version the file names: acme-sign 1.4.2.");
+    await expect(part(page, "plan").getByTestId("part-note")).toHaveText(
+      "First runs, on the version the file names: acme-sign 1.4.2.",
+    );
     // the plan is two lists; the advisory check is in the second, marked From Otto
     const lists = part(page, "plan").getByTestId("plan-list");
     await expect(lists).toHaveCount(2);
@@ -224,8 +289,10 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await expect(lists.nth(1).getByTestId("test-card")).toHaveCount(1);
     // before any retest
     await expect(part(page, "retests").getByTestId("part-count").first()).toHaveText("0 versions");
-    await expect(part(page, "retests").getByTestId("part-empty")).toHaveText("No retest yet. Retest new version reruns every test in the plan on another version.");
-    await expect(part(page, "retests").getByRole("button", { name: "Retest new version" })).toBeDisabled();   // nothing has run yet
+    await expect(part(page, "retests").getByTestId("part-empty")).toHaveText(
+      "No retest yet. Retest new version reruns every test in the plan on another version.",
+    );
+    await expect(part(page, "retests").getByRole("button", { name: "Retest new version" })).toBeDisabled(); // nothing has run yet
     await expect(part(page, "proofs").getByTestId("part-count").first()).toHaveText("0 proofs");
     // the other three groups have no parts, each on its own tab
     for (const other of ["Verification", "Migration", "Dependencies"]) {
@@ -247,17 +314,24 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
 
     // ---- the fix: the proposed change is accepted, the demo code connected, and the proof reruns every locked test
     await page.goto(`/#/a/${assessment}/fixes`);
-    const fixRow = page.getByTestId("fix-row").filter({ has: page.getByTestId("fix-proposal-mark") }).first();
+    const fixRow = page
+      .getByTestId("fix-row")
+      .filter({ has: page.getByTestId("fix-proposal-mark") })
+      .first();
     await expect(fixRow).toBeVisible();
     const fix = page.getByTestId("fix-summary");
     if ((await fix.getByTestId("fix-proposal").count()) === 0) await fixRow.click();
     await expect(fix).toContainText("Written by Otto");
     await expect(fix).toContainText("This change is a proposal. Accept it first; accepting runs nothing.");
-    await expect(fix).toContainText(/A change was written for CVE-2022-21449 \(Missing ECDSA signature range check\)\. What it would change: /);
+    await expect(fix).toContainText(
+      /A change was written for CVE-2022-21449 \(Missing ECDSA signature range check\)\. What it would change: /,
+    );
     await expect(fix.getByTestId("proposal-why")).toContainText("Why it is proposed");
     await expectNoBannedWords(page, "Fixes, with the proposed change open");
     await shots(page, "04-fixes-a-change-was-written");
-    const fixAccepted = page.waitForResponse((r) => /\/otto\/proposals\/[^/]+\/accept$/.test(new URL(r.url()).pathname) && r.request().method() === "POST");
+    const fixAccepted = page.waitForResponse(
+      (r) => /\/otto\/proposals\/[^/]+\/accept$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
+    );
     await fix.getByTestId("otto-proposal").getByTestId("proposal-accept").click();
     expect((await fixAccepted).status()).toBe(200);
     await fix.getByRole("button", { name: "Connect demo code" }).click();
@@ -269,9 +343,11 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     const proof = part(page, "proofs").getByTestId("block-section");
     await expect(proof).toHaveCount(1);
     await expect(proof.getByRole("heading", { level: 4 })).toContainText("acme-sign 1.4.3-otto (the changed code)");
-    await expect(proof.getByTestId("block-line")).toHaveText(new RegExp(`^The proof reran the plan's locked tests on the changed code\\. It started ${LOCAL_TIME.source}\\.$`));
+    await expect(proof.getByTestId("block-line")).toHaveText(
+      new RegExp(`^The proof reran the plan's locked tests on the changed code\\. It started ${LOCAL_TIME.source}\\.$`),
+    );
     await expect(proof.getByTestId("check-row")).toHaveCount(6);
-    await expect(part(page, "retests").getByTestId("check-row")).toHaveCount(0);       // a proof is not a retest
+    await expect(part(page, "retests").getByTestId("check-row")).toHaveCount(0); // a proof is not a retest
 
     // ---- Retest new version, from Checks: the same menu as on Evidence
     const retest = part(page, "retests").getByRole("button", { name: "Retest new version" });
@@ -281,7 +357,9 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await expect(menu.getByRole("menuitem")).toHaveCount(2);
     await expect(menu).toContainText("acme-sign 1.4.3");
     await shots(page, "05-checks-retest-new-version-menu", { view: true });
-    const started = page.waitForResponse((r) => /\/api\/plans\/\d+\/retest$/.test(new URL(r.url()).pathname) && r.request().method() === "POST");
+    const started = page.waitForResponse(
+      (r) => /\/api\/plans\/\d+\/retest$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
+    );
     await menu.getByRole("menuitem").filter({ hasText: "acme-sign 1.4.3" }).first().click();
     expect((await started).status()).toBe(200);
     await expect(part(page, "retests").getByTestId("retest-progress")).toContainText("Retest running");
@@ -291,9 +369,11 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     const block = part(page, "retests").getByTestId("block-section");
     await expect(block).toHaveCount(1);
     await expect(block.getByRole("heading", { level: 4 })).toContainText("acme-sign 1.4.3");
-    await expect(block.getByTestId("block-line")).toHaveText(new RegExp(`^One retest on this version\\. The newest started ${LOCAL_TIME.source}\\.$`));
+    await expect(block.getByTestId("block-line")).toHaveText(
+      new RegExp(`^One retest on this version\\. The newest started ${LOCAL_TIME.source}\\.$`),
+    );
     await expect(block.getByTestId("check-row")).toHaveCount(6, { timeout: 60_000 });
-    await expect(block.getByTestId("check-mark")).toHaveCount(2);                      // the two server tests
+    await expect(block.getByTestId("check-mark")).toHaveCount(2); // the two server tests
     await expect(block.getByTestId("check-mark").first()).toContainText("tested again as it is");
     // nothing shows twice: six cards in the plan, six rows in the proof, six in the retest
     await expect(part(page, "plan").getByTestId("test-card")).toHaveCount(6);
@@ -343,42 +423,66 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
 
     // ---- every other kind of panel: its link is there, and opens that item on a page of its own
     const kinds: Array<{ name: string; back: string; open: () => Promise<Locator>; title: RegExp }> = [
-      { name: "a claim on Import", back: "Import", title: /localhost:\d+/,
+      {
+        name: "a claim on Import",
+        back: "Import",
+        title: /localhost:\d+/,
         open: async () => {
           await page.goto(`/#/a/${assessment}/inventory/import`);
           await page.getByTestId("claim-row").first().click();
           return page.getByTestId("claim-panel");
-        } },
-      { name: "a claim on Verify", back: "Verify", title: /\S/,
+        },
+      },
+      {
+        name: "a claim on Verify",
+        back: "Verify",
+        title: /\S/,
         open: async () => {
           await page.goto(`/#/a/${assessment}/inventory/verify`);
           await page.getByTestId("result-row").first().click();
           return page.getByTestId("detail-panel");
-        } },
-      { name: "an advisory", back: "Advisories", title: new RegExp(RANGE),
+        },
+      },
+      {
+        name: "an advisory",
+        back: "Advisories",
+        title: new RegExp(RANGE),
         open: async () => {
           await page.goto(`/#/a/${assessment}/advisories`);
           await advisoryRow(page, "CVE-2022-21449").click();
           return page.getByTestId("detail-panel");
-        } },
-      { name: "a result on Evidence", back: "Evidence", title: /\S/,
+        },
+      },
+      {
+        name: "a result on Evidence",
+        back: "Evidence",
+        title: /\S/,
         open: async () => {
           await page.goto(`/#/a/${assessment}/evidence?group=encryption`);
           await page.getByTestId("evidence-row").first().click();
           return page.getByTestId("detail-panel");
-        } },
-      { name: "a fix", back: "Fixes", title: /\S/,
+        },
+      },
+      {
+        name: "a fix",
+        back: "Fixes",
+        title: /\S/,
         open: async () => {
           await page.goto(`/#/a/${assessment}/fixes`);
           await expect(page.getByTestId("fix-summary")).toBeVisible();
           return page.getByTestId("detail-panel");
-        } },
-      { name: "a system", back: "Systems", title: /\S/,
+        },
+      },
+      {
+        name: "a system",
+        back: "Systems",
+        title: /\S/,
         open: async () => {
           await page.goto(`/#/a/${assessment}/migration/systems`);
           await expect(page.getByTestId("detail-panel")).toBeVisible();
           return page.getByTestId("detail-panel");
-        } },
+        },
+      },
     ];
     for (const kind of kinds) {
       const opened = await kind.open();
@@ -387,7 +491,9 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
       expect(heading, kind.name).toMatch(kind.title);
       const other = await openInNewTab(page, opened, kind.back);
       // the same item, with the page to itself (an advisory's heading also holds its tag)
-      await expect(other.getByTestId("item-page").getByRole("heading", { level: 1 }), kind.name).toContainText(heading.split("\n")[0]);
+      await expect(other.getByTestId("item-page").getByRole("heading", { level: 1 }), kind.name).toContainText(
+        heading.split("\n")[0],
+      );
       expect(await layoutProblems(other), `${kind.name} on a page of its own`).toEqual([]);
       if (kind.name === "a fix") await shots(other, "10-a-fix-on-a-page-of-its-own");
       if (kind.name === "an advisory") {
@@ -400,12 +506,17 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
 
     // ================================================================ fix 6: files keep UTC, whatever the browser's zone
     await stepLink(page, "Evidence").click();
-    const created = page.waitForResponse((r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST");
+    const created = page.waitForResponse(
+      (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
+    );
     await page.getByRole("button", { name: "Download evidence" }).click();
     const info = await (await created).json();
     const evidence = (await (await page.request.get(info.json.url)).body()).toString("utf-8");
     const report = await (await page.request.get(info.html.url)).text();
-    for (const [name, text] of [["the evidence file", evidence], ["the report", report]] as const) {
+    for (const [name, text] of [
+      ["the evidence file", evidence],
+      ["the report", report],
+    ] as const) {
       expect(LOCAL_TIME.test(text), `${name} holds a time in the viewer's zone`).toBe(false);
       expect(text.includes("[[time:"), `${name} holds a mark`).toBe(false);
     }
@@ -426,9 +537,13 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await installPack(page, "2026.11.2");
     await page.goto(`/#/a/${assessment}/advisories`);
     await expect(page.getByTestId("advisory-row")).toHaveCount(6);
-    for (const id of ["CVE-2022-21449", "CVE-2019-14859", "CVE-2019-14853"]) await expect(advisoryRow(page, id).getByTestId("advisory-new"), id).toHaveCount(0);
+    for (const id of ["CVE-2022-21449", "CVE-2019-14859", "CVE-2019-14853"])
+      await expect(advisoryRow(page, id).getByTestId("advisory-new"), id).toHaveCount(0);
     for (const id of ["CVE-2024-42460", "CVE-2024-42461", "CVE-2024-42459"]) {
-      await expect(advisoryRow(page, id).getByTestId("advisory-new"), id).toHaveAttribute("title", "Arrived with test pack 2026.11.2");
+      await expect(advisoryRow(page, id).getByTestId("advisory-new"), id).toHaveAttribute(
+        "title",
+        "Arrived with test pack 2026.11.2",
+      );
     }
     expect(await layoutProblems(page), "Advisories with two packs").toEqual([]);
     await expectNoBannedWords(page, "Advisories with two packs");

@@ -11,6 +11,7 @@ Two things make that true, and both are checked here without Docker and without 
 The script's steps 1 to 3 are run for real, in a folder of their own, with pretend Pythons (small scripts that
 answer the few questions the script asks). One slow test does the same with the real Python.
 """
+
 import json
 import os
 import re
@@ -34,6 +35,7 @@ OTTO_PERMISSION = {"codespaces": {"repositories": {"isogeny-labs/otto": {"permis
 
 
 # ---------------------------------------------------------------- .devcontainer/devcontainer.json
+
 
 def devcontainer() -> dict:
     """The file is JSON with // comment lines. They are left out before it is read."""
@@ -61,7 +63,7 @@ def test_the_image_is_the_official_python_312_image_pinned_by_its_fingerprint():
 def test_the_three_features_are_there_each_pinned_by_its_fingerprint():
     assert {"node", "docker-in-docker", "git-lfs"} <= set(features())
     references = list(devcontainer()["features"])
-    assert len(features()) == len(references)   # no feature is named twice
+    assert len(features()) == len(references)  # no feature is named twice
     # four parts, four different fingerprints (one pasted twice would pin the wrong thing)
     pins = re.findall(FINGERPRINT, " ".join([devcontainer()["image"], *references]))
     assert len(pins) == len(set(pins)) == len(references) + 1
@@ -87,7 +89,9 @@ def test_nothing_in_the_file_comes_from_a_registry_without_a_fingerprint():
         elif isinstance(value, str):
             yield value
 
-    from_a_registry = [text for text in texts(devcontainer()) if re.match(r"(mcr\.microsoft\.com|ghcr\.io|docker\.io)/", text)]
+    from_a_registry = [
+        text for text in texts(devcontainer()) if re.match(r"(mcr\.microsoft\.com|ghcr\.io|docker\.io)/", text)
+    ]
     assert len(from_a_registry) >= 4
     for text in from_a_registry:
         assert re.search("@" + FINGERPRINT + "$", text), f"not pinned by its fingerprint: {text}"
@@ -97,7 +101,15 @@ def test_nothing_in_the_file_comes_from_a_registry_without_a_fingerprint():
 # ---------------------------------------------------------------- ./run-demo.sh, steps 1 to 3
 
 BASH = shutil.which("bash")
-TOOLS = ("dirname", "grep", "rm", "touch", "mkdir", "cat", "chmod")   # every program steps 1 to 3 and the pretend Pythons start
+TOOLS = (
+    "dirname",
+    "grep",
+    "rm",
+    "touch",
+    "mkdir",
+    "cat",
+    "chmod",
+)  # every program steps 1 to 3 and the pretend Pythons start
 FIXED_PLACES = {"/usr/local/bin/python3.12": "usr-local-bin", "/usr/bin/python3.12": "usr-bin"}
 HALF_MADE = "The virtual environment was not created successfully because ensurepip is not available."
 
@@ -105,10 +117,12 @@ HALF_MADE = "The virtual environment was not created successfully because ensure
 def environment_python(log: Path, name: str, pip: bool) -> str:
     """The Python inside a pretend environment. Its pip answers, or (half made) there is no pip."""
     answer = "exit 0" if pip else 'echo "No module named pip" >&2; exit 1'
-    return (f"#!{BASH}\n"
-            f'echo "environment of {name}: $*" >> {shlex.quote(str(log))}\n'
-            f'case "$1 $2" in "-m pip") {answer} ;; esac\n'
-            'echo "pretend environment: a question the test did not expect: $*" >&2; exit 97\n')
+    return (
+        f"#!{BASH}\n"
+        f'echo "environment of {name}: $*" >> {shlex.quote(str(log))}\n'
+        f'case "$1 $2" in "-m pip") {answer} ;; esac\n'
+        'echo "pretend environment: a question the test did not expect: $*" >&2; exit 97\n'
+    )
 
 
 def pretend_python(log: Path, name: str, version: str, parts: bool, makes: str) -> str:
@@ -118,19 +132,21 @@ def pretend_python(log: Path, name: str, version: str, parts: bool, makes: str) 
     with a Python and no pip, and an error) or "half, quietly" (the same folder, and it says it worked)."""
     inner = environment_python(log, name, pip=makes == "whole")
     ending = f"echo {shlex.quote(HALF_MADE)} >&2; exit 1" if makes == "half" else "exit 0"
-    return (f"#!{BASH}\n"
-            f'echo "{name}: $*" >> {shlex.quote(str(log))}\n'
-            'case "$1 $2" in\n'
-            f'  "-c "*version_info*) [ "{version}" = "3.12" ]; exit ;;\n'
-            f'  "-c "*ensurepip*) [ "{"yes" if parts else "no"}" = "yes" ]; exit ;;\n'
-            '  "-m venv") ;;\n'
-            '  *) echo "pretend Python: a question the test did not expect: $*" >&2; exit 97 ;;\n'
-            'esac\n'
-            'mkdir -p "$3/bin"\n'
-            f'echo "{name}" > "$3/made-by"\n'
-            f'cat > "$3/bin/python" <<\'INNER\'\n{inner}INNER\n'
-            'chmod +x "$3/bin/python"\n'
-            f"{ending}\n")
+    return (
+        f"#!{BASH}\n"
+        f'echo "{name}: $*" >> {shlex.quote(str(log))}\n'
+        'case "$1 $2" in\n'
+        f'  "-c "*version_info*) [ "{version}" = "3.12" ]; exit ;;\n'
+        f'  "-c "*ensurepip*) [ "{"yes" if parts else "no"}" = "yes" ]; exit ;;\n'
+        '  "-m venv") ;;\n'
+        '  *) echo "pretend Python: a question the test did not expect: $*" >&2; exit 97 ;;\n'
+        "esac\n"
+        'mkdir -p "$3/bin"\n'
+        f'echo "{name}" > "$3/made-by"\n'
+        f"cat > \"$3/bin/python\" <<'INNER'\n{inner}INNER\n"
+        'chmod +x "$3/bin/python"\n'
+        f"{ending}\n"
+    )
 
 
 def program(path: Path, text: str) -> None:
@@ -166,8 +182,16 @@ class Stage:
             assert real, f"this computer has no {tool}"
             (folder / "tools" / tool).symlink_to(real)
 
-    def python(self, place: str, name: str, *, version: str = "3.12", parts: bool = True, makes: str = "whole",
-               called: str = "python3.12") -> None:
+    def python(
+        self,
+        place: str,
+        name: str,
+        *,
+        version: str = "3.12",
+        parts: bool = True,
+        makes: str = "whole",
+        called: str = "python3.12",
+    ) -> None:
         """Put a pretend Python into one of the folders: "usr-bin", "usr-local-bin" or any other name."""
         program(self.folder / place / called, pretend_python(self.log, name, version, parts, makes))
 
@@ -176,11 +200,11 @@ class Stage:
         (self.venv / "bin").mkdir(parents=True)
         (self.venv / "left-from-before").write_text("x", encoding="utf-8")
         (self.venv / ".requirements-installed").write_text("", encoding="utf-8")
-        if how == "no pip":                       # Ubuntu's Python without its venv package leaves exactly this
+        if how == "no pip":  # Ubuntu's Python without its venv package leaves exactly this
             program(self.venv / "bin" / "python", environment_python(self.log, "the half-made one", pip=False))
         elif how == "its Python does not start":
             program(self.venv / "bin" / "python", f"#!{BASH}\nexit 1\n")
-        elif how == "its Python is gone":         # for example after the computer under it was rebuilt
+        elif how == "its Python is gone":  # for example after the computer under it was rebuilt
             (self.venv / "bin" / "python").symlink_to(self.folder / "was-here-once" / "python3.12")
         else:
             assert how == "no Python at all"
@@ -193,11 +217,21 @@ class Stage:
 
     def run(self, *path: str, codespace: bool = False) -> subprocess.CompletedProcess:
         """Run steps 1 to 3 with these folders on the PATH, in this order (and nothing of the computer's own)."""
-        env = {"PATH": os.pathsep.join(str(self.folder / place) for place in (*path, "tools")), "HOME": str(self.folder)}
+        env = {
+            "PATH": os.pathsep.join(str(self.folder / place) for place in (*path, "tools")),
+            "HOME": str(self.folder),
+        }
         if codespace:
             env["CODESPACES"] = "true"
-        return subprocess.run([BASH, str(self.root / "run-demo.sh")], env=env, cwd=self.folder, capture_output=True,
-                              text=True, timeout=60, stdin=subprocess.DEVNULL)
+        return subprocess.run(
+            [BASH, str(self.root / "run-demo.sh")],
+            env=env,
+            cwd=self.folder,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            stdin=subprocess.DEVNULL,
+        )
 
     def asked(self) -> list[str]:
         return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
@@ -227,10 +261,10 @@ def stopped_with_one_plain_sentence(done: subprocess.CompletedProcess) -> str:
 
 def test_the_script_asks_every_python_whether_it_can_make_the_environment():
     lines = SCRIPT.read_text(encoding="utf-8").splitlines()
-    text = "\n".join(line for line in lines if not line.lstrip().startswith("#"))   # the commands, without the comments
-    assert text.count("-m venv") == 1                   # one place makes the environment ...
-    assert "import venv, ensurepip" in text             # ... and a Python is asked first whether it can
-    assert not re.search(r"^\s*PY=[\"']?/", text, re.MULTILINE)   # no Python is picked by its place alone
+    text = "\n".join(line for line in lines if not line.lstrip().startswith("#"))  # the commands, without the comments
+    assert text.count("-m venv") == 1  # one place makes the environment ...
+    assert "import venv, ensurepip" in text  # ... and a Python is asked first whether it can
+    assert not re.search(r"^\s*PY=[\"']?/", text, re.MULTILINE)  # no Python is picked by its place alone
 
 
 def test_a_python_312_that_cannot_make_the_environment_is_passed_over(stage):
@@ -251,7 +285,7 @@ def test_a_python_312_that_cannot_make_the_environment_is_passed_over(stage):
 def test_the_order_on_the_path_does_not_let_a_python_that_cannot_win(stage):
     stage.python("usr-bin", "the system one", parts=False, makes="half")
     stage.python("elsewhere", "the good one")
-    done = stage.run("usr-bin", "elsewhere")            # the one that cannot comes first
+    done = stage.run("usr-bin", "elsewhere")  # the one that cannot comes first
     assert done.returncode == 0, done.stderr
     assert stage.made_by() == "the good one"
     assert not any(line.startswith("the system one: -m venv") for line in stage.asked())
@@ -268,7 +302,7 @@ def test_python3_counts_only_when_it_is_312(stage):
 
 def test_the_two_fixed_places_are_looked_at_when_they_are_not_on_the_path(stage):
     stage.python("usr-local-bin", "the good one")
-    done = stage.run()                                  # a PATH with no Python on it at all
+    done = stage.run()  # a PATH with no Python on it at all
     assert done.returncode == 0, done.stderr
     assert stage.made_by() == "the good one"
 
@@ -280,9 +314,9 @@ def test_a_half_made_environment_is_made_again(stage, how):
     done = stage.run("usr-bin")
     assert done.returncode == 0, done.stderr
     assert stage.made_by() == "the good one"
-    assert not (stage.venv / "left-from-before").exists()       # thrown away, not patched
-    assert "again" in done.stdout                               # and the script says it is doing it again
-    assert len(stage.installs()) == 1                           # the packages are installed again too
+    assert not (stage.venv / "left-from-before").exists()  # thrown away, not patched
+    assert "again" in done.stdout  # and the script says it is doing it again
+    assert len(stage.installs()) == 1  # the packages are installed again too
 
 
 def test_a_half_made_environment_stays_when_no_python_can_make_it_again(stage):
@@ -302,12 +336,12 @@ def test_a_whole_environment_is_left_alone(stage):
     assert done.returncode == 0, done.stderr
     assert (stage.venv / "left-from-before").exists()
     assert stage.made_by() is None and stage.installs() == []
-    assert not any(line.startswith("the good one: ") for line in stage.asked())    # no other Python is even asked
+    assert not any(line.startswith("the good one: ") for line in stage.asked())  # no other Python is even asked
 
 
 def test_a_whole_environment_needs_no_other_python(stage):
     stage.whole()
-    done = stage.run()                                  # no Python 3.12 anywhere else
+    done = stage.run()  # no Python 3.12 anywhere else
     assert done.returncode == 0, done.stderr
     assert (stage.venv / "left-from-before").exists()
 
@@ -318,7 +352,7 @@ def test_a_try_that_fails_leaves_nothing_behind(stage, makes):
     stage.python("usr-bin", "the one that fails", makes=makes)
     done = stage.run("usr-bin")
     assert done.returncode == 1
-    assert not stage.venv.exists()                      # the next run starts clean
+    assert not stage.venv.exists()  # the next run starts clean
     said = [line for line in done.stderr.splitlines() if line.strip()]
     assert said[-1].startswith("Could not start: ") and said[-1].endswith("then run ./run-demo.sh again.")
     assert "backend/.venv" in said[-1]
@@ -348,7 +382,7 @@ def test_with_only_a_python_312_that_cannot_it_stops_with_one_plain_sentence(sta
     stage.python("newer", "python 3.14", version="3.14", called="python3")
     sentence = stopped_with_one_plain_sentence(stage.run("newer", "usr-bin"))
     assert "Python 3.12 is installed" in sentence and "python3.12-venv" in sentence
-    assert not stage.venv.exists()                      # nothing half made is left for the next run to trip over
+    assert not stage.venv.exists()  # nothing half made is left for the next run to trip over
     assert not any("-m venv" in line for line in stage.asked())
 
 
@@ -356,22 +390,23 @@ def test_in_a_codespace_the_sentence_says_what_to_do_there(stage):
     stage.python("usr-bin", "the system one", parts=False, makes="half")
     sentence = stopped_with_one_plain_sentence(stage.run("usr-bin", codespace=True))
     assert "Codespace" in sentence and "README.md" in sentence
-    assert "apt install" not in sentence                # that advice is for a computer of one's own
+    assert "apt install" not in sentence  # that advice is for a computer of one's own
     assert not stage.venv.exists()
 
 
 @pytest.mark.slow
 def test_with_the_real_python_the_environment_is_really_made(stage):
     """The pretend Pythons above answer the way Python does. This one asks the real Python, which takes a few seconds."""
-    real = os.path.realpath(sys.executable)             # the Python under the one running these tests
+    real = os.path.realpath(sys.executable)  # the Python under the one running these tests
     if subprocess.run([real, "-c", "import venv, ensurepip"], capture_output=True, timeout=60).returncode != 0:
         pytest.skip("the Python under this test run has no venv and ensurepip, so it can't make an environment")
     program(stage.folder / "real" / "python3.12", f'#!{BASH}\nexec {shlex.quote(real)} "$@"\n')
     stage.half_made("no pip")
     done = stage.run("real")
     assert done.returncode == 0, done.stderr
-    pip = subprocess.run([str(stage.venv / "bin" / "python"), "-m", "pip", "--version"], capture_output=True, text=True,
-                         timeout=60)
+    pip = subprocess.run(
+        [str(stage.venv / "bin" / "python"), "-m", "pip", "--version"], capture_output=True, text=True, timeout=60
+    )
     assert pip.returncode == 0 and pip.stdout.startswith("pip ")
     assert not (stage.venv / "left-from-before").exists()
     assert (stage.venv / ".requirements-installed").exists()

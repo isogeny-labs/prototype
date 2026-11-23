@@ -11,6 +11,7 @@ A second tick, "Design and prove tests by itself", counts only while the switch 
 spending limits belong to a research run started with the switch on: the most for one run, and the most for a day
 (the last 24 hours, added up from the runs' own records). Turning the switch off ends a research run that is going.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -26,9 +27,9 @@ from app.present import sandbox as present_sandbox
 
 ON_KEY, BY_ITSELF_KEY = "sandbox_on", "sandbox_by_itself"
 RUN_LIMIT_KEY, DAY_LIMIT_KEY = "sandbox_run_limit_nano", "sandbox_day_limit_nano"
-DEFAULT_RUN_LIMIT_NANO = 5 * model.NANO          # Kevin's decision 4: 5 US dollars for one sandbox research run
-DEFAULT_DAY_LIMIT_NANO = 10 * model.NANO         # ... and 10 for a day
-LEAST_RUN_NANO = model.NANO // 100               # less than one cent left of the day's limit starts no run that asks Claude
+DEFAULT_RUN_LIMIT_NANO = 5 * model.NANO  # Kevin's decision 4: 5 US dollars for one sandbox research run
+DEFAULT_DAY_LIMIT_NANO = 10 * model.NANO  # ... and 10 for a day
+LEAST_RUN_NANO = model.NANO // 100  # less than one cent left of the day's limit starts no run that asks Claude
 MAX_LIMIT_NANO = 1000 * model.NANO
 DAY = timedelta(hours=24)
 
@@ -59,7 +60,7 @@ class SandboxMixin:
 
     def sandbox_on(self) -> bool:
         """Is Sandbox research on, and may it be? The one question every other module asks."""
-        if not self.settings.sandbox_research:          # a quick no before the database is read
+        if not self.settings.sandbox_research:  # a quick no before the database is read
             return False
         with self.db() as db:
             stored = _get(db, ON_KEY) == "on"
@@ -118,11 +119,18 @@ class SandboxMixin:
         started and what they spent, and whether a run starts by itself."""
         since = (now or datetime.now(timezone.utc)) - DAY
         with self.db() as db:
-            rows = db.scalars(select(OttoResearchRow).where(OttoResearchRow.kind == "started").order_by(OttoResearchRow.id)).all()
+            rows = db.scalars(
+                select(OttoResearchRow).where(OttoResearchRow.kind == "started").order_by(OttoResearchRow.id)
+            ).all()
         recent = [r for r in rows if _when(r.at) >= since]
         _, day_limit = self.sandbox_limits()
-        return present_sandbox.research_line(runs=len(recent), by_itself=self.sandbox_by_itself(), spent_nano=self.sandbox_spent_today(now),
-                                             day_limit_nano=day_limit, reached=self.sandbox_day_reached(now) if self.otto_live_ready() else None)
+        return present_sandbox.research_line(
+            runs=len(recent),
+            by_itself=self.sandbox_by_itself(),
+            spent_nano=self.sandbox_spent_today(now),
+            day_limit_nano=day_limit,
+            reached=self.sandbox_day_reached(now) if self.otto_live_ready() else None,
+        )
 
     def sandbox_day_reached(self, now: datetime | None = None) -> str | None:
         """The plain sentence when nothing is left of the day's limit for a run that asks Claude; None while a run can
@@ -133,7 +141,9 @@ class SandboxMixin:
         with self.db() as db:
             rows = db.scalars(select(OttoResearchRow).order_by(OttoResearchRow.id)).all()
         counted = [_when(r.at) for r in rows if r.kind == "started" and r.live and _when(r.at) >= since]
-        return present_sandbox.day_reached((min(counted) + DAY).isoformat(timespec="seconds").replace("+00:00", "Z") if counted else None)
+        return present_sandbox.day_reached(
+            (min(counted) + DAY).isoformat(timespec="seconds").replace("+00:00", "Z") if counted else None
+        )
 
     # ---------------------------------------------------------------- Settings
 
@@ -144,12 +154,23 @@ class SandboxMixin:
             ticked = _get(db, BY_ITSELF_KEY) == "on"
         live_ready = self.otto_live_ready()
         run_limit, day_limit = self.sandbox_limits()
-        return present_sandbox.section(on=on, by_itself=bool(on and ticked and live_ready), blocked=blocked, live_ready=live_ready,
-                                       run_limit_nano=run_limit, day_limit_nano=day_limit,
-                                       spent_nano=self.sandbox_spent_today() if on else 0)
+        return present_sandbox.section(
+            on=on,
+            by_itself=bool(on and ticked and live_ready),
+            blocked=blocked,
+            live_ready=live_ready,
+            run_limit_nano=run_limit,
+            day_limit_nano=day_limit,
+            spent_nano=self.sandbox_spent_today() if on else 0,
+        )
 
-    def set_sandbox(self, on: bool | None = None, by_itself: bool | None = None, run_limit: str | None = None,
-                    day_limit: str | None = None) -> dict:
+    def set_sandbox(
+        self,
+        on: bool | None = None,
+        by_itself: bool | None = None,
+        run_limit: str | None = None,
+        day_limit: str | None = None,
+    ) -> dict:
         """Turn the switch or its tick, and/or save a spending limit (US dollars). Turning the switch on is refused
         with the plain reasons where it can't be on; turning it off ends a research run that is going."""
         if on:
@@ -170,12 +191,12 @@ class SandboxMixin:
             if on is not None:
                 _set(db, ON_KEY, "on" if on else "off")
                 if not on:
-                    _set(db, BY_ITSELF_KEY, "off")           # the tick never outlives the switch
+                    _set(db, BY_ITSELF_KEY, "off")  # the tick never outlives the switch
             if by_itself is not None:
                 _set(db, BY_ITSELF_KEY, "on" if by_itself else "off")
             db.commit()
         if on is False:
-            self.stop_research()                             # nothing of the sandbox goes on with the switch off
+            self.stop_research()  # nothing of the sandbox goes on with the switch off
         if on is not None:
             self.sandbox_refresh()
         return self.otto_view()

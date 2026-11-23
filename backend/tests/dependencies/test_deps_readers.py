@@ -1,4 +1,5 @@
 """Phase 4d: the two dependency-list readers (CycloneDX JSON 1.5/1.6, SPDX JSON 2.3), their limits and refusals."""
+
 import json
 from pathlib import Path
 
@@ -41,9 +42,15 @@ def test_cyclonedx_other_versions_are_refused_in_one_sentence(version):
 
 
 def test_dependencies_of_dependencies_and_the_nearest_top_entry():
-    data = cdx([lib("app", "shop", kind="application"), lib("py", "python", "3.12.3"), lib("ssl", "openssl", "3.0.22"),
-                lib("z", "zlib", "1.3")],
-               [{"ref": "app", "dependsOn": ["py"]}, {"ref": "py", "dependsOn": ["ssl"]}, {"ref": "ssl", "dependsOn": ["z"]}])
+    data = cdx(
+        [
+            lib("app", "shop", kind="application"),
+            lib("py", "python", "3.12.3"),
+            lib("ssl", "openssl", "3.0.22"),
+            lib("z", "zlib", "1.3"),
+        ],
+        [{"ref": "app", "dependsOn": ["py"]}, {"ref": "py", "dependsOn": ["ssl"]}, {"ref": "ssl", "dependsOn": ["z"]}],
+    )
     tree = build_tree(read_dependency_list(data), [])
     by = {r.name: r for r in tree.rows}
     assert [t.name for t in tree.tops] == ["shop"]
@@ -52,18 +59,30 @@ def test_dependencies_of_dependencies_and_the_nearest_top_entry():
 
 
 def test_a_loop_ends_and_every_row_is_listed_once():
-    data = cdx([lib("app", "shop", kind="application"), lib("a", "a"), lib("b", "b")],
-               [{"ref": "app", "dependsOn": ["a"]}, {"ref": "a", "dependsOn": ["b"]}, {"ref": "b", "dependsOn": ["a", "b"]}])
+    data = cdx(
+        [lib("app", "shop", kind="application"), lib("a", "a"), lib("b", "b")],
+        [{"ref": "app", "dependsOn": ["a"]}, {"ref": "a", "dependsOn": ["b"]}, {"ref": "b", "dependsOn": ["a", "b"]}],
+    )
     tree = build_tree(read_dependency_list(data), [])
     assert sorted(r.name for r in tree.rows) == ["a", "b"] and all(r.owner == "app" for r in tree.rows)
 
 
 def test_nested_components_and_a_tie_goes_to_the_first_top_entry():
-    data = cdx([{"bom-ref": "one", "type": "application", "name": "one", "version": "1", "components": [lib("s", "shared")]},
-                lib("two", "two", kind="application")],
-               [{"ref": "two", "dependsOn": ["s"]}])
+    data = cdx(
+        [
+            {
+                "bom-ref": "one",
+                "type": "application",
+                "name": "one",
+                "version": "1",
+                "components": [lib("s", "shared")],
+            },
+            lib("two", "two", kind="application"),
+        ],
+        [{"ref": "two", "dependsOn": ["s"]}],
+    )
     tree = build_tree(read_dependency_list(data), [])
-    assert [r.owner for r in tree.rows] == ["one"]        # both at distance 1: the one that comes first in the file
+    assert [r.owner for r in tree.rows] == ["one"]  # both at distance 1: the one that comes first in the file
 
 
 def test_a_row_no_top_entry_reaches_is_listed_on_its_own():
@@ -72,29 +91,62 @@ def test_a_row_no_top_entry_reaches_is_listed_on_its_own():
 
 
 def test_a_component_equal_to_a_signing_program_of_the_file_is_a_top_entry():
-    tree = build_tree(read_dependency_list(cdx([lib("p", "acme-sign", "1.4.2"), lib("e", "python-ecdsa", "0.13.2")],
-                                               [{"ref": "p", "dependsOn": ["e"]}])), [("acme-sign", "1.4.2")])
+    tree = build_tree(
+        read_dependency_list(
+            cdx(
+                [lib("p", "acme-sign", "1.4.2"), lib("e", "python-ecdsa", "0.13.2")], [{"ref": "p", "dependsOn": ["e"]}]
+            )
+        ),
+        [("acme-sign", "1.4.2")],
+    )
     assert [t.name for t in tree.tops] == ["acme-sign"] and tree.tops[0].program == ("acme-sign", "1.4.2")
 
 
 def test_not_libraries_are_counted_not_looked_up():
-    data = cdx([lib("os", "debian", "12", kind="operating-system"), lib("f", "/etc/ssl/openssl.cnf", None, kind="file"), lib("a", "zlib")])
+    data = cdx(
+        [
+            lib("os", "debian", "12", kind="operating-system"),
+            lib("f", "/etc/ssl/openssl.cnf", None, kind="file"),
+            lib("a", "zlib"),
+        ]
+    )
     tree = build_tree(read_dependency_list(data), [])
     assert [r.name for r in tree.rows] == ["zlib"] and tree.not_libraries == 2
 
 
 def test_spdx_reads_packages_purls_and_relationships_both_ways():
-    doc = {"spdxVersion": "SPDX-2.3", "SPDXID": "SPDXRef-DOCUMENT", "packages": [
-        {"SPDXID": "SPDXRef-app", "name": "shop", "versionInfo": "2.0", "primaryPackagePurpose": "APPLICATION"},
-        {"SPDXID": "SPDXRef-py", "name": "python", "versionInfo": "3.12.3"},
-        {"SPDXID": "SPDXRef-ssl", "name": "openssl", "versionInfo": "3.0.22",
-         "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": "pkg:generic/openssl@3.0.22"}]}],
-        "relationships": [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-app"},
-                          {"spdxElementId": "SPDXRef-app", "relationshipType": "DEPENDS_ON", "relatedSpdxElement": "SPDXRef-py"},
-                          {"spdxElementId": "SPDXRef-ssl", "relationshipType": "DEPENDENCY_OF", "relatedSpdxElement": "SPDXRef-py"}]}
+    doc = {
+        "spdxVersion": "SPDX-2.3",
+        "SPDXID": "SPDXRef-DOCUMENT",
+        "packages": [
+            {"SPDXID": "SPDXRef-app", "name": "shop", "versionInfo": "2.0", "primaryPackagePurpose": "APPLICATION"},
+            {"SPDXID": "SPDXRef-py", "name": "python", "versionInfo": "3.12.3"},
+            {
+                "SPDXID": "SPDXRef-ssl",
+                "name": "openssl",
+                "versionInfo": "3.0.22",
+                "externalRefs": [
+                    {
+                        "referenceCategory": "PACKAGE-MANAGER",
+                        "referenceType": "purl",
+                        "referenceLocator": "pkg:generic/openssl@3.0.22",
+                    }
+                ],
+            },
+        ],
+        "relationships": [
+            {"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-app"},
+            {"spdxElementId": "SPDXRef-app", "relationshipType": "DEPENDS_ON", "relatedSpdxElement": "SPDXRef-py"},
+            {"spdxElementId": "SPDXRef-ssl", "relationshipType": "DEPENDENCY_OF", "relatedSpdxElement": "SPDXRef-py"},
+        ],
+    }
     dl = read_dependency_list(json.dumps(doc).encode())
     tree = build_tree(dl, [])
-    assert dl.format == "SPDX 2.3" and dl.described == "SPDXRef-app" and dl.components["SPDXRef-ssl"].purl == "pkg:generic/openssl@3.0.22"
+    assert (
+        dl.format == "SPDX 2.3"
+        and dl.described == "SPDXRef-app"
+        and dl.components["SPDXRef-ssl"].purl == "pkg:generic/openssl@3.0.22"
+    )
     assert {r.name: r.via for r in tree.rows} == {"python": [], "openssl": ["python 3.12.3"]}
 
 
@@ -107,7 +159,10 @@ def test_the_demo_list_and_its_spdx_copy_give_the_same_tree():
     def shape(path):
         tree = build_tree(read_dependency_list(path.read_bytes()), [("acme-sign", "1.4.2")])
         tops = {t.key: f"{t.name} {t.version}" for t in tree.tops}
-        return [f"{t.name} {t.version}" for t in tree.tops], [(r.name, r.version, r.purl, tops[r.owner], r.via) for r in tree.rows]
+        return [f"{t.name} {t.version}" for t in tree.tops], [
+            (r.name, r.version, r.purl, tops[r.owner], r.via) for r in tree.rows
+        ]
+
     assert shape(DEMO / "dependencies-demo.cdx.json") == shape(DEMO / "dependencies-demo.spdx.json")
     tops, rows = shape(DEMO / "dependencies-demo.cdx.json")
     assert tops == ["acme-sign 1.4.2", "acme-pay-server 1.0.0", "acme-ledger 5.1.0"] and len(rows) == 10
@@ -126,22 +181,33 @@ def test_what_is_stored_rebuilds_the_same_tree():
     assert build_tree(again, []) == build_tree(dl, [])
 
 
-@pytest.mark.parametrize("name, words", [("not-json.json", "This file is not valid JSON."),
-                                         ("not-a-dependency-list.json", "This JSON file is neither CycloneDX nor SPDX."),
-                                         ("empty.json", "This file is empty.")])
+@pytest.mark.parametrize(
+    "name, words",
+    [
+        ("not-json.json", "This file is not valid JSON."),
+        ("not-a-dependency-list.json", "This JSON file is neither CycloneDX nor SPDX."),
+        ("empty.json", "This file is empty."),
+    ],
+)
 def test_the_broken_files_are_refused_with_one_plain_sentence(name, words):
     with pytest.raises(ImportFileError) as err:
         read_dependency_list((DEMO / "dependencies-broken" / name).read_bytes())
     assert str(err.value) == f"{words} {READ}"
 
 
-@pytest.mark.parametrize("data, words", [
-    (b"[1, 2]", "not a dependency list"),
-    (json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6", "components": {"a": 1}}).encode(), '"components" must be a list'),
-    (cdx([lib("app", "shop", kind="application")]), "names no libraries"),
-    (b"\xff\xfe\x00", "not valid JSON"),
-    (b"[" * 100_000, "not valid JSON"),
-])
+@pytest.mark.parametrize(
+    "data, words",
+    [
+        (b"[1, 2]", "not a dependency list"),
+        (
+            json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6", "components": {"a": 1}}).encode(),
+            '"components" must be a list',
+        ),
+        (cdx([lib("app", "shop", kind="application")]), "names no libraries"),
+        (b"\xff\xfe\x00", "not valid JSON"),
+        (b"[" * 100_000, "not valid JSON"),
+    ],
+)
 def test_other_refusals(data, words):
     with pytest.raises(ImportFileError, match=words):
         read_dependency_list(data)

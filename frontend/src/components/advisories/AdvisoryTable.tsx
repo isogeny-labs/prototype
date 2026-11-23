@@ -39,7 +39,16 @@ function Name({ row }: { row: AdvisoryRow }) {
 
 /** Whether the advisory has a test: the view's label and tone, with the view's reason on hover (and in the panel). */
 function TestChip({ row }: { row: AdvisoryRow }) {
-  return <StatusChip label={row.test.label} tone={row.test.tone} size="sm" wrap testId="advisory-test" title={row.test.reason} />;
+  return (
+    <StatusChip
+      label={row.test.label}
+      tone={row.test.tone}
+      size="sm"
+      wrap
+      testId="advisory-test"
+      title={row.test.reason}
+    />
+  );
 }
 
 /** Where Otto's proposed check stands, exactly as the view words and tones it: "Proposed", "Added" or
@@ -50,7 +59,10 @@ function TestChip({ row }: { row: AdvisoryRow }) {
 function ProposalCell({ row }: { row: AdvisoryRow }) {
   return (
     <>
-      <span data-testid="advisory-proposal-box" className="block max-w-[7.75rem] break-words [&>span]:max-w-full [&>span>span:last-child]:min-w-0">
+      <span
+        data-testid="advisory-proposal-box"
+        className="block max-w-[7.75rem] break-words [&>span]:max-w-full [&>span>span:last-child]:min-w-0"
+      >
         <StatusChip label={row.proposal.label} tone={row.proposal.tone} size="sm" wrap testId="advisory-proposal" />
       </span>
       {row.proposal.text ? (
@@ -102,8 +114,18 @@ export function AdvisoryTable({
   const name = (i: number) => names[i] ?? "";
   const columns: Column<AdvisoryRow>[] = [
     { key: "advisory", header: name(0), minWidth: 150, render: (r) => <Name row={r} /> },
-    { key: "published", header: name(1), minWidth: 120, render: (r) => <span className="whitespace-nowrap text-xs text-slate-300">{r.published_text}</span> },
-    { key: "fits", header: name(2), minWidth: 112, render: (r) => <span className="text-xs text-slate-300">{r.fits_text}</span> },
+    {
+      key: "published",
+      header: name(1),
+      minWidth: 120,
+      render: (r) => <span className="whitespace-nowrap text-xs text-slate-300">{r.published_text}</span>,
+    },
+    {
+      key: "fits",
+      header: name(2),
+      minWidth: 112,
+      render: (r) => <span className="text-xs text-slate-300">{r.fits_text}</span>,
+    },
     { key: "test", header: name(3), minWidth: 108, render: (r) => <TestChip row={r} /> },
     { key: "proposal", header: name(4), minWidth: 128, render: (r) => <ProposalCell row={r} /> },
     { key: "result", header: name(5), minWidth: 120, render: (r) => <ResultCell row={r} /> },

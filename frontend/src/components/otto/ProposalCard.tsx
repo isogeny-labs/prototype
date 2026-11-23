@@ -23,7 +23,13 @@ export function FromOttoTag({ label = "From Otto", testId = "from-otto" }: { lab
 /** Where one of Otto's proposals stands, as a chip: "Proposed", "Added", "Accepted" or "Not added (reason)". The reason
  * is a person's own words, so it may hold one long unbroken run (an address, a ticket path): the chip never grows wider
  * than the room it has, and such a run is broken at its edge. Ordinary words stay whole. */
-export function ProposalStatusChip({ status, testId }: { status: Pick<OttoProposal["status"], "word" | "tone">; testId?: string }) {
+export function ProposalStatusChip({
+  status,
+  testId,
+}: {
+  status: Pick<OttoProposal["status"], "word" | "tone">;
+  testId?: string;
+}) {
   return (
     <span className="inline-block min-w-0 max-w-full break-words align-middle [&>span>span:last-child]:min-w-0 [&>span]:max-w-full">
       <StatusChip label={status.word} tone={status.tone} size="sm" wrap testId={testId} />
@@ -96,7 +102,10 @@ export function ProposalCard({
         {proposal.why}
       </p>
       {proposal.lines.length > 0 ? (
-        <ul data-testid="proposal-lines" className="mt-1.5 list-disc space-y-1 pl-5 text-[13px] text-slate-300 marker:text-slate-500">
+        <ul
+          data-testid="proposal-lines"
+          className="mt-1.5 list-disc space-y-1 pl-5 text-[13px] text-slate-300 marker:text-slate-500"
+        >
           {proposal.lines.map((line, i) => (
             <li key={i} className="break-words">
               {line}
@@ -121,7 +130,13 @@ export function ProposalCard({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {proposal.buttons.map((b) =>
             b.key === "accept" ? (
-              <PrimaryButton key={b.key} testId="proposal-accept" disabled={!b.can || busy !== null} busy={busy === "accept"} onClick={() => void decide("accept")}>
+              <PrimaryButton
+                key={b.key}
+                testId="proposal-accept"
+                disabled={!b.can || busy !== null}
+                busy={busy === "accept"}
+                onClick={() => void decide("accept")}
+              >
                 {busy === "accept" ? <Spinner className="h-3.5 w-3.5" /> : null}
                 {b.label}
               </PrimaryButton>
@@ -163,7 +178,10 @@ export function ProposalCard({
       ) : null}
 
       {proposal.history.count > 0 ? (
-        <details data-testid="proposal-history" className="mt-3 rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2">
+        <details
+          data-testid="proposal-history"
+          className="mt-3 rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2"
+        >
           <summary className="cursor-pointer text-xs font-medium text-slate-300 hover:text-slate-100">
             {proposal.history.title} <span className="tabular-nums text-slate-500">({proposal.history.count})</span>
           </summary>

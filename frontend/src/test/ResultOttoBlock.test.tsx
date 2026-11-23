@@ -69,17 +69,42 @@ const block: OttoResultBlock = {
         line: "3. Accepted by You on 18 November 2026, 05:53 UTC.",
       },
     ],
-    footnote: "This version has one login and no separate accounts. Whoever is at the keyboard records each decision, under the name shown.",
+    footnote:
+      "This version has one login and no separate accounts. Whoever is at the keyboard records each decision, under the name shown.",
     empty: null,
   },
   ledger: {
     title: "Otto ledger entries for this check and its decisions",
     count: 4,
     entries: [
-      { seq: 0, kind: "Opened", id: "56182a377c5d", at: "2026-11-18T05:51:02+00:00", what: "Proposal entry: names what was proposed, written with the first decision on it" },
-      { seq: 1, kind: "Recorded", id: "106a5f9110af", at: "2026-11-18T05:51:02+00:00", what: "Decision 1: rejected by You" },
-      { seq: 5, kind: "Opened", id: "ddfe22721c13", at: "2026-11-18T05:53:46+00:00", what: "Lock entry: the test's fingerprint, its design and its pack, written before any run" },
-      { seq: 8, kind: "Recorded", id: "a2011827a5af", at: "2026-11-18T05:54:10+00:00", what: "Run 1 (first run) bound to the locked test" },
+      {
+        seq: 0,
+        kind: "Opened",
+        id: "56182a377c5d",
+        at: "2026-11-18T05:51:02+00:00",
+        what: "Proposal entry: names what was proposed, written with the first decision on it",
+      },
+      {
+        seq: 1,
+        kind: "Recorded",
+        id: "106a5f9110af",
+        at: "2026-11-18T05:51:02+00:00",
+        what: "Decision 1: rejected by You",
+      },
+      {
+        seq: 5,
+        kind: "Opened",
+        id: "ddfe22721c13",
+        at: "2026-11-18T05:53:46+00:00",
+        what: "Lock entry: the test's fingerprint, its design and its pack, written before any run",
+      },
+      {
+        seq: 8,
+        kind: "Recorded",
+        id: "a2011827a5af",
+        at: "2026-11-18T05:54:10+00:00",
+        what: "Run 1 (first run) bound to the locked test",
+      },
     ],
     note: "The lock entry was written before the check could run; each reviewed run and each decision added an entry. The ledger holds no result.",
   },
@@ -118,7 +143,9 @@ describe("Evidence, a result of an advisory check: where the check came from", (
     open(block);
     const decisions = screen.getByTestId("result-otto-decisions");
     expect(decisions.getAttribute("data-count")).toBe("3");
-    expect(within(decisions).getAllByTestId("result-otto-decision").map(text)).toEqual(block.decisions.rows.map((row) => row.line));
+    expect(within(decisions).getAllByTestId("result-otto-decision").map(text)).toEqual(
+      block.decisions.rows.map((row) => row.line),
+    );
     expect(text(decisions)).toContain("1. Rejected by You on 18 November 2026, 05:51 UTC: Not this quarter.");
     expect(text(decisions)).toContain(block.decisions.footnote);
   });

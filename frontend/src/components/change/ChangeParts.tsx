@@ -3,7 +3,8 @@ import type { ChangeBadge, ChangeSection, ChangeStep, RichText, Source } from ".
 import { RichTextView, WhereFromTag } from "../ui";
 
 const CELL_MONO = "whitespace-nowrap font-mono text-xs text-slate-200";
-const TH = "border-b border-slate-800 px-2.5 py-1.5 text-left align-bottom text-xs font-medium uppercase tracking-wide text-slate-400";
+const TH =
+  "border-b border-slate-800 px-2.5 py-1.5 text-left align-bottom text-xs font-medium uppercase tracking-wide text-slate-400";
 
 // One look for each badge look. The badge always carries its words and a symbol, so nothing depends on colour alone.
 const BADGES: Record<ChangeBadge["look"], { symbol: string; className: string }> = {

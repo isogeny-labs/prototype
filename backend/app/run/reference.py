@@ -1,6 +1,7 @@
 """The reference library: pyca `cryptography`. It is our own trusted yardstick, so it runs here in the
 backend, not in the sandbox. Every test of a signing component also asks the reference for its answers;
 if the reference gets a case wrong, the run can't be trusted. No verdict is decided in this module."""
+
 from __future__ import annotations
 
 import time
@@ -62,9 +63,17 @@ def bench_ecdsa_p256(repeats: int, message_hex: str, warmups: int = 2) -> dict:
         sign_ms.append(round((t1 - t0) * 1000, 4))
         verify_ms.append(round((t2 - t1) * 1000, 4))
     point = public.public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
-    return {"library": LIBRARY, "repeats": repeats, "warmups": warmups, "clock": "time.perf_counter",
-            "sign_ms": sign_ms, "verify_ms": verify_ms, "signature_bytes": len(signature),
-            "public_key_bytes": len(point), "all_verified": True}
+    return {
+        "library": LIBRARY,
+        "repeats": repeats,
+        "warmups": warmups,
+        "clock": "time.perf_counter",
+        "sign_ms": sign_ms,
+        "verify_ms": verify_ms,
+        "signature_bytes": len(signature),
+        "public_key_bytes": len(point),
+        "all_verified": True,
+    }
 
 
 def bench_mldsa65(repeats: int, message_hex: str, warmups: int = 2) -> dict:
@@ -86,14 +95,23 @@ def bench_mldsa65(repeats: int, message_hex: str, warmups: int = 2) -> dict:
         t2 = time.perf_counter()
         sign_ms.append(round((t1 - t0) * 1000, 4))
         verify_ms.append(round((t2 - t1) * 1000, 4))
-    return {"library": LIBRARY, "repeats": repeats, "warmups": warmups, "clock": "time.perf_counter",
-            "sign_ms": sign_ms, "verify_ms": verify_ms, "signature_bytes": len(signature),
-            "public_key_bytes": len(public.public_bytes_raw()), "all_verified": True}
+    return {
+        "library": LIBRARY,
+        "repeats": repeats,
+        "warmups": warmups,
+        "clock": "time.perf_counter",
+        "sign_ms": sign_ms,
+        "verify_ms": verify_ms,
+        "signature_bytes": len(signature),
+        "public_key_bytes": len(public.public_bytes_raw()),
+        "all_verified": True,
+    }
 
 
 def verify_mldsa65(public_key_hex: str, message_hex: str, signature_hex: str) -> bool:
     """True only if the signature is a valid ML-DSA-65 signature (empty context). Anything unreadable is False."""
     from cryptography.hazmat.primitives.asymmetric import mldsa
+
     try:
         key = mldsa.MLDSA65PublicKey.from_public_bytes(bytes.fromhex(public_key_hex))
         key.verify(bytes.fromhex(signature_hex), bytes.fromhex(message_hex))

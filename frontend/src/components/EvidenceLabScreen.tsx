@@ -70,7 +70,8 @@ function needsPolling(lab: LabView): boolean {
     lab.busy ||
     lab.retest.running ||
     lab.rows.some(
-      (row) => unfinished(row.result_status) || unfinished(row.after_status) || proving(row.result) || proving(row.after),
+      (row) =>
+        unfinished(row.result_status) || unfinished(row.after_status) || proving(row.result) || proving(row.after),
     )
   );
 }
@@ -90,15 +91,7 @@ function ColumnHeading({ heading, note }: { heading: string; note: RichText }) {
 }
 
 /** One side of a before/after row: the badge and one short line, or the live status. */
-function Cell({
-  result,
-  status,
-  testId,
-}: {
-  result: LabResult | null;
-  status: RowStatus | null;
-  testId: string;
-}) {
+function Cell({ result, status, testId }: { result: LabResult | null; status: RowStatus | null; testId: string }) {
   return (
     <div data-testid={testId} className="min-w-0">
       {result ? (
@@ -191,7 +184,16 @@ function RunsFor({ planId, checkId }: { planId: number; checkId: string }) {
   return detail ? <EarlierRuns runs={detail.runs} /> : null;
 }
 
-export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = null, result = null, onFilters, onGroup, onGroupShown }: Props) {
+export function EvidenceLabScreen({
+  planId,
+  onViewFix,
+  openItem = null,
+  group = null,
+  result = null,
+  onFilters,
+  onGroup,
+  onGroupShown,
+}: Props) {
   const tabIds = useId();
   const [lab, setLab] = useState<LabView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -230,7 +232,11 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
       }
       if (result) return "encryption"; // (the Result filter the address names)
       const filled = checks.groups.find((g) =>
-        g.key === "encryption" ? lab.rows.length > 0 || g.rows.length > 0 : g.key === "dependencies" ? checks.libraries.length > 0 : g.rows.length > 0,
+        g.key === "encryption"
+          ? lab.rows.length > 0 || g.rows.length > 0
+          : g.key === "dependencies"
+            ? checks.libraries.length > 0
+            : g.rows.length > 0,
       );
       return (filled ?? checks.groups[0])?.key ?? null;
     },
@@ -244,7 +250,8 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
     if (openRow !== null && active !== "encryption") setOpenRow(null); // (a test's result: the Crypto tests table)
     if (openCheck !== null) {
       const holder =
-        checks.groups.find((g) => g.rows.some((r) => r.id === openCheck))?.key ?? (checks.libraries.some((l) => l.id === openCheck) ? "dependencies" : null);
+        checks.groups.find((g) => g.rows.some((r) => r.id === openCheck))?.key ??
+        (checks.libraries.some((l) => l.id === openCheck) ? "dependencies" : null);
       if (holder && holder !== active) setOpenCheck(null);
     }
     // (only when the tab changes: an item opened from a link opens its own tab with it)
@@ -281,7 +288,9 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
     };
   }, [planId, panelStamp]);
 
-  const labStamp = lab ? `${lab.busy}:${lab.rows.map((r) => `${r.result?.run_id ?? ""}/${r.after?.run_id ?? ""}`).join(",")}` : "";
+  const labStamp = lab
+    ? `${lab.busy}:${lab.rows.map((r) => `${r.result?.run_id ?? ""}/${r.after?.run_id ?? ""}`).join(",")}`
+    : "";
   // Asked once the lab's own answer is in, and again whenever a result in it changes (or while something runs).
   useEffect(() => {
     if (!labStamp) return;
@@ -376,7 +385,12 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
   const codes = current.rows.map((r) => leading(r, beforeAfter)?.code ?? null);
   const count = (...which: LabResult["code"][]) => codes.filter((c) => c !== null && which.includes(c)).length;
   const cards = [
-    { key: "with-result", label: "Tests with a result", value: codes.filter((c) => c !== null).length, sub: `of ${current.rows.length} in the plan` },
+    {
+      key: "with-result",
+      label: "Tests with a result",
+      value: codes.filter((c) => c !== null).length,
+      sub: `of ${current.rows.length} in the plan`,
+    },
     { key: "failed", label: "Failed", value: count("failed") },
     { key: "passed", label: "Passed", value: count("passed") },
     { key: "couldnt-run", label: "Couldn't run", value: count("couldnt_run", "couldnt_trust") },
@@ -384,9 +398,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
 
   const present = Array.from(new Set(codes.filter((c): c is LabResult["code"] => c !== null)));
   const labelOfCode = (code: LabResult["code"]) =>
-    CODE_NAMES[code] ??
-    current.rows.map((r) => leading(r, beforeAfter)).find((r) => r?.code === code)?.label ??
-    code;
+    CODE_NAMES[code] ?? current.rows.map((r) => leading(r, beforeAfter)).find((r) => r?.code === code)?.label ?? code;
   const statusOptions: { value: StatusFilter; label: string }[] = [
     { value: "all", label: "All results" },
     ...present.map((code) => ({ value: code as StatusFilter, label: labelOfCode(code) })),
@@ -396,7 +408,8 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
   const needle = search.trim().toLowerCase();
   const visible = current.rows.filter((row) => {
     const result = leading(row, beforeAfter);
-    if (statusFilter === "none" ? result !== null : statusFilter !== "all" && result?.code !== statusFilter) return false;
+    if (statusFilter === "none" ? result !== null : statusFilter !== "all" && result?.code !== statusFilter)
+      return false;
     if (!needle) return true;
     const group = row.group !== null ? headings.get(row.group)?.heading : "";
     return [row.title, row.control_line, result?.plain, group].some((t) => (t ?? "").toLowerCase().includes(needle));
@@ -509,7 +522,9 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
     current.rows.length === 0 ? (
       <p className="text-sm text-slate-400">There are no results yet.</p>
     ) : visible.length === 0 ? (
-      <p className="rounded-xl border border-slate-800 px-4 py-8 text-center text-sm text-slate-400">No results match this search.</p>
+      <p className="rounded-xl border border-slate-800 px-4 py-8 text-center text-sm text-slate-400">
+        No results match this search.
+      </p>
     ) : current.grouped ? (
       <div className="flex flex-col gap-6">
         {splitByGroup(current.groups, visible, (r) => r.group).map((section, i) => {
@@ -544,7 +559,11 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
         selected ? (
           <span className="flex flex-wrap items-center gap-2">
             {leading(selected, beforeAfter) ? (
-              <StatusChip label={leading(selected, beforeAfter)!.label} tone={leading(selected, beforeAfter)!.tone} size="sm" />
+              <StatusChip
+                label={leading(selected, beforeAfter)!.label}
+                tone={leading(selected, beforeAfter)!.tone}
+                size="sm"
+              />
             ) : null}
             {selected.control_line ? <span>{selected.control_line}</span> : null}
           </span>
@@ -602,13 +621,25 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
   const ledgerRows = (checks?.groups ?? []).flatMap((g) => g.rows);
   const openLedger = openCheck ? (ledgerRows.find((r) => r.id === openCheck) ?? null) : null;
   const openLibrary = openCheck && !openLedger ? (checks?.libraries.find((l) => l.id === openCheck) ?? null) : null;
-  type Searched = { name: string; ran_on?: string; via_words?: string; answers_short?: string; result?: { label: string } | null; id: string };
+  type Searched = {
+    name: string;
+    ran_on?: string;
+    via_words?: string;
+    answers_short?: string;
+    result?: { label: string } | null;
+    id: string;
+  };
   const fitsCheck = (r: Searched) =>
-    !needle || [r.name, r.ran_on ?? "", r.via_words ?? "", r.answers_short ?? "", r.result?.label ?? ""].some((t) => t.toLowerCase().includes(needle));
+    !needle ||
+    [r.name, r.ran_on ?? "", r.via_words ?? "", r.answers_short ?? "", r.result?.label ?? ""].some((t) =>
+      t.toLowerCase().includes(needle),
+    );
   const keepCheck = (r: Searched) => r.id === openCheck || fitsCheck(r);
   // The rows of Crypto tests that are not a test of the plan or its retest: the fix proofs and changes.
   const extraOf = (g: { rows: ChecksView["groups"][number]["rows"] }) =>
-    g.rows.filter((r) => !["plan", "retest"].includes(r.came_from.key) && !r.id.startsWith("test-") && !r.id.startsWith("retest-"));
+    g.rows.filter(
+      (r) => !["plan", "retest"].includes(r.came_from.key) && !r.id.startsWith("test-") && !r.id.startsWith("retest-"),
+    );
   // While a search or the Result filter is on, a tab says how many of its rows match (the Result filter is the Crypto
   // tests table's own, so with only that on, only that tab says so).
   const matches =
@@ -669,10 +700,15 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
               {extra.length > 0 ? (
                 <div className="mt-4">
                   <h3 className="mb-2 text-sm font-semibold text-slate-200">Fix proofs and changes</h3>
-                  <CheckTable label="Fix proofs and changes" rows={extra} selectedId={openCheck} onOpen={(r) => {
-                    setOpenRow(null);
-                    setOpenCheck(r.id === openCheck ? null : r.id);
-                  }} />
+                  <CheckTable
+                    label="Fix proofs and changes"
+                    rows={extra}
+                    selectedId={openCheck}
+                    onOpen={(r) => {
+                      setOpenRow(null);
+                      setOpenCheck(r.id === openCheck ? null : r.id);
+                    }}
+                  />
                 </div>
               ) : null}
             </GroupSection>
@@ -681,13 +717,22 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
         if (g.key === "dependencies") {
           const libs = (checks?.libraries ?? []).filter(keepCheck);
           return (
-            <GroupSection key={g.key} group={g} counts={counts} tabbed={tabbed}
-              emptyText={(checks?.libraries ?? []).length === 0 ? g.empty_text ?? null : null}>
+            <GroupSection
+              key={g.key}
+              group={g}
+              counts={counts}
+              tabbed={tabbed}
+              emptyText={(checks?.libraries ?? []).length === 0 ? (g.empty_text ?? null) : null}
+            >
               {libs.length > 0 ? (
-                <LibraryTable libraries={libs} selectedId={openCheck} onOpen={(id) => {
-                  setOpenRow(null);
-                  setOpenCheck(id === openCheck ? null : id);
-                }} />
+                <LibraryTable
+                  libraries={libs}
+                  selectedId={openCheck}
+                  onOpen={(id) => {
+                    setOpenRow(null);
+                    setOpenCheck(id === openCheck ? null : id);
+                  }}
+                />
               ) : (
                 <p className="px-1 py-2 text-sm text-slate-400">No library matches this search.</p>
               )}
@@ -705,10 +750,15 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
             also={<AlsoChecks items={g.also ?? []} which="evidence_link" />}
           >
             {rows.length > 0 ? (
-              <CheckTable label={`${g.label} results`} rows={rows} selectedId={openCheck} onOpen={(r) => {
-                setOpenRow(null);
-                setOpenCheck(r.id === openCheck ? null : r.id);
-              }} />
+              <CheckTable
+                label={`${g.label} results`}
+                rows={rows}
+                selectedId={openCheck}
+                onOpen={(r) => {
+                  setOpenRow(null);
+                  setOpenCheck(r.id === openCheck ? null : r.id);
+                }}
+              />
             ) : (
               <p className="px-1 py-2 text-sm text-slate-400">No result matches this search.</p>
             )}
@@ -746,7 +796,11 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
                 void act(() => api.retest(current.plan_id, v.version, v.component));
               }}
             />
-            <SecondaryButton allowWhenClosed disabled={busy || !current.download.can_start} onClick={() => void download()}>
+            <SecondaryButton
+              allowWhenClosed
+              disabled={busy || !current.download.can_start}
+              onClick={() => void download()}
+            >
               Download evidence
             </SecondaryButton>
           </div>
@@ -781,21 +835,23 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
         </div>
       ) : null}
 
-      <p data-testid="disclaimer" className="mb-6 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+      <p
+        data-testid="disclaimer"
+        className="mb-6 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300"
+      >
         {current.disclaimer}
       </p>
 
       {checks && active !== null ? (
-        <GroupTabs
-          groups={checks.groups}
-          active={active}
-          onChoose={choose}
-          idBase={tabIds}
-          matches={matches}
-        />
+        <GroupTabs groups={checks.groups} active={active} onChoose={choose} idBase={tabIds} matches={matches} />
       ) : null}
       <Toolbar>
-        <SearchInput value={search} onChange={setSearch} label="Search results" placeholder="Search tests and results" />
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          label="Search results"
+          placeholder="Search tests and results"
+        />
         {/* (the Result filter is the Crypto tests table's own) */}
         <FilterSelect label="Result" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
       </Toolbar>

@@ -7,11 +7,34 @@ import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_pr
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, screenshotFolder, shotFixes, stepLink, openFreshAssessment, openGroupTab, evidenceRow, openResult, resultPanel, toggleResult, expectPageOpen } from "./shared";
+import {
+  BACKEND,
+  DISCLAIMER,
+  enterApp,
+  importVerifyAndOpenTests,
+  password,
+  PYTHON,
+  screenshotFolder,
+  shotFixes,
+  stepLink,
+  openFreshAssessment,
+  openGroupTab,
+  evidenceRow,
+  openResult,
+  resultPanel,
+  toggleResult,
+  expectPageOpen,
+} from "./shared";
 
 const SHOTS = screenshotFolder("phase2");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
-const SUGGESTED = ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Attacker tricks (our short list)", "Speed and size"];
+const SUGGESTED = [
+  "Old TLS versions",
+  "Certificate strength",
+  "Independent exam (Wycheproof)",
+  "Attacker tricks (our short list)",
+  "Speed and size",
+];
 const ALL_SIX = [...SUGGESTED, "Post-quantum readiness"];
 
 let context: BrowserContext;
@@ -29,14 +52,17 @@ function card(title: string): Locator {
 }
 
 function labRow(title: string): Locator {
-  return evidenceRow(page, title);   // phase 5a: the table row; its details open in the detail panel
+  return evidenceRow(page, title); // phase 5a: the table row; its details open in the detail panel
 }
 
 async function cardTitles(): Promise<string[]> {
-  return page.getByTestId("test-card").getByRole("heading").evaluateAll((all) =>
-    // The heading may carry a small tag after the title; the title is its first text.
-    all.map((h) => (h.firstChild?.textContent ?? "").trim()),
-  );
+  return page
+    .getByTestId("test-card")
+    .getByRole("heading")
+    .evaluateAll((all) =>
+      // The heading may carry a small tag after the title; the title is its first text.
+      all.map((h) => (h.firstChild?.textContent ?? "").trim()),
+    );
 }
 
 async function cardStatuses(): Promise<string[]> {
@@ -104,7 +130,9 @@ test("log in, Use demo file, Verify claims, Continue to tests: five tests are su
   await expect(page.getByTestId("plan-subject")).toContainText("acme-sign 1.4.2");
   await expect(page.getByTestId("plan-subject").getByText("from the file", { exact: true })).toBeVisible();
   await expect(page.getByText("Demo data", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("mode-line")).toHaveText("Demo mode: running our own demo software, not isolated. Isolated mode is switched off for this run.");
+  await expect(page.getByTestId("mode-line")).toHaveText(
+    "Demo mode: running our own demo software, not isolated. Isolated mode is switched off for this run.",
+  );
   await expect(page.getByRole("button", { name: "Run all" })).toBeEnabled();
   // Phase 5b: once a file is in, Evidence and Fixes open too (each says what fills it until there is a result).
   await expectPageOpen(page, "4. Evidence Lab");
@@ -119,7 +147,13 @@ test("reorder two tests (keyboard, then drag); the order is kept after a refresh
   // Keyboard: the handle of Speed and size, one place up.
   await card("Speed and size").getByTestId("drag-handle").focus();
   await page.keyboard.press("ArrowUp");
-  const swapped = ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Speed and size", "Attacker tricks (our short list)"];
+  const swapped = [
+    "Old TLS versions",
+    "Certificate strength",
+    "Independent exam (Wycheproof)",
+    "Speed and size",
+    "Attacker tricks (our short list)",
+  ];
   await expect.poll(cardTitles).toEqual(swapped);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
@@ -151,12 +185,17 @@ test("+ Add test opens the short catalog; adding Post-quantum readiness puts it 
   await expect(page.getByTestId("test-card")).toHaveCount(6);
   expect(await cardTitles()).toEqual(ALL_SIX);
   await expect(card("Post-quantum readiness").getByTestId("test-status")).toHaveText("Not run yet");
-  await expect(page.getByText(/^Six tests in the plan: five suggested from the claims, one added by you\./)).toBeVisible();
+  await expect(
+    page.getByText(/^Six tests in the plan: five suggested from the claims, one added by you\./),
+  ).toBeVisible();
 });
 
 test("run one test by itself: Certificate strength passes, the others stay not run", async () => {
   await card("Certificate strength").getByRole("button", { name: "Run Certificate strength" }).click();
-  await expect(card("Certificate strength").getByTestId("result-badge").locator("span:last-child")).toHaveText("Passed", { timeout: 60_000 });
+  await expect(card("Certificate strength").getByTestId("result-badge").locator("span:last-child")).toHaveText(
+    "Passed",
+    { timeout: 60_000 },
+  );
   // (Checks also lists the Verify results above the test plan; count the plan's own badges.)
   await expect(page.getByTestId("test-plan").getByTestId("result-badge").locator("span:last-child")).toHaveCount(1);
   for (const title of ALL_SIX.filter((t) => t !== "Certificate strength")) {
@@ -180,7 +219,8 @@ test("Run all runs the tests in parallel and every card ends with a result", asy
     const running = statuses.filter((s) => s === "running").length;
     mostRunning = Math.max(mostRunning, running);
     sawWaiting ||= statuses.includes("waiting");
-    for (const text of await page.getByTestId("job-status").allInnerTexts()) seenProgress.add(text.replace(/\s+/g, " "));
+    for (const text of await page.getByTestId("job-status").allInnerTexts())
+      seenProgress.add(text.replace(/\s+/g, " "));
     if (!shotTaken && running >= 3) {
       // While anything runs, nothing can be started or removed.
       await expect(page.getByRole("button", { name: "Run all" })).toBeDisabled();
@@ -188,7 +228,12 @@ test("Run all runs the tests in parallel and every card ends with a result", asy
       shotTaken = true;
     }
     // A better picture a little later, if the moment comes: some tests finished, others part-way, one waiting.
-    if (!laterShotTaken && running >= 2 && statuses.includes("done") && (await page.getByText(/^[1-9]\d\d of 484 cases$/).count()) > 0) {
+    if (
+      !laterShotTaken &&
+      running >= 2 &&
+      statuses.includes("done") &&
+      (await page.getByText(/^[1-9]\d\d of 484 cases$/).count()) > 0
+    ) {
       await shot(page, "03-tests-running.png");
       laterShotTaken = true;
     }
@@ -199,8 +244,14 @@ test("Run all runs the tests in parallel and every card ends with a result", asy
   expect(mostRunning, "at least two tests were seen running at the same moment").toBeGreaterThanOrEqual(2);
   expect(shotTaken, "three tests were seen running at once (screenshot 03)").toBe(true);
   // Live progress text was shown on running cards.
-  expect([...seenProgress].some((t) => /of 484 cases/.test(t)), [...seenProgress].join(" | ")).toBe(true);
-  test.info().annotations.push({ type: "parallel", description: `most running at once: ${mostRunning}; waiting seen: ${sawWaiting}` });
+  expect(
+    [...seenProgress].some((t) => /of 484 cases/.test(t)),
+    [...seenProgress].join(" | "),
+  ).toBe(true);
+  test.info().annotations.push({
+    type: "parallel",
+    description: `most running at once: ${mostRunning}; waiting seen: ${sawWaiting}`,
+  });
 
   const label = (title: string) => card(title).getByTestId("result-badge").locator("span:last-child");
   await expect(label("Old TLS versions")).toHaveText("Failed");
@@ -217,7 +268,7 @@ test("Run all runs the tests in parallel and every card ends with a result", asy
 test("Evidence Lab lists the six results; every control behaved as expected", async () => {
   await stepLink(page, "4. Evidence Lab").click();
   await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
-  await openGroupTab(page, "Crypto tests", "Evidence");      // (the results are Evidence's Crypto tests tab)
+  await openGroupTab(page, "Crypto tests", "Evidence"); // (the results are Evidence's Crypto tests tab)
   const rows = page.getByTestId("evidence-row");
   await expect(rows).toHaveCount(6);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
@@ -226,13 +277,17 @@ test("Evidence Lab lists the six results; every control behaved as expected", as
 
   await expect(rows.getByTestId("result-badge").locator("span:last-child")).toHaveCount(6);
   await expect(page.getByText("Couldn't trust this run")).toHaveCount(0);
-  await expect(labRow("Old TLS versions")).toContainText("The server accepts TLS 1.2, so \u2018TLS 1.3 only\u2019 is not true.");
+  await expect(labRow("Old TLS versions")).toContainText(
+    "The server accepts TLS 1.2, so \u2018TLS 1.3 only\u2019 is not true.",
+  );
   await expect(labRow("Certificate strength")).toContainText("NIST plans to retire P-256");
   await expect(labRow("Independent exam (Wycheproof)")).toContainText("3 of the 484 exam cases wrong");
   await expect(labRow("Attacker tricks (our short list)")).toContainText("r=0, s=0");
   for (const title of ALL_SIX) {
     const row = labRow(title);
-    const ran = !(await row.getByTestId("result-badge").locator("span:last-child").innerText()).startsWith("Couldn't run");
+    const ran = !(await row.getByTestId("result-badge").locator("span:last-child").innerText()).startsWith(
+      "Couldn't run",
+    );
     if (ran) await expect(row.getByText(/^Control: .* as expected\.$/)).toBeVisible();
   }
   // Locked test details and fingerprints are only inside an opened result.
@@ -283,7 +338,11 @@ test("Independent exam (Wycheproof): the three wrong cases, the locked test and 
 
 test("Dig deeper saves a queued research request with no answer; Mark reviewed records the user's decision", async () => {
   const detail = resultPanel(page).getByTestId("result-detail");
-  const before = await labRow("Independent exam (Wycheproof)").getByTestId("result-badge").locator("span:last-child").first().innerText();
+  const before = await labRow("Independent exam (Wycheproof)")
+    .getByTestId("result-badge")
+    .locator("span:last-child")
+    .first()
+    .innerText();
 
   await detail.getByRole("button", { name: "Dig deeper" }).click();
   const request = detail.getByTestId("research-request");
@@ -299,7 +358,9 @@ test("Dig deeper saves a queued research request with no answer; Mark reviewed r
   await expect(detail.getByTestId("reviewed-note")).toContainText("You marked this result as reviewed.");
 
   // Neither button changes the result, and both survive a refresh.
-  await expect(labRow("Independent exam (Wycheproof)").getByTestId("result-badge").locator("span:last-child").first()).toHaveText(before);
+  await expect(
+    labRow("Independent exam (Wycheproof)").getByTestId("result-badge").locator("span:last-child").first(),
+  ).toHaveText(before);
   await shot(page, "06-lab-dig-deeper-queued.png");
   await page.reload();
   await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
@@ -319,7 +380,11 @@ test("Attacker tricks (our short list) failed on 1.4.2: the r=0, s=0 case is sho
   await expect(row.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed");
   await toggleResult(page, "Attacker tricks (our short list)");
   const detail = resultPanel(page).getByTestId("result-detail");
-  const zeroCase = detail.getByRole("table").first().locator("tbody tr").filter({ hasText: /r\s?=\s?0.*s\s?=\s?0/ });
+  const zeroCase = detail
+    .getByRole("table")
+    .first()
+    .locator("tbody tr")
+    .filter({ hasText: /r\s?=\s?0.*s\s?=\s?0/ });
   await expect(zeroCase.first()).toBeVisible();
   await expect(zeroCase.first()).toContainText(/accepted/i);
   await expect(detail.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
@@ -358,8 +423,20 @@ test("Retest new version offers only our two demo versions; picking 1.4.3 starts
 
   await expect(page.getByTestId("retest-progress")).toHaveCount(0, { timeout: 200_000 });
   const cells = async (title: string) => [
-    (await labRow(title).getByTestId("lab-cell-before").getByTestId("result-badge").locator("span:last-child").innerText()).trim(),
-    (await labRow(title).getByTestId("lab-cell-after").getByTestId("result-badge").locator("span:last-child").innerText()).trim(),
+    (
+      await labRow(title)
+        .getByTestId("lab-cell-before")
+        .getByTestId("result-badge")
+        .locator("span:last-child")
+        .innerText()
+    ).trim(),
+    (
+      await labRow(title)
+        .getByTestId("lab-cell-after")
+        .getByTestId("result-badge")
+        .locator("span:last-child")
+        .innerText()
+    ).trim(),
   ];
   expect(await cells("Old TLS versions")).toEqual(["Failed", "Failed"]);
   expect(await cells("Certificate strength")).toEqual(["Passed", "Passed"]);
@@ -370,13 +447,20 @@ test("Retest new version offers only our two demo versions; picking 1.4.3 starts
   expect(["Not offered", PQ_TOO_OLD]).toContain(pqBefore);
   expect(pqAfter).toBe(pqBefore);
 
-  await expect(labRow("Independent exam (Wycheproof)").getByTestId("lab-cell-after")).toContainText("got all 484 exam cases right.");
-  await expect(labRow("Attacker tricks (our short list)").getByTestId("lab-cell-after")).toContainText("rejected all 14 forged signatures");
+  await expect(labRow("Independent exam (Wycheproof)").getByTestId("lab-cell-after")).toContainText(
+    "got all 484 exam cases right.",
+  );
+  await expect(labRow("Attacker tricks (our short list)").getByTestId("lab-cell-after")).toContainText(
+    "rejected all 14 forged signatures",
+  );
   await expect(page.getByText("Couldn't trust this run")).toHaveCount(0);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   await expect(page.getByTestId("lab-subline")).toContainText("Retest finished");
   // Since phase 3a each side says which code it ran on. No code is connected in this run, so both are bundled versions.
-  await expect(page.getByTestId("lab-column-note")).toHaveText(["the bundled demo version", "the bundled demo version"]);
+  await expect(page.getByTestId("lab-column-note")).toHaveText([
+    "the bundled demo version",
+    "the bundled demo version",
+  ]);
   await expect(page.getByTestId("lab-code-line")).toHaveText(
     "Code they ran on: before, the bundled demo version of acme-sign 1.4.2; after, the bundled demo version of acme-sign 1.4.3.",
   );
@@ -408,11 +492,15 @@ test("before and after stays expandable: the bad-signature case now passes, and 
   await expect(details).toHaveCount(2);
   const after = details.nth(0);
   const before = details.nth(1);
-  await expect(after.getByRole("heading", { name: "After: acme-sign 1.4.3, the bundled demo version", exact: true })).toBeVisible();
+  await expect(
+    after.getByRole("heading", { name: "After: acme-sign 1.4.3, the bundled demo version", exact: true }),
+  ).toBeVisible();
   await expect(after.getByTestId("result-badge").locator("span:last-child")).toHaveText("Passed");
   await expect(after).toContainText(/r\s?=\s?0.*s\s?=\s?0/);
   await expect(after.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
-  await expect(before.getByRole("heading", { name: "Before: acme-sign 1.4.2, the bundled demo version", exact: true })).toBeVisible();
+  await expect(
+    before.getByRole("heading", { name: "Before: acme-sign 1.4.2, the bundled demo version", exact: true }),
+  ).toBeVisible();
   await expect(before.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed");
   // Mark reviewed and Dig deeper are on every opened result.
   for (const d of [after, before]) {
@@ -425,12 +513,21 @@ test("before and after stays expandable: the bad-signature case now passes, and 
   const speed = labRow("Speed and size");
   await toggleResult(page, "Speed and size");
   const result = resultPanel(page).getByTestId("result-detail").nth(0);
-  await expect(result.getByTestId("result-badge").locator("span:last-child")).toHaveText("No slowdown beyond measured noise");
+  await expect(result.getByTestId("result-badge").locator("span:last-child")).toHaveText(
+    "No slowdown beyond measured noise",
+  );
   const table = result.getByRole("table").first();
   await expect(table.locator("thead")).toContainText("acme-sign 1.4.2");
   await expect(table.locator("thead")).toContainText("acme-sign 1.4.3");
   await expect(table.locator("thead")).toContainText("Reference library");
-  for (const name of ["Sign, median", "Sign, slowest 1 in 100", "Verify, median", "Verify, slowest 1 in 100", "Signature size, this run", "Public key size"]) {
+  for (const name of [
+    "Sign, median",
+    "Sign, slowest 1 in 100",
+    "Verify, median",
+    "Verify, slowest 1 in 100",
+    "Signature size, this run",
+    "Public key size",
+  ]) {
     await expect(table.locator("tbody tr").filter({ hasText: name })).toHaveCount(1);
   }
   await expect(result).toContainText(/Measured noise: ±\d+(\.\d+)?%/);
@@ -491,7 +588,12 @@ test("changing one byte of the evidence file makes the check fail", async () => 
   const original = fs.readFileSync(evidenceJson);
   const text = original.toString("latin1");
   // One byte each: inside a test result, inside the fingerprint, inside the signature, and one added space.
-  const places = [text.indexOf('"Failed"') + 1, text.indexOf('"fingerprint":"') + 20, text.indexOf('"signature":"') + 20, Math.floor(original.length / 2)];
+  const places = [
+    text.indexOf('"Failed"') + 1,
+    text.indexOf('"fingerprint":"') + 20,
+    text.indexOf('"signature":"') + 20,
+    Math.floor(original.length / 2),
+  ];
   for (const [i, at] of places.entries()) {
     expect(at).toBeGreaterThan(20);
     const changed = Buffer.from(original);
@@ -507,7 +609,9 @@ test("changing one byte of the evidence file makes the check fail", async () => 
   expect(verifyEvidence(evidenceJson).code).toBe(0);
 });
 
-test("the HTML report is a static, readable copy that prints the same fingerprint; no key is in either file", async ({ browser }) => {
+test("the HTML report is a static, readable copy that prints the same fingerprint; no key is in either file", async ({
+  browser,
+}) => {
   const json = fs.readFileSync(evidenceJson, "utf8");
   const html = fs.readFileSync(evidenceHtml, "utf8");
   const fingerprint = JSON.parse(json).fingerprint as string;
@@ -534,7 +638,10 @@ test("the HTML report is a static, readable copy that prints the same fingerprin
     const text = (await report.locator("body").innerText()).replaceAll(DISCLAIMER, "");
     expect(text).not.toMatch(/\bsecure\b|security score|time[- ]to[- ]hack/i);
     // The report is long (every run record of both runs). At double size: its first part. Whole page: normal size.
-    await report.screenshot({ path: path.join(SHOTS, "12-evidence-report-html.png"), clip: { x: 0, y: 0, width: 1440, height: 2600 } });
+    await report.screenshot({
+      path: path.join(SHOTS, "12-evidence-report-html.png"),
+      clip: { x: 0, y: 0, width: 1440, height: 2600 },
+    });
   } finally {
     await report.close();
   }
@@ -551,7 +658,7 @@ test("the HTML report is a static, readable copy that prints the same fingerprin
 test("nothing in the app takes outside software: no upload control on Tests or Evidence Lab, no such address", async () => {
   await expectNoSoftwareUpload();
   await stepLink(page, "3. Tests").click();
-  await openGroupTab(page, "Crypto tests", "Checks");      // (the test plan is Checks' Crypto tests tab)
+  await openGroupTab(page, "Crypto tests", "Checks"); // (the test plan is Checks' Crypto tests tab)
   await expect(page.getByTestId("test-card")).toHaveCount(6);
   await expectNoSoftwareUpload();
   await page.getByRole("button", { name: "+ Add test" }).click();
@@ -562,8 +669,16 @@ test("nothing in the app takes outside software: no upload control on Tests or E
   await stepLink(page, "1. Import").click();
   await expect(page.locator('input[type="file"]')).toHaveCount(1);
   await expect(page.getByLabel("Choose a file to import")).toHaveCount(1);
-  for (const address of ["/api/components", "/api/software", "/api/upload", "/api/plans/1/software", "/api/plans/1/component"]) {
-    const answer = await page.request.post(address, { multipart: { file: { name: "x.zip", mimeType: "application/zip", buffer: Buffer.from("PK") } } });
+  for (const address of [
+    "/api/components",
+    "/api/software",
+    "/api/upload",
+    "/api/plans/1/software",
+    "/api/plans/1/component",
+  ]) {
+    const answer = await page.request.post(address, {
+      multipart: { file: { name: "x.zip", mimeType: "application/zip", buffer: Buffer.from("PK") } },
+    });
     expect([404, 405], `${address} answered ${answer.status()}`).toContain(answer.status());
   }
   // A version that is not one of our two demo versions is refused.
@@ -581,26 +696,33 @@ test("isolated mode: the mode line says so and a test really runs in a container
   let app: ChildProcess | null = null;
   const second = await browser.newContext({ baseURL: `http://127.0.0.1:${port}` });
   try {
-    app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", "warning"], {
-      cwd: BACKEND,
-      stdio: "ignore",
-      env: {
-        PATH: process.env.PATH ?? "",
-        HOME: process.env.HOME ?? "",
-        EVIDENCE_LAB_DATA_DIR: dataDir,
-        EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort),
+    app = spawn(
+      PYTHON,
+      ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", "warning"],
+      {
+        cwd: BACKEND,
+        stdio: "ignore",
+        env: {
+          PATH: process.env.PATH ?? "",
+          HOME: process.env.HOME ?? "",
+          EVIDENCE_LAB_DATA_DIR: dataDir,
+          EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort),
+        },
       },
-    });
+    );
     let session: any = null;
     await expect
-      .poll(async () => {
-        try {
-          session = await (await second.request.get("/api/session")).json();
-          return true;
-        } catch {
-          return false;
-        }
-      }, { timeout: 30_000 })
+      .poll(
+        async () => {
+          try {
+            session = await (await second.request.get("/api/session")).json();
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 30_000 },
+      )
       .toBe(true);
     test.skip(
       session.mode !== "isolated",
@@ -611,14 +733,18 @@ test("isolated mode: the mode line says so and a test really runs in a container
     await enterApp(view);
     await openFreshAssessment(view, "Phase 2 walk");
     // (since phase 4c the line goes on to say which real libraries can run)
-    await expect(view.getByTestId("mode-line")).toContainText("Isolated mode: our demo software runs in a locked-down container with no network.");
+    await expect(view.getByTestId("mode-line")).toContainText(
+      "Isolated mode: our demo software runs in a locked-down container with no network.",
+    );
     await importVerifyAndOpenTests(view);
     const bad = view.getByTestId("test-card").filter({ hasText: "Attacker tricks (our short list)" });
     const vectors = view.getByTestId("test-card").filter({ hasText: "Independent exam (Wycheproof)" });
     await bad.getByRole("button", { name: "Run Attacker tricks (our short list)" }).click();
     await expect(bad.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed", { timeout: 120_000 });
     await vectors.getByRole("button", { name: "Run Independent exam (Wycheproof)" }).click();
-    await expect(vectors.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed", { timeout: 120_000 });
+    await expect(vectors.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed", {
+      timeout: 120_000,
+    });
 
     await stepLink(view, "4. Evidence Lab").click();
     const detail = (await openResult(view, "Attacker tricks (our short list)")).getByTestId("result-detail");

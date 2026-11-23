@@ -17,6 +17,7 @@ of `real_libraries.py` are untouched and always come first. With the switch off,
 The app's web process only reads this store. Making a copy (fetching, unpacking, building an image) is `maker.py`,
 which only the research command and the prepare command use.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -34,9 +35,9 @@ SCHEMA = "isogeny.sandbox-copy-set/1"
 IMAGE_REPOSITORY = "evidence-lab-sandbox"
 FAMILY_PREFIX = "sandbox-"
 LABEL_TAIL = "sandbox copy"
-ALGORITHM = "ECDSA P-256"                 # what every piece of asking code answers about, in this version
+ALGORITHM = "ECDSA P-256"  # what every piece of asking code answers about, in this version
 ROLES = ("affected", "fixed", "yours", "more_affected", "more_fixed")
-ASKING_KINDS = ("ours", "written")        # our own asking code for one of the four families, or code written for this library
+ASKING_KINDS = ("ours", "written")  # our own asking code for one of the four families, or code written for this library
 MAX_VERSIONS, MAX_FILES, MAX_SOURCE_CHARS = 8, 40, 20000
 _ID = re.compile(r"^[0-9a-f]{16}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -62,11 +63,27 @@ def slug(library: str) -> str:
 
 def content_of(record: dict) -> dict:
     """What a set's id is the fingerprint of: everything that decides what is in its image. (Not when it was made.)"""
-    return {"library": record["library"], "registry": record["registry"], "package": record["package"], "language": record["language"],
-            "versions": [{"version": v["version"], "files": [{"file": f["file"], "sha256": f["sha256"]} for f in v["files"]],
-                          "tree_sha256": v["tree_sha256"]} for v in record["versions"]],
-            "asking": {"kind": record["asking"]["kind"], "sha256": record["asking"]["sha256"], "template_sha256": record["asking"]["template_sha256"]},
-            "harness_sha256": record["harness_sha256"], "base_images": dict(record["base_images"])}
+    return {
+        "library": record["library"],
+        "registry": record["registry"],
+        "package": record["package"],
+        "language": record["language"],
+        "versions": [
+            {
+                "version": v["version"],
+                "files": [{"file": f["file"], "sha256": f["sha256"]} for f in v["files"]],
+                "tree_sha256": v["tree_sha256"],
+            }
+            for v in record["versions"]
+        ],
+        "asking": {
+            "kind": record["asking"]["kind"],
+            "sha256": record["asking"]["sha256"],
+            "template_sha256": record["asking"]["template_sha256"],
+        },
+        "harness_sha256": record["harness_sha256"],
+        "base_images": dict(record["base_images"]),
+    }
 
 
 def set_id(record: dict) -> str:
@@ -83,48 +100,130 @@ def family_of(record: dict) -> str:
 
 def check_set(record: object) -> dict:
     """A copy set's record, held to the exact shape this version writes. Raises CopyError."""
+
     def need(ok: bool, what: str) -> None:
         if not ok:
             raise CopyError(f"A copy set's record is not written as this version writes it ({what}).")
 
     need(isinstance(record, dict), "it is not a record")
     assert isinstance(record, dict)
-    need(set(record) == {"schema", "id", "library", "registry", "package", "language", "versions", "asking", "harness_sha256", "base_images",
-                         "image", "made_at", "checked"}, "its parts")
+    need(
+        set(record)
+        == {
+            "schema",
+            "id",
+            "library",
+            "registry",
+            "package",
+            "language",
+            "versions",
+            "asking",
+            "harness_sha256",
+            "base_images",
+            "image",
+            "made_at",
+            "checked",
+        },
+        "its parts",
+    )
     need(record["schema"] == SCHEMA, "its schema")
-    need(isinstance(record["library"], str) and bool(_NAME.match(record["library"])) and isinstance(record["package"], str)
-         and bool(_NAME.match(record["package"])), "its names")
+    need(
+        isinstance(record["library"], str)
+        and bool(_NAME.match(record["library"]))
+        and isinstance(record["package"], str)
+        and bool(_NAME.match(record["package"])),
+        "its names",
+    )
     need(record["registry"] in ("pypi", "npm") and record["language"] in ("python", "node"), "its registry")
     versions = record["versions"]
     need(isinstance(versions, list) and 1 <= len(versions) <= MAX_VERSIONS, "its versions")
     seen = set()
     for v in versions:
-        need(isinstance(v, dict) and set(v) == {"version", "role", "published", "files", "tree_sha256", "helpers", "says"}, "a version's parts")
-        need(isinstance(v["version"], str) and bool(_VERSION.match(v["version"])) and v["version"] not in seen, "a version")
+        need(
+            isinstance(v, dict)
+            and set(v) == {"version", "role", "published", "files", "tree_sha256", "helpers", "says"},
+            "a version's parts",
+        )
+        need(
+            isinstance(v["version"], str) and bool(_VERSION.match(v["version"])) and v["version"] not in seen,
+            "a version",
+        )
         seen.add(v["version"])
         need(v["role"] in ROLES and (v["published"] is None or isinstance(v["published"], str)), "a version's role")
         need(isinstance(v["tree_sha256"], str) and bool(_HEX64.match(v["tree_sha256"])), "a version's fingerprint")
         need(isinstance(v["files"], list) and 1 <= len(v["files"]) <= MAX_FILES, "a version's files")
         for f in v["files"]:
-            need(isinstance(f, dict) and set(f) == {"file", "package", "version", "url", "sha256", "registry_fingerprint", "size", "fetched_at",
-                                                    "source"}, "a file's parts")
-            need(isinstance(f["sha256"], str) and bool(_HEX64.match(f["sha256"])) and isinstance(f["url"], str) and len(f["url"]) <= 500
-                 and isinstance(f["file"], str) and len(f["file"]) <= 160 and f["source"] in ("live", "recorded"), "a file")
-        need(isinstance(v["helpers"], list) and all(isinstance(h, str) and len(h) <= 120 for h in v["helpers"]), "a version's helper libraries")
+            need(
+                isinstance(f, dict)
+                and set(f)
+                == {
+                    "file",
+                    "package",
+                    "version",
+                    "url",
+                    "sha256",
+                    "registry_fingerprint",
+                    "size",
+                    "fetched_at",
+                    "source",
+                },
+                "a file's parts",
+            )
+            need(
+                isinstance(f["sha256"], str)
+                and bool(_HEX64.match(f["sha256"]))
+                and isinstance(f["url"], str)
+                and len(f["url"]) <= 500
+                and isinstance(f["file"], str)
+                and len(f["file"]) <= 160
+                and f["source"] in ("live", "recorded"),
+                "a file",
+            )
+        need(
+            isinstance(v["helpers"], list) and all(isinstance(h, str) and len(h) <= 120 for h in v["helpers"]),
+            "a version's helper libraries",
+        )
         need(isinstance(v["says"], dict) and set(v["says"]) == {"name", "version"}, "what a version says of itself")
     asking = record["asking"]
-    need(isinstance(asking, dict) and set(asking) == {"kind", "author", "language", "file", "source", "sha256", "lines", "template_sha256",
-                                                      "commands"}, "its asking code")
-    need(asking["kind"] in ASKING_KINDS and asking["language"] == record["language"] and isinstance(asking["source"], str)
-         and len(asking["source"]) <= MAX_SOURCE_CHARS, "its asking code's text")
-    need(hashlib.sha256(asking["source"].encode("utf-8")).hexdigest() == asking["sha256"], "its asking code's fingerprint")
+    need(
+        isinstance(asking, dict)
+        and set(asking)
+        == {"kind", "author", "language", "file", "source", "sha256", "lines", "template_sha256", "commands"},
+        "its asking code",
+    )
+    need(
+        asking["kind"] in ASKING_KINDS
+        and asking["language"] == record["language"]
+        and isinstance(asking["source"], str)
+        and len(asking["source"]) <= MAX_SOURCE_CHARS,
+        "its asking code's text",
+    )
+    need(
+        hashlib.sha256(asking["source"].encode("utf-8")).hexdigest() == asking["sha256"],
+        "its asking code's fingerprint",
+    )
     need(isinstance(asking["commands"], list) and "verify" in asking["commands"], "what its asking code answers")
-    need(isinstance(record["harness_sha256"], str) and bool(_HEX64.match(record["harness_sha256"])) and isinstance(record["base_images"], dict)
-         and all(isinstance(k, str) and isinstance(v, str) for k, v in record["base_images"].items()), "what its image is built from")
+    need(
+        isinstance(record["harness_sha256"], str)
+        and bool(_HEX64.match(record["harness_sha256"]))
+        and isinstance(record["base_images"], dict)
+        and all(isinstance(k, str) and isinstance(v, str) for k, v in record["base_images"].items()),
+        "what its image is built from",
+    )
     image = record["image"]
-    need(isinstance(image, dict) and set(image) == {"tag", "id"} and isinstance(image["tag"], str) and bool(_TAG.match(image["tag"]))
-         and isinstance(image["id"], str) and bool(_IMAGE_ID.match(image["id"])), "its image")
-    need(isinstance(record["id"], str) and bool(_ID.match(record["id"])) and record["id"] == set_id(record), "its id is not the fingerprint of its content")
+    need(
+        isinstance(image, dict)
+        and set(image) == {"tag", "id"}
+        and isinstance(image["tag"], str)
+        and bool(_TAG.match(image["tag"]))
+        and isinstance(image["id"], str)
+        and bool(_IMAGE_ID.match(image["id"])),
+        "its image",
+    )
+    need(
+        isinstance(record["id"], str) and bool(_ID.match(record["id"])) and record["id"] == set_id(record),
+        "its id is not the fingerprint of its content",
+    )
     need(image["tag"] == image_tag(record["library"], record["id"]), "its image's name")
     need(isinstance(record["made_at"], str) and isinstance(record["checked"], dict), "when it was made")
     return record
@@ -141,6 +240,7 @@ def read_set(raw: bytes) -> dict:
 def versions_of(record: dict) -> list[str]:
     """The set's versions, oldest first."""
     from app.sandbox.versions import order
+
     return [v["version"] for v in sorted(record["versions"], key=lambda v: order(v["version"]) or ())]
 
 
@@ -150,13 +250,25 @@ def as_library(record: dict) -> dict:
     versions = versions_of(record)
     fixed = next((v["version"] for v in record["versions"] if v["role"] == "fixed"), None)
     full = "sign" in record["asking"]["commands"]
-    return {"family": family_of(record), "label": f"{record['library']} ({LABEL_TAIL})", "versions": versions,
-            "algorithms": (ALGORITHM,), "fixed_in": {v["version"]: fixed for v in record["versions"] if fixed and v["role"] != "fixed"
-                                                     and v["role"] != "more_fixed"},
-            "advisories": {}, "distribution": {}, "sandbox": record["id"], "checks_only": not full}
+    return {
+        "family": family_of(record),
+        "label": f"{record['library']} ({LABEL_TAIL})",
+        "versions": versions,
+        "algorithms": (ALGORITHM,),
+        "fixed_in": {
+            v["version"]: fixed
+            for v in record["versions"]
+            if fixed and v["role"] != "fixed" and v["role"] != "more_fixed"
+        },
+        "advisories": {},
+        "distribution": {},
+        "sandbox": record["id"],
+        "checks_only": not full,
+    }
 
 
 # ---------------------------------------------------------------- the store, read
+
 
 def sets_in(root: Path) -> list[dict]:
     """Every readable copy set of a store, newest first. A record that does not read is left out, never half-used."""
@@ -192,7 +304,9 @@ def write_set(root: Path, record: dict) -> Path:
 # ---------------------------------------------------------------- what this process may see (only with the switch on)
 
 _lock = threading.Lock()
-_stores: dict[str, tuple[Path, Callable[[], bool]]] = {}       # a store's folder -> (the folder, is Sandbox research on there?)
+_stores: dict[
+    str, tuple[Path, Callable[[], bool]]
+] = {}  # a store's folder -> (the folder, is Sandbox research on there?)
 _cache: dict[str, tuple[float, list[dict]]] = {}
 CACHE_SECONDS = 2.0
 
@@ -224,7 +338,7 @@ def _visible() -> list[dict]:
         try:
             if not enabled():
                 continue
-        except Exception:      # noqa: BLE001  (a store whose app can't say is not seen)
+        except Exception:  # noqa: BLE001  (a store whose app can't say is not seen)
             continue
         key = str(root)
         with _lock:
@@ -246,7 +360,14 @@ def find(name: object, version: object) -> dict | None:
     copy set of a library holds the same asking code: ottolab/sandbox.py.)"""
     if not isinstance(name, str) or not isinstance(version, str) or not _stores:
         return None
-    return next((r for r in reversed(_visible()) if r["library"] == name and any(v["version"] == version for v in r["versions"])), None)
+    return next(
+        (
+            r
+            for r in reversed(_visible())
+            if r["library"] == name and any(v["version"] == version for v in r["versions"])
+        ),
+        None,
+    )
 
 
 def library(name: object, version: object) -> dict | None:
@@ -275,7 +396,7 @@ def family_of_subject(bare: str) -> str | None:
     """The sandbox family whose image holds this subject key ("starkbank-ecdsa-2.0.0")."""
     if not _stores:
         return None
-    for record in reversed(_visible()):          # (the oldest that holds it, as `find` takes it)
+    for record in reversed(_visible()):  # (the oldest that holds it, as `find` takes it)
         if any(bare == f"{record['library']}-{v['version']}" for v in record["versions"]):
             return family_of(record)
     return None
@@ -293,8 +414,14 @@ def images_present() -> dict[str, str]:
 
 def image_is(tag: str, the_id: str) -> bool:
     try:
-        done = subprocess.run(["docker", "image", "inspect", "--format", "{{.Id}}", tag], capture_output=True, text=True, timeout=20,
-                              stdin=subprocess.DEVNULL, shell=False)
+        done = subprocess.run(
+            ["docker", "image", "inspect", "--format", "{{.Id}}", tag],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            stdin=subprocess.DEVNULL,
+            shell=False,
+        )
     except (OSError, subprocess.TimeoutExpired):
         return False
     return done.returncode == 0 and done.stdout.strip() == the_id

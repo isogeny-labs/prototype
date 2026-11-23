@@ -11,7 +11,10 @@ beforeEach(() => {
   window.history.replaceState(null, "", "#/projects");
 });
 
-const base = (ws = workspace): Routes => ({ "GET /api/session": { body: session }, "GET /api/workspace": { body: ws } });
+const base = (ws = workspace): Routes => ({
+  "GET /api/session": { body: session },
+  "GET /api/workspace": { body: ws },
+});
 const rows = () => screen.queryAllByTestId("project-row");
 const rowOf = (name: string) => rows().find((r) => within(r).queryByText(name))!;
 
@@ -78,7 +81,9 @@ describe("Projects page table", () => {
     mockApi(base());
     render(<App />);
     await screen.findByTestId("projects-page");
-    fireEvent.change(within(screen.getByTestId("projects-page")).getByRole("searchbox", { name: "Search projects" }), { target: { value: "ledg" } });
+    fireEvent.change(within(screen.getByTestId("projects-page")).getByRole("searchbox", { name: "Search projects" }), {
+      target: { value: "ledg" },
+    });
     expect(rows()).toHaveLength(1);
     fireEvent.click(rows()[0]!);
     await waitFor(() => expect(window.location.hash).toBe("#/p/11"));
@@ -98,7 +103,9 @@ describe("archived projects", () => {
     let archived = true;
     const fetchMock = mockApi({
       ...base(),
-      "GET /api/workspace": () => ({ body: { ...workspace, projects: workspace.projects.map((p) => (p.id === 12 ? { ...p, archived } : p)) } }),
+      "GET /api/workspace": () => ({
+        body: { ...workspace, projects: workspace.projects.map((p) => (p.id === 12 ? { ...p, archived } : p)) },
+      }),
       "POST /api/projects/12": () => {
         archived = false;
         return { body: { id: 12 } };
@@ -165,7 +172,10 @@ describe("empty state", () => {
   it("says so when Load demo projects fails", async () => {
     mockApi({
       ...base(emptyWorkspace),
-      "POST /api/demo-projects": { status: 500, body: { error: { message: "The demo files could not be read.", line: null, field: null } } },
+      "POST /api/demo-projects": {
+        status: 500,
+        body: { error: { message: "The demo files could not be read.", line: null, field: null } },
+      },
     });
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Load demo projects" }));
@@ -180,7 +190,9 @@ describe("New project", () => {
       ...base(),
       "POST /api/projects": { body: { id: 30, assessment_id: 301 } },
       "GET /api/assessments/301": { body: { ...emptyAssessment, id: 301, title: "Assessment 1" } },
-      "GET /api/projects/11": { body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [] } },
+      "GET /api/projects/11": {
+        body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [] },
+      },
     });
     render(<App />);
     await screen.findByTestId("projects-page");
@@ -208,7 +220,10 @@ describe("New project", () => {
   it("keeps the form and shows the reason when the server refuses the name", async () => {
     mockApi({
       ...base(),
-      "POST /api/projects": { status: 409, body: { error: { message: "A project with this name already exists here.", line: null, field: null } } },
+      "POST /api/projects": {
+        status: 409,
+        body: { error: { message: "A project with this name already exists here.", line: null, field: null } },
+      },
     });
     render(<App />);
     await screen.findByTestId("projects-page");

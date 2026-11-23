@@ -304,7 +304,10 @@ export function ResultDetail({ result, heading, plain, busy, onMarkReviewed, onD
       ) : null}
 
       {research ? (
-        <div data-testid="research-request" className="rounded-lg border border-dashed border-slate-500 bg-slate-900 p-3">
+        <div
+          data-testid="research-request"
+          className="rounded-lg border border-dashed border-slate-500 bg-slate-900 p-3"
+        >
           <div className="flex flex-wrap items-center gap-2.5">
             <h4 className="text-[13px] font-semibold text-slate-100">{research.title}</h4>
             <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-500 bg-slate-700/40 px-2.5 py-1 text-sm font-semibold text-slate-100">
@@ -332,23 +335,23 @@ export function ResultDetail({ result, heading, plain, busy, onMarkReviewed, onD
       ) : null}
 
       {onMarkReviewed && onDigDeeper ? (
-      <div className="flex flex-wrap items-center gap-2.5">
-        <SecondaryButton
-          pressed={result.reviewed !== null}
-          disabled={busy || result.reviewed !== null}
-          onClick={() => onMarkReviewed(result.run_id)}
-        >
-          {result.reviewed ? "Reviewed" : "Mark reviewed"}
-        </SecondaryButton>
-        <SecondaryButton disabled={busy || research !== null} onClick={() => onDigDeeper(result.run_id)}>
-          {research ? "Dig deeper: queued" : "Dig deeper"}
-        </SecondaryButton>
-        {result.reviewed ? (
-          <span data-testid="reviewed-note" className="text-xs text-slate-400">
-            {result.reviewed.text} <time dateTime={result.reviewed.at}>{formatTime(result.reviewed.at)}</time>
-          </span>
-        ) : null}
-      </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <SecondaryButton
+            pressed={result.reviewed !== null}
+            disabled={busy || result.reviewed !== null}
+            onClick={() => onMarkReviewed(result.run_id)}
+          >
+            {result.reviewed ? "Reviewed" : "Mark reviewed"}
+          </SecondaryButton>
+          <SecondaryButton disabled={busy || research !== null} onClick={() => onDigDeeper(result.run_id)}>
+            {research ? "Dig deeper: queued" : "Dig deeper"}
+          </SecondaryButton>
+          {result.reviewed ? (
+            <span data-testid="reviewed-note" className="text-xs text-slate-400">
+              {result.reviewed.text} <time dateTime={result.reviewed.at}>{formatTime(result.reviewed.at)}</time>
+            </span>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );

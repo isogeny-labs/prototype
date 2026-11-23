@@ -17,6 +17,7 @@ works every item out again from the looks in the file. Change one, change the ot
 Nothing here is a result. "Fix published" is the publisher's statement, as the source gives it; it never says the fix
 works. A test for it still has to be designed, registered, run and reviewed before anything is proposed.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -32,15 +33,24 @@ from app.present import watchlist as words
 
 # What can happen to an item from one look to the next.
 SEEN, FIX, FIX_GONE, FIX_CHANGED, VERSIONS_CHANGED, WITHDRAWN, GONE, BACK = (
-    "seen_no_fix", "fix_published", "fix_no_longer_named", "fix_changed", "versions_changed", "withdrawn", "gone", "back")
+    "seen_no_fix",
+    "fix_published",
+    "fix_no_longer_named",
+    "fix_changed",
+    "versions_changed",
+    "withdrawn",
+    "gone",
+    "back",
+)
 # Where an item stands by the source's own facts.
 NO_FIX, FIX_PUBLISHED, IS_WITHDRAWN, IS_GONE = "no_fix", "fix_published", "withdrawn", "gone"
-SEPARATOR = "~"                     # an item's key: the advisory's id, then the library
+SEPARATOR = "~"  # an item's key: the advisory's id, then the library
 MAX_REASON = 300
-GAP_DAYS = 3                        # more days than this between two looks is said in an item's history
+GAP_DAYS = 3  # more days than this between two looks is said in an item's history
 
 
 # ---------------------------------------------------------------- the rule (pure; no database, no network)
+
 
 def facts_of(ranges: list) -> list[list]:
     """The version ranges of one record as plain facts in a fixed order: [first affected, fixed, last affected]. It
@@ -74,7 +84,7 @@ def derive(looks: list[dict]) -> list[dict]:
     version from the first time it is seen is not for this list. From then on every look either changes nothing about
     it, or adds one event to its history."""
     items: dict[str, dict] = {}
-    index: dict[tuple[str, str], str] = {}                       # (an id in capitals, the library) -> the item's key
+    index: dict[tuple[str, str], str] = {}  # (an id in capitals, the library) -> the item's key
     for look in looks:
         number, at = look["number"], look["at"]
         here: set[str] = set()
@@ -93,8 +103,20 @@ def derive(looks: list[dict]) -> list[dict]:
                 if not now_open:
                     continue
                 key = f"{ids[0]}{SEPARATOR}{library}"
-                item = items[key] = {"key": key, "id": ids[0], "ids": [], "library": library, "first": {"look": number, "at": at},
-                                     "facts": facts, "given": facts, "open": True, "there": True, "withdrawn": False, "quiet": 0, "events": []}
+                item = items[key] = {
+                    "key": key,
+                    "id": ids[0],
+                    "ids": [],
+                    "library": library,
+                    "first": {"look": number, "at": at},
+                    "facts": facts,
+                    "given": facts,
+                    "open": True,
+                    "there": True,
+                    "withdrawn": False,
+                    "quiet": 0,
+                    "events": [],
+                }
                 happened(item, SEEN)
             else:
                 changed = False
@@ -129,7 +151,14 @@ def derive(looks: list[dict]) -> list[dict]:
             here.add(item["key"])
         for record in look.get("withdrawn") or []:
             library = record.get("library")
-            key = next((index[(str(i).upper(), library)] for i in record.get("ids") or [] if (str(i).upper(), library) in index), None)
+            key = next(
+                (
+                    index[(str(i).upper(), library)]
+                    for i in record.get("ids") or []
+                    if (str(i).upper(), library) in index
+                ),
+                None,
+            )
             if key is None or key in here:
                 continue
             item = items[key]
@@ -147,22 +176,59 @@ def derive(looks: list[dict]) -> list[dict]:
     newest = looks[-1]["number"] if looks else None
     out = []
     for item in items.values():
-        state = IS_WITHDRAWN if item["withdrawn"] else IS_GONE if not item["there"] else NO_FIX if item["open"] else FIX_PUBLISHED
-        out.append({"key": item["key"], "id": item["id"], "ids": list(item["ids"]), "library": item["library"], "first": item["first"],
-                    "last": item["last"], "state": state, "ends": ends_of(item["facts"]), "ranges": item["facts"],
-                    "events": item["events"], "quiet": item["quiet"],
-                    # (the app's New tag, as Advisories uses it: what the newest look brought, or changed)
-                    "new": item["events"][-1]["look"] == newest})
+        state = (
+            IS_WITHDRAWN
+            if item["withdrawn"]
+            else IS_GONE
+            if not item["there"]
+            else NO_FIX
+            if item["open"]
+            else FIX_PUBLISHED
+        )
+        out.append(
+            {
+                "key": item["key"],
+                "id": item["id"],
+                "ids": list(item["ids"]),
+                "library": item["library"],
+                "first": item["first"],
+                "last": item["last"],
+                "state": state,
+                "ends": ends_of(item["facts"]),
+                "ranges": item["facts"],
+                "events": item["events"],
+                "quiet": item["quiet"],
+                # (the app's New tag, as Advisories uses it: what the newest look brought, or changed)
+                "new": item["events"][-1]["look"] == newest,
+            }
+        )
     return out
 
 
 def plain_look(number: int, row: OttoLookupRow) -> dict:
     """One stored look as the rule reads it (and as the evidence file holds it)."""
-    return {"number": number, "at": row.at, "by": row.by, "source": row.source, "cut": bool(row.cut),
-            "asked": [str(a.get("library")) for a in row.asked or [] if isinstance(a, dict)],
-            "found": [{"id": f["advisory"]["id"], "aliases": list(f["advisory"].get("aliases") or []),
-                       "library": f["advisory"]["package"]["name"], "ranges": facts_of(f.get("ranges") or [])} for f in row.found or []],
-            "withdrawn": [{"library": w.get("library"), "ids": list(w.get("ids") or [])} for w in row.withdrawn or [] if isinstance(w, dict)]}
+    return {
+        "number": number,
+        "at": row.at,
+        "by": row.by,
+        "source": row.source,
+        "cut": bool(row.cut),
+        "asked": [str(a.get("library")) for a in row.asked or [] if isinstance(a, dict)],
+        "found": [
+            {
+                "id": f["advisory"]["id"],
+                "aliases": list(f["advisory"].get("aliases") or []),
+                "library": f["advisory"]["package"]["name"],
+                "ranges": facts_of(f.get("ranges") or []),
+            }
+            for f in row.found or []
+        ],
+        "withdrawn": [
+            {"library": w.get("library"), "ids": list(w.get("ids") or [])}
+            for w in row.withdrawn or []
+            if isinstance(w, dict)
+        ],
+    }
 
 
 def facts_as_ranges(facts: list[list]) -> list[dict]:
@@ -170,6 +236,7 @@ def facts_as_ranges(facts: list[list]) -> list[dict]:
 
 
 # ---------------------------------------------------------------- in the app
+
 
 class WatchListMixin:
     """Mixed into `Lab`."""
@@ -193,10 +260,16 @@ class WatchListMixin:
     # ---------------------------------------------------------------- reading
 
     def _watch_looks(self, db, plan_id: int) -> list[OttoLookupRow]:
-        return list(db.scalars(select(OttoLookupRow).where(OttoLookupRow.plan_id == plan_id).order_by(OttoLookupRow.id)).all())
+        return list(
+            db.scalars(select(OttoLookupRow).where(OttoLookupRow.plan_id == plan_id).order_by(OttoLookupRow.id)).all()
+        )
 
     def _watch_marks(self, db, plan_id: int) -> list[WatchListMarkRow]:
-        return list(db.scalars(select(WatchListMarkRow).where(WatchListMarkRow.plan_id == plan_id).order_by(WatchListMarkRow.id)).all())
+        return list(
+            db.scalars(
+                select(WatchListMarkRow).where(WatchListMarkRow.plan_id == plan_id).order_by(WatchListMarkRow.id)
+            ).all()
+        )
 
     def _watch_items(self, db, plan: PlanRow) -> tuple[list[dict], list[OttoLookupRow]]:
         """Every watch item of this assessment as it stands now: the rule's item, with what the app knows about it
@@ -215,28 +288,52 @@ class WatchListMixin:
         newest = rows[-1]
         standing = {r["advisory"]["id"].upper(): r for r in self._lookup_rows(db, plan, newest)}
         research = self._research_state(db, plan.id)
-        running = set(a.upper() for a in (research["run"].advisories or [])) if research["run"] is not None and research["live"] else set()
-        left_open = {str(k).upper(): v for k, v in self._left_open(research).items()}      # (what the last research run left open)
+        running = (
+            set(a.upper() for a in (research["run"].advisories or []))
+            if research["run"] is not None and research["live"]
+            else set()
+        )
+        left_open = {
+            str(k).upper(): v for k, v in self._left_open(research).items()
+        }  # (what the last research run left open)
         for item in items:
             advisory = None
-            for row in reversed(rows):                           # its published words, as the newest look that held it read them
-                advisory = next((f["advisory"] for f in row.found or []
-                                 if f["advisory"]["package"]["name"] == item["library"]
-                                 and (f["advisory"]["id"].upper() in item["ids"] or any(str(a).upper() in item["ids"] for a in f["advisory"].get("aliases") or []))),
-                                None)
+            for row in reversed(rows):  # its published words, as the newest look that held it read them
+                advisory = next(
+                    (
+                        f["advisory"]
+                        for f in row.found or []
+                        if f["advisory"]["package"]["name"] == item["library"]
+                        and (
+                            f["advisory"]["id"].upper() in item["ids"]
+                            or any(str(a).upper() in item["ids"] for a in f["advisory"].get("aliases") or [])
+                        )
+                    ),
+                    None,
+                )
                 if advisory is not None:
                     break
             item["advisory"] = advisory
             # A stretch with no look at all (the app was off, or the switch): said in the history, never papered over.
             times = [row.at for n, row in enumerate(rows, start=1) if n >= item["first"]["look"]]
-            item["gaps"] = [{"from": a, "to": b} for a, b in zip(times, times[1:], strict=False) if _days_between(a, b) > GAP_DAYS]
-            found = lookup.Found(advisory=advisory or {}, ranges=facts_as_ranges(item["ranges"]), versions=[], record_id=item["id"])
-            item["fits"] = [{**lib, **lookup.names_version(found, lib["version"])} for lib in libraries if lib["library"] == item["library"]]
+            item["gaps"] = [
+                {"from": a, "to": b} for a, b in zip(times, times[1:], strict=False) if _days_between(a, b) > GAP_DAYS
+            ]
+            found = lookup.Found(
+                advisory=advisory or {}, ranges=facts_as_ranges(item["ranges"]), versions=[], record_id=item["id"]
+            )
+            item["fits"] = [
+                {**lib, **lookup.names_version(found, lib["version"])}
+                for lib in libraries
+                if lib["library"] == item["library"]
+            ]
             listed = next((standing[i] for i in item["ids"] if i in standing), None)
             item["test"] = _test_stands(item, listed, running, left_open)
             newest_mark = marks.get(item["key"])
             item["stopped"] = newest_mark is not None and newest_mark.kind == "stop"
-            item["marks"] = [{"kind": m.kind, "at": m.at, "by": m.by, "reason": m.reason} for m in history.get(item["key"], [])]
+            item["marks"] = [
+                {"kind": m.kind, "at": m.at, "by": m.by, "reason": m.reason} for m in history.get(item["key"], [])
+            ]
         return items, rows
 
     def watch_list_view(self, plan_id: int) -> dict:
@@ -250,10 +347,16 @@ class WatchListMixin:
             items, rows = self._watch_items(db, plan)
             libraries = self._named_libraries(db, plan)
             packages, skipped = self._askable(libraries)
-        return words.view(items=items, look=_look_words(rows[-1]) if rows else None, looks=len(rows), closed=closed,
-                          packages=[p.words for p in packages], skipped=skipped,
-                          recorded=self.settings.advisory_source_dir is not None,
-                          next_look=self.watch_clock_next(plan_id) if not closed else None)
+        return words.view(
+            items=items,
+            look=_look_words(rows[-1]) if rows else None,
+            looks=len(rows),
+            closed=closed,
+            packages=[p.words for p in packages],
+            skipped=skipped,
+            recorded=self.settings.advisory_source_dir is not None,
+            next_look=self.watch_clock_next(plan_id) if not closed else None,
+        )
 
     def watch_list_summary(self, plan_id: int) -> dict | None:
         """For the Overview: how many watched weaknesses have no fix yet, and how many have a fix published and no
@@ -289,8 +392,16 @@ class WatchListMixin:
                 raise Conflict(words.ALREADY_STOPPED if stop else words.ALREADY_WATCHED)
             if not stop and text is not None:
                 raise BadRequest("Watch again takes no reason.")
-            db.add(WatchListMarkRow(plan_id=plan_id, item=item["key"], kind="stop" if stop else "watch", at=_now(),
-                                    by=self.decision_name(), reason=text))
+            db.add(
+                WatchListMarkRow(
+                    plan_id=plan_id,
+                    item=item["key"],
+                    kind="stop" if stop else "watch",
+                    at=_now(),
+                    by=self.decision_name(),
+                    reason=text,
+                )
+            )
             db.commit()
         return self.watch_list_view(plan_id)
 
@@ -311,13 +422,30 @@ class WatchListMixin:
             looks = [plain_look(n, row) for n, row in enumerate(rows, start=1)]
             marks = self._watch_marks(db, plan_id)
             items, _ = self._watch_items(db, plan)
-        return {"looks": looks,
-                "items": [{"key": i["key"], "id": i["id"], "ids": i["ids"], "library": i["library"], "first": i["first"], "last": i["last"],
-                           "state": i["state"], "word": words.STATE_WORDS[i["state"]][0], "ends": i["ends"], "ranges": i["ranges"],
-                           "events": i["events"], "quiet": i["quiet"], "stopped": i["stopped"],
-                           "test": {"key": i["test"]["key"], "word": i["test"]["word"]}} for i in items],
-                "marks": [{"item": m.item, "kind": m.kind, "at": m.at, "by": m.by, "reason": m.reason} for m in marks],
-                "note": words.EVIDENCE_NOTE}
+        return {
+            "looks": looks,
+            "items": [
+                {
+                    "key": i["key"],
+                    "id": i["id"],
+                    "ids": i["ids"],
+                    "library": i["library"],
+                    "first": i["first"],
+                    "last": i["last"],
+                    "state": i["state"],
+                    "word": words.STATE_WORDS[i["state"]][0],
+                    "ends": i["ends"],
+                    "ranges": i["ranges"],
+                    "events": i["events"],
+                    "quiet": i["quiet"],
+                    "stopped": i["stopped"],
+                    "test": {"key": i["test"]["key"], "word": i["test"]["word"]},
+                }
+                for i in items
+            ],
+            "marks": [{"item": m.item, "kind": m.kind, "at": m.at, "by": m.by, "reason": m.reason} for m in marks],
+            "note": words.EVIDENCE_NOTE,
+        }
 
 
 def _test_stands(item: dict, row: dict | None, running: set[str], left_open: dict) -> dict:
@@ -336,7 +464,12 @@ def _test_stands(item: dict, row: dict | None, running: set[str], left_open: dic
         reason = str(test.get("reason") or entry.get("reading_refused") or "").strip()
         return {"key": "no_test", "word": words.NO_TEST, "line": reason or None, "link": link}
     if state == "in_waiting_pack":
-        return {"key": "waiting_pack", "word": None, "line": words.waiting_pack_line(row.get("pack"), bool(row.get("pack_made_here"))), "link": None}
+        return {
+            "key": "waiting_pack",
+            "word": None,
+            "line": words.waiting_pack_line(row.get("pack"), bool(row.get("pack_made_here"))),
+            "link": None,
+        }
     if state == "new":
         opened = next((left_open[i] for i in item["ids"] if i in left_open), None)
         if opened:
@@ -357,6 +490,8 @@ def _now() -> str:
 
 def _days_between(a: str, b: str) -> float:
     try:
-        return (datetime.fromisoformat(b.replace("Z", "+00:00")) - datetime.fromisoformat(a.replace("Z", "+00:00"))).total_seconds() / 86400
+        return (
+            datetime.fromisoformat(b.replace("Z", "+00:00")) - datetime.fromisoformat(a.replace("Z", "+00:00"))
+        ).total_seconds() / 86400
     except ValueError:
         return 0.0

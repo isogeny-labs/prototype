@@ -36,7 +36,8 @@ export function proposal(over: Partial<OttoProposal> = {}): OttoProposal {
       title: "Decisions on this proposal",
       count: 0,
       rows: [],
-      footnote: "This version has one login and no separate accounts. Whoever is at the keyboard records each decision, under the name shown.",
+      footnote:
+        "This version has one login and no separate accounts. Whoever is at the keyboard records each decision, under the name shown.",
       ledger: null,
     },
     link: { page: "advisories", item: "CVE-2022-21449" },
@@ -69,7 +70,8 @@ export function acceptedProposal(over: Partial<OttoProposal> = {}): OttoProposal
           line: "1. Accepted by You on 18 November 2026, 10:02 UTC.",
         },
       ],
-      footnote: "This version has one login and no separate accounts. Whoever is at the keyboard records each decision, under the name shown.",
+      footnote:
+        "This version has one login and no separate accounts. Whoever is at the keyboard records each decision, under the name shown.",
       ledger: null,
     },
     ...over,
@@ -100,7 +102,8 @@ export function rejectedProposal(reason = "Not this quarter", over: Partial<Otto
           line: `1. Rejected by You on 18 November 2026, 10:03 UTC: ${reason}.`,
         },
       ],
-      footnote: "This version has one login and no separate accounts. Whoever is at the keyboard records each decision, under the name shown.",
+      footnote:
+        "This version has one login and no separate accounts. Whoever is at the keyboard records each decision, under the name shown.",
       ledger: null,
     },
     ...over,

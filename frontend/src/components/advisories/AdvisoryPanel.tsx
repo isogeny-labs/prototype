@@ -15,13 +15,25 @@ const PAIR = "grid gap-x-3 gap-y-0.5 @md:grid-cols-[8.5rem_minmax(0,1fr)]";
 /** The advisory's check for one signing program of this assessment. First Otto's proposal of it, which a person
  * accepts or rejects (the shared proposal card: its state, who decided and when, and the buttons); then where the
  * check stands, or the reviewer's result as Evidence words it, with the way to the check and to its evidence. */
-function HereRow({ planId, row, onDecided }: { planId: number; row: AdvisoryHereRow; onDecided: (next: OttoProposal) => void }) {
+function HereRow({
+  planId,
+  row,
+  onDecided,
+}: {
+  planId: number;
+  row: AdvisoryHereRow;
+  onDecided: (next: OttoProposal) => void;
+}) {
   const result = row.result;
   const proposal = row.proposal;
   // Before a check is in the plan the view's status is the proposal's own word, which the card already shows.
   const status = row.status && row.status !== proposal?.status.word ? row.status : null;
   return (
-    <li data-testid="advisory-here-row" data-program={row.program} className="min-w-0 border-t border-slate-800 pt-3 first:border-t-0 first:pt-0">
+    <li
+      data-testid="advisory-here-row"
+      data-program={row.program}
+      className="min-w-0 border-t border-slate-800 pt-3 first:border-t-0 first:pt-0"
+    >
       <p className="break-words font-medium text-slate-100">{row.program}</p>
       {proposal ? (
         <div className="mt-2">
@@ -146,7 +158,9 @@ export function AdvisoryPanel({
           {panel.notes ? (
             // Claude's own words from reading the advisory: long, and not a result, so they stay folded under their name.
             <details data-testid="advisory-notes" className="min-w-0 text-[13px] text-slate-300">
-              <summary className="cursor-pointer text-xs font-medium text-slate-300 hover:text-slate-100">{panel.notes.title}</summary>
+              <summary className="cursor-pointer text-xs font-medium text-slate-300 hover:text-slate-100">
+                {panel.notes.title}
+              </summary>
               <p data-testid="advisory-notes-kind" className="mt-1.5 break-words">
                 {panel.notes.kind_line}
               </p>
@@ -161,7 +175,8 @@ export function AdvisoryPanel({
 
           {panel.also_known_as.length > 0 ? (
             <p data-testid="advisory-also-known-as" className="break-words text-slate-300">
-              <span className={DT}>Also known as</span> <span className="font-mono text-[13px]">{panel.also_known_as.join(", ")}</span>
+              <span className={DT}>Also known as</span>{" "}
+              <span className="font-mono text-[13px]">{panel.also_known_as.join(", ")}</span>
             </p>
           ) : null}
 
@@ -248,7 +263,12 @@ export function AdvisoryPanel({
             ) : null}
           </section>
 
-          <section data-testid="advisory-fix" data-state={panel.fix.state} aria-label={panel.fix.title} className={BLOCK}>
+          <section
+            data-testid="advisory-fix"
+            data-state={panel.fix.state}
+            aria-label={panel.fix.title}
+            className={BLOCK}
+          >
             <div className="flex flex-wrap items-center gap-2">
               <h3 className={BLOCK_TITLE}>{panel.fix.title}</h3>
               {panel.fix.label ? (

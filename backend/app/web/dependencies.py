@@ -1,4 +1,5 @@
 """The Dependencies view (phase 4d): add a dependency list, say which system a top entry is part of, and measure."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
@@ -15,11 +16,19 @@ TOO_LARGE = "This file is larger than 16 MB. Evidence Lab reads dependency lists
 def routes(lab, require_login) -> APIRouter:
     router = APIRouter()
 
-    @router.get("/api/import/{import_id}/dependencies", dependencies=[Depends(require_login)], responses=shows(models.DependenciesView))
+    @router.get(
+        "/api/import/{import_id}/dependencies",
+        dependencies=[Depends(require_login)],
+        responses=shows(models.DependenciesView),
+    )
     def dependencies_view(import_id: int):
         return lab.dependencies_view_for_import(import_id)
 
-    @router.post("/api/plans/{plan_id}/dependencies", dependencies=[Depends(require_login)], responses=shows(models.DependenciesView))
+    @router.post(
+        "/api/plans/{plan_id}/dependencies",
+        dependencies=[Depends(require_login)],
+        responses=shows(models.DependenciesView),
+    )
     async def add_list(plan_id: int, request: Request, filename: str = ""):
         # Read as data, in pieces, and stop at the limit: nothing in the file is run, and a refused file changes nothing.
         declared = request.headers.get("content-length")
@@ -32,11 +41,19 @@ def routes(lab, require_login) -> APIRouter:
                 raise ImportFileError(TOO_LARGE)
         return await run_in_threadpool(lab.add_dependency_list, plan_id, filename[:300], bytes(data))
 
-    @router.post("/api/plans/{plan_id}/dependencies/tie", dependencies=[Depends(require_login)], responses=shows(models.DependenciesView))
+    @router.post(
+        "/api/plans/{plan_id}/dependencies/tie",
+        dependencies=[Depends(require_login)],
+        responses=shows(models.DependenciesView),
+    )
     def tie(plan_id: int, body: DependencyTieBody):
         return lab.tie_dependency(plan_id, body.top, body.system or None)
 
-    @router.post("/api/plans/{plan_id}/dependencies/measure", dependencies=[Depends(require_login)], responses=shows(models.DependenciesView))
+    @router.post(
+        "/api/plans/{plan_id}/dependencies/measure",
+        dependencies=[Depends(require_login)],
+        responses=shows(models.DependenciesView),
+    )
     def measure(plan_id: int, body: DependencyMeasureBody):
         return lab.measure_dependencies(plan_id, body.row)
 

@@ -1,4 +1,5 @@
 """Settings: where data lives and which ports are used. Everything binds to 127.0.0.1."""
+
 from __future__ import annotations
 
 import os
@@ -11,11 +12,11 @@ DEMO_CBOM = DEMO_DIR / "acme-pay-cbom.json"
 EXPECTED_JSON = DEMO_DIR / "expected.json"  # answer key: read-only, never written by the app
 EXPECTED_MIGRATION_JSON = DEMO_DIR / "expected-migration.json"  # the migration demo's answer key: read-only too
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
-OTTO_PACKS_DIR = REPO_ROOT / "research" / "packs"        # phase 5c: the signed test packs shipped with the app
+OTTO_PACKS_DIR = REPO_ROOT / "research" / "packs"  # phase 5c: the signed test packs shipped with the app
 OTTO_RECORDED_DIR = REPO_ROOT / "research" / "recorded"  # phase 5c: Claude's answers recorded during the build
 
-SANDBOX_ENV = "EVIDENCE_LAB_SANDBOX_RESEARCH"       # marks Isogeny's own sandbox computer (prototype)
-REGISTRY_SOURCE_ENV = "EVIDENCE_LAB_REGISTRY_SOURCE"   # a folder of recorded registry answers, read instead
+SANDBOX_ENV = "EVIDENCE_LAB_SANDBOX_RESEARCH"  # marks Isogeny's own sandbox computer (prototype)
+REGISTRY_SOURCE_ENV = "EVIDENCE_LAB_REGISTRY_SOURCE"  # a folder of recorded registry answers, read instead
 
 BIND_HOST = "127.0.0.1"
 DEMO_HOSTNAME = "localhost"
@@ -36,12 +37,12 @@ NGINX_IMAGE = "nginx@sha256:fed7e14be83cbd2661a75cdc5b872d936cf155d46c327084d30b
 class Settings:
     data_dir: Path
     demo_tls_port: int
-    max_jobs: int = 4               # tests running at once (EVIDENCE_LAB_MAX_JOBS, 1..16)
-    force_mode: str | None = None   # "demo" | "isolated" | None = decide from what is available (EVIDENCE_LAB_MODE)
+    max_jobs: int = 4  # tests running at once (EVIDENCE_LAB_MAX_JOBS, 1..16)
+    force_mode: str | None = None  # "demo" | "isolated" | None = decide from what is available (EVIDENCE_LAB_MODE)
     # Speed test: many short rounds, so the versions take turns every fraction of a second and a busy moment on
     # the computer hits them alike. rounds * repeats = pairs (200).
-    speed_rounds: int = 40          # bench rounds (EVIDENCE_LAB_SPEED_ROUNDS, 2..50)
-    speed_repeats: int = 5          # sign+verify pairs per round
+    speed_rounds: int = 40  # bench rounds (EVIDENCE_LAB_SPEED_ROUNDS, 2..50)
+    speed_repeats: int = 5  # sign+verify pairs per round
     # The three local test servers of the multi-target demo file (phase 3a-fixes). Started only when that file is imported.
     extra_ports: tuple[int, int, int] = (8444, 8445, 8446)
     # The five local test servers of the migration demo file (phase 4a). Started only when that file is imported.
@@ -50,21 +51,21 @@ class Settings:
     lab_nginx_port: int = 8461
     # Phase 5c: the updates folder "Check for updates" looks in (on this computer, never the internet), and the
     # folder of Claude's recorded answers. None means the ones shipped in the repository (research/packs, research/recorded).
-    otto_updates_dir: Path | None = None       # EVIDENCE_LAB_OTTO_UPDATES
-    otto_recorded_dir: Path | None = None      # EVIDENCE_LAB_OTTO_RECORDED
+    otto_updates_dir: Path | None = None  # EVIDENCE_LAB_OTTO_UPDATES
+    otto_recorded_dir: Path | None = None  # EVIDENCE_LAB_OTTO_RECORDED
     # Phase 6, Otto's research loop: "Look for new advisories" reads the public source (OSV) unless this names a folder
     # of recorded answers on this computer (tests, the walks, a demo with no internet). Then nothing is sent anywhere.
-    advisory_source_dir: Path | None = None    # EVIDENCE_LAB_ADVISORY_SOURCE
+    advisory_source_dir: Path | None = None  # EVIDENCE_LAB_ADVISORY_SOURCE
     # Hosting (app/infra/): where the database, the cache and stored files live, and who may log in. None of these
     # is needed for the demo on one computer: unset, the app keeps its SQLite file and folders in the data folder, a
     # cache in memory, and the password login, exactly as before.
-    database_url: str | None = None            # EVIDENCE_LAB_DATABASE_URL: sqlite:///... or postgresql://...
-    redis_url: str | None = None               # EVIDENCE_LAB_REDIS_URL: redis://host:6379/0
-    storage_url: str | None = None             # EVIDENCE_LAB_STORAGE_URL: s3://bucket/prefix, gs://bucket/prefix or a folder
-    public_url: str | None = None              # EVIDENCE_LAB_PUBLIC_URL: https://lab.example.com (the address people open)
-    allowed_hosts: tuple[str, ...] = ()        # EVIDENCE_LAB_ALLOWED_HOSTS: extra host names the app answers, comma-separated
-    password_login: bool = True                # EVIDENCE_LAB_PASSWORD_LOGIN (default: off when the GitHub login is set up)
-    github: GitHubSettings | None = None       # EVIDENCE_LAB_GITHUB_*: the GitHub App used to log in
+    database_url: str | None = None  # EVIDENCE_LAB_DATABASE_URL: sqlite:///... or postgresql://...
+    redis_url: str | None = None  # EVIDENCE_LAB_REDIS_URL: redis://host:6379/0
+    storage_url: str | None = None  # EVIDENCE_LAB_STORAGE_URL: s3://bucket/prefix, gs://bucket/prefix or a folder
+    public_url: str | None = None  # EVIDENCE_LAB_PUBLIC_URL: https://lab.example.com (the address people open)
+    allowed_hosts: tuple[str, ...] = ()  # EVIDENCE_LAB_ALLOWED_HOSTS: extra host names the app answers, comma-separated
+    password_login: bool = True  # EVIDENCE_LAB_PASSWORD_LOGIN (default: off when the GitHub login is set up)
+    github: GitHubSettings | None = None  # EVIDENCE_LAB_GITHUB_*: the GitHub App used to log in
 
     @property
     def database(self) -> str:
@@ -74,18 +75,20 @@ class Settings:
     @property
     def login_methods(self) -> frozenset[str]:
         return frozenset({"password"} if self.password_login else set()) | (
-            frozenset({"github"}) if self.github is not None else frozenset())
+            frozenset({"github"}) if self.github is not None else frozenset()
+        )
 
     @property
     def secure_cookies(self) -> bool:
         return bool(self.public_url and self.public_url.startswith("https://"))
+
     # Sandbox research (prototype, 22 November 2026). The switch in Settings can be turned on only on a computer that is
     # marked as Isogeny's own sandbox where the app starts. A customer install never has the mark.
-    sandbox_research: bool = False             # EVIDENCE_LAB_SANDBOX_RESEARCH (1, on, true or yes)
+    sandbox_research: bool = False  # EVIDENCE_LAB_SANDBOX_RESEARCH (1, on, true or yes)
     # The public package registries are read only by the research command, when it makes a sandbox copy. This names a
     # folder of recorded registry answers and files on this computer that is read instead (tests, the walks, a demo
     # with no internet). Then nothing is fetched from anywhere.
-    registry_source_dir: Path | None = None    # EVIDENCE_LAB_REGISTRY_SOURCE
+    registry_source_dir: Path | None = None  # EVIDENCE_LAB_REGISTRY_SOURCE
     # The Watch list's clock, which looks by itself while Sandbox research is on. A test, a walk or a script that
     # wants no look by itself starts the app without it (EVIDENCE_LAB_WATCH_CLOCK=off); it never runs on a computer
     # that is not marked as the sandbox.
@@ -123,14 +126,15 @@ class GitHubSettings:
     """A GitHub App that people log in with (its "user-to-server" login). Only the client id and secret are needed;
     the App's private key is not, since this app only asks who the person is (and, if `allowed_orgs` is set, which
     organizations they belong to)."""
+
     client_id: str
     client_secret: str
-    app_slug: str | None = None                 # EVIDENCE_LAB_GITHUB_APP_SLUG: for the "install the app" link
+    app_slug: str | None = None  # EVIDENCE_LAB_GITHUB_APP_SLUG: for the "install the app" link
     allowed_users: frozenset[str] = frozenset()  # EVIDENCE_LAB_GITHUB_ALLOWED_USERS: GitHub logins or numeric ids
-    allowed_orgs: frozenset[str] = frozenset()   # EVIDENCE_LAB_GITHUB_ALLOWED_ORGS: organization logins, comma-separated
-    allow_anyone: bool = False                   # EVIDENCE_LAB_GITHUB_ALLOW_ANYONE: on lets every GitHub account in
-    web_url: str = "https://github.com"         # EVIDENCE_LAB_GITHUB_WEB_URL (GitHub Enterprise, or tests)
-    api_url: str = "https://api.github.com"     # EVIDENCE_LAB_GITHUB_API_URL
+    allowed_orgs: frozenset[str] = frozenset()  # EVIDENCE_LAB_GITHUB_ALLOWED_ORGS: organization logins, comma-separated
+    allow_anyone: bool = False  # EVIDENCE_LAB_GITHUB_ALLOW_ANYONE: on lets every GitHub account in
+    web_url: str = "https://github.com"  # EVIDENCE_LAB_GITHUB_WEB_URL (GitHub Enterprise, or tests)
+    api_url: str = "https://api.github.com"  # EVIDENCE_LAB_GITHUB_API_URL
 
     @property
     def open_to_anyone(self) -> bool:
@@ -159,6 +163,7 @@ def _database_url() -> str | None:
     password = os.environ.get("EVIDENCE_LAB_DATABASE_PASSWORD")
     if url and password:
         from sqlalchemy.engine import make_url
+
         url = make_url(url).set(password=password).render_as_string(hide_password=False)
     return url
 
@@ -175,14 +180,20 @@ def load_github_settings() -> GitHubSettings | None:
     anyone = _env_bool("EVIDENCE_LAB_GITHUB_ALLOW_ANYONE", False)
     if not users and not orgs and not anyone:
         # Every login sees and can change the same assessments: who may log in is never left open by accident.
-        raise SystemExit("The GitHub login needs EVIDENCE_LAB_GITHUB_ALLOWED_USERS or EVIDENCE_LAB_GITHUB_ALLOWED_ORGS "
-                         "(or EVIDENCE_LAB_GITHUB_ALLOW_ANYONE=on to let every GitHub account in)")
+        raise SystemExit(
+            "The GitHub login needs EVIDENCE_LAB_GITHUB_ALLOWED_USERS or EVIDENCE_LAB_GITHUB_ALLOWED_ORGS "
+            "(or EVIDENCE_LAB_GITHUB_ALLOW_ANYONE=on to let every GitHub account in)"
+        )
     return GitHubSettings(
-        client_id=client_id, client_secret=client_secret,
+        client_id=client_id,
+        client_secret=client_secret,
         app_slug=(os.environ.get("EVIDENCE_LAB_GITHUB_APP_SLUG") or "").strip() or None,
-        allowed_users=users, allowed_orgs=orgs, allow_anyone=anyone,
+        allowed_users=users,
+        allowed_orgs=orgs,
+        allow_anyone=anyone,
         web_url=(os.environ.get("EVIDENCE_LAB_GITHUB_WEB_URL") or "https://github.com").rstrip("/"),
-        api_url=(os.environ.get("EVIDENCE_LAB_GITHUB_API_URL") or "https://api.github.com").rstrip("/"))
+        api_url=(os.environ.get("EVIDENCE_LAB_GITHUB_API_URL") or "https://api.github.com").rstrip("/"),
+    )
 
 
 def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int | None = None) -> Settings:
@@ -205,27 +216,33 @@ def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int 
     advisory_source = os.environ.get("EVIDENCE_LAB_ADVISORY_SOURCE")
     registry_source = os.environ.get(REGISTRY_SOURCE_ENV)
     github = load_github_settings()
-    settings = Settings(data_dir=Path(data_dir).resolve(), demo_tls_port=demo_tls_port,
-                    max_jobs=_env_int("EVIDENCE_LAB_MAX_JOBS", 4, 1, 16), force_mode=force_mode,
-                    speed_rounds=_env_int("EVIDENCE_LAB_SPEED_ROUNDS", 40, 2, 50),
-                    otto_updates_dir=Path(updates).resolve() if updates else None,
-                    otto_recorded_dir=Path(recorded).resolve() if recorded else None,
-                    advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None,
-                    sandbox_research=sandbox_marked(), registry_source_dir=Path(registry_source).resolve() if registry_source else None,
-                    watch_clock=os.environ.get("EVIDENCE_LAB_WATCH_CLOCK", "").strip().lower() not in ("0", "off", "false", "no"),
-                    database_url=_database_url(),
-                    redis_url=(os.environ.get("EVIDENCE_LAB_REDIS_URL") or "").strip() or None,
-                    storage_url=(os.environ.get("EVIDENCE_LAB_STORAGE_URL") or "").strip() or None,
-                    public_url=(os.environ.get("EVIDENCE_LAB_PUBLIC_URL") or "").strip().rstrip("/") or None,
-                    allowed_hosts=_csv(os.environ.get("EVIDENCE_LAB_ALLOWED_HOSTS")),
-                    # With the GitHub login set up, the password login is off unless asked for: on a hosted copy the
-                    # first visitor would otherwise choose the password.
-                    password_login=_env_bool("EVIDENCE_LAB_PASSWORD_LOGIN", github is None),
-                    github=github)
+    settings = Settings(
+        data_dir=Path(data_dir).resolve(),
+        demo_tls_port=demo_tls_port,
+        max_jobs=_env_int("EVIDENCE_LAB_MAX_JOBS", 4, 1, 16),
+        force_mode=force_mode,
+        speed_rounds=_env_int("EVIDENCE_LAB_SPEED_ROUNDS", 40, 2, 50),
+        otto_updates_dir=Path(updates).resolve() if updates else None,
+        otto_recorded_dir=Path(recorded).resolve() if recorded else None,
+        advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None,
+        sandbox_research=sandbox_marked(),
+        registry_source_dir=Path(registry_source).resolve() if registry_source else None,
+        watch_clock=os.environ.get("EVIDENCE_LAB_WATCH_CLOCK", "").strip().lower() not in ("0", "off", "false", "no"),
+        database_url=_database_url(),
+        redis_url=(os.environ.get("EVIDENCE_LAB_REDIS_URL") or "").strip() or None,
+        storage_url=(os.environ.get("EVIDENCE_LAB_STORAGE_URL") or "").strip() or None,
+        public_url=(os.environ.get("EVIDENCE_LAB_PUBLIC_URL") or "").strip().rstrip("/") or None,
+        allowed_hosts=_csv(os.environ.get("EVIDENCE_LAB_ALLOWED_HOSTS")),
+        # With the GitHub login set up, the password login is off unless asked for: on a hosted copy the
+        # first visitor would otherwise choose the password.
+        password_login=_env_bool("EVIDENCE_LAB_PASSWORD_LOGIN", github is None),
+        github=github,
+    )
     if not settings.password_login and settings.github is None:
-        raise SystemExit("EVIDENCE_LAB_PASSWORD_LOGIN=off needs the GitHub login (EVIDENCE_LAB_GITHUB_CLIENT_ID and _SECRET)")
+        raise SystemExit(
+            "EVIDENCE_LAB_PASSWORD_LOGIN=off needs the GitHub login (EVIDENCE_LAB_GITHUB_CLIENT_ID and _SECRET)"
+        )
     return settings
-
 
 
 def sandbox_marked() -> bool:

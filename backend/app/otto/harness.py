@@ -8,6 +8,7 @@ no packaging file. If it is missing or different, the app works as before and sa
 Otto's own code is standard-library Python. Its Rust "snark" tool, the Lean prover and its model judge are not
 used by this app and are neither built nor called.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -33,17 +34,21 @@ LOCK_PATH = BACKEND_DIR / "otto.lock.json"
 # if its fingerprint is the pinned one.
 HOME_ENV = "EVIDENCE_LAB_OTTO_HOME"
 OTTO_HOME = Path(os.environ[HOME_ENV]).resolve() if os.environ.get(HOME_ENV) else BACKEND_DIR / ".otto"
-SOURCE_ENV = "EVIDENCE_LAB_OTTO_SOURCE"   # optional: a local git checkout of Otto to take the pinned commit from
+SOURCE_ENV = "EVIDENCE_LAB_OTTO_SOURCE"  # optional: a local git checkout of Otto to take the pinned commit from
 FETCH_LIMIT_SECONDS = 180
 MAX_FILE_BYTES = 16 * 1024 * 1024
 _SKIP_DIRS = {"__pycache__", ".git"}
 _MODULES = ("canonical", "ledger", "records", "lab", "loop", "verifiers")
 
-NOT_FETCHED = ("it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the "
-               "isogeny-labs/otto repository once")
-NOT_PINNED_COPY = ("the copy on this computer is not the pinned one (its fingerprint is different). Delete the folder "
-                   + ("it is kept in (the one EVIDENCE_LAB_OTTO_HOME names)" if os.environ.get(HOME_ENV) else "backend/.otto")
-                   + " and run ./run-demo.sh again")
+NOT_FETCHED = (
+    "it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the "
+    "isogeny-labs/otto repository once"
+)
+NOT_PINNED_COPY = (
+    "the copy on this computer is not the pinned one (its fingerprint is different). Delete the folder "
+    + ("it is kept in (the one EVIDENCE_LAB_OTTO_HOME names)" if os.environ.get(HOME_ENV) else "backend/.otto")
+    + " and run ./run-demo.sh again"
+)
 
 
 class OttoNotInstalled(Exception):
@@ -66,7 +71,7 @@ class Lock:
 @dataclass(frozen=True)
 class OttoStatus:
     installed: bool
-    reason: str | None          # why not, as the end of the sentence "Otto is not installed on this computer: ..."
+    reason: str | None  # why not, as the end of the sentence "Otto is not installed on this computer: ..."
     repository: str | None
     commit: str | None
     version: str | None
@@ -83,13 +88,23 @@ def read_lock(path: Path = LOCK_PATH) -> Lock:
     """The pin, or OttoNotInstalled when the file is missing or not what it must be."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        lock = Lock(repository=str(data["repository"]), url=str(data["url"]), commit=str(data["commit"]),
-                    version=str(data["version"]), tree_sha256=str(data["tree_sha256"]))
+        lock = Lock(
+            repository=str(data["repository"]),
+            url=str(data["url"]),
+            commit=str(data["commit"]),
+            version=str(data["version"]),
+            tree_sha256=str(data["tree_sha256"]),
+        )
     except (OSError, ValueError, KeyError, TypeError):
         raise OttoNotInstalled("its pin file (backend/otto.lock.json) can't be read") from None
     hexdigits = set("0123456789abcdef")
-    if len(lock.commit) != 40 or set(lock.commit) - hexdigits or len(lock.tree_sha256) != 64 or set(lock.tree_sha256) - hexdigits \
-            or not lock.url.startswith("https://"):
+    if (
+        len(lock.commit) != 40
+        or set(lock.commit) - hexdigits
+        or len(lock.tree_sha256) != 64
+        or set(lock.tree_sha256) - hexdigits
+        or not lock.url.startswith("https://")
+    ):
         raise OttoNotInstalled("its pin file (backend/otto.lock.json) does not name a full commit and fingerprint")
     return lock
 
@@ -113,7 +128,9 @@ def tree_sha256(folder: Path) -> str:
 def _git(args: list[str], cwd: Path | None = None, limit: int = FETCH_LIMIT_SECONDS) -> bytes | None:
     """Output of one git command, or None when git is missing, fails or takes too long."""
     try:
-        done = subprocess.run(["git", *args], cwd=cwd, capture_output=True, timeout=limit, stdin=subprocess.DEVNULL, shell=False)
+        done = subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, timeout=limit, stdin=subprocess.DEVNULL, shell=False
+        )
     except (OSError, subprocess.TimeoutExpired):
         return None
     return done.stdout if done.returncode == 0 else None
@@ -210,7 +227,9 @@ def status(lock_path: Path = LOCK_PATH) -> OttoStatus:
     else:
         base = dict(repository=lock.repository, commit=lock.commit, version=lock.version)
         if sys.platform.startswith("win"):
-            found = OttoStatus(False, "its ledger needs Linux or macOS file locking, which Windows does not have", path=None, **base)
+            found = OttoStatus(
+                False, "its ledger needs Linux or macOS file locking, which Windows does not have", path=None, **base
+            )
         elif not (lock.folder / "otto" / "__init__.py").is_file():
             found = OttoStatus(False, NOT_FETCHED, path=None, **base)
         elif tree_sha256(lock.folder) != lock.tree_sha256:
@@ -233,10 +252,14 @@ def load() -> ModuleType:
         if package is not None and Path(str(package.__file__)).parent.parent == found.path:
             return package
         folder = found.path / "otto"
-        spec = importlib.util.spec_from_file_location("otto", folder / "__init__.py", submodule_search_locations=[str(folder)])
+        spec = importlib.util.spec_from_file_location(
+            "otto", folder / "__init__.py", submodule_search_locations=[str(folder)]
+        )
         if spec is None or spec.loader is None:
             raise OttoNotInstalled("its code could not be loaded")
-        previous = {name: sys.modules.get(name) for name in list(sys.modules) if name == "otto" or name.startswith("otto.")}
+        previous = {
+            name: sys.modules.get(name) for name in list(sys.modules) if name == "otto" or name.startswith("otto.")
+        }
         for name in previous:
             del sys.modules[name]
         package = importlib.util.module_from_spec(spec)
@@ -245,7 +268,7 @@ def load() -> ModuleType:
             spec.loader.exec_module(package)
             for name in _MODULES:
                 importlib.import_module(f"otto.{name}")
-        except Exception as exc:   # a broken or foreign copy must never take the app down
+        except Exception as exc:  # a broken or foreign copy must never take the app down
             for name in [n for n in sys.modules if n == "otto" or n.startswith("otto.")]:
                 del sys.modules[name]
             raise OttoNotInstalled(f"its code could not be loaded ({exc.__class__.__name__})") from None
@@ -269,19 +292,38 @@ def own_checks(limit: int = 900) -> dict:
     with tempfile.TemporaryDirectory(prefix="evidence-lab-otto-check-") as scratch:
         copy = Path(scratch) / "otto"
         shutil.copytree(found.path, copy, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"), symlinks=False)
-        env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}   # his tests need no key and get none
+        env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}  # his tests need no key and get none
 
         def run(args: list[str]) -> subprocess.CompletedProcess:
-            return subprocess.run([sys.executable, *args], cwd=copy, capture_output=True, text=True, timeout=limit, env=env,
-                                  stdin=subprocess.DEVNULL, shell=False)
+            return subprocess.run(
+                [sys.executable, *args],
+                cwd=copy,
+                capture_output=True,
+                text=True,
+                timeout=limit,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                shell=False,
+            )
+
         tests = run(["-m", "unittest", "discover", "-s", "tests"])
         audit = run(["-m", "otto", "--lab", "examples/rho-negation", "audit"])
-    return {"tests_ok": tests.returncode == 0, "tests_line": (tests.stderr.strip().splitlines() or ["no output"])[-1],
-            "audit_ok": audit.returncode == 0, "audit_line": (audit.stdout.strip().splitlines() or ["no output"])[-1]}
+    return {
+        "tests_ok": tests.returncode == 0,
+        "tests_line": (tests.stderr.strip().splitlines() or ["no output"])[-1],
+        "audit_ok": audit.returncode == 0,
+        "audit_line": (audit.stdout.strip().splitlines() or ["no output"])[-1],
+    }
 
 
 def public_status() -> dict:
     """What the screens show about the harness: never a path on this computer."""
     found = status()
-    return {"installed": found.installed, "sentence": found.sentence, "reason": found.reason,
-            "version": found.version, "commit": found.commit, "repository": found.repository}
+    return {
+        "installed": found.installed,
+        "sentence": found.sentence,
+        "reason": found.reason,
+        "version": found.version,
+        "commit": found.commit,
+        "repository": found.repository,
+    }

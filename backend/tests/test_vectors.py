@@ -1,5 +1,6 @@
 """The vendored official vectors and our fixed bad-signature cases: pinned by hash, read as data, and the
 demo components give exactly the expected answers on them (through the real harness, in demo mode)."""
+
 import json
 import shutil
 from pathlib import Path
@@ -18,7 +19,10 @@ SUBJECTS = ["acme-sign-1.4.2", "acme-sign-1.4.3", "control-accept-all"]
 
 
 def as_cases(vector_set):
-    return [{"id": c.id, "public_key": c.public_key, "message": c.message, "signature": c.signature} for c in vector_set.cases]
+    return [
+        {"id": c.id, "public_key": c.public_key, "message": c.message, "signature": c.signature}
+        for c in vector_set.cases
+    ]
 
 
 def wrong_ids(vector_set, lines, subject):
@@ -35,6 +39,7 @@ def demo_runner(tmp_path):
 
 
 # ------------------------------------------------------------------ the files
+
 
 def test_both_wycheproof_files_are_pinned_by_hash_and_commit():
     assert vectors.WYCHEPROOF["ecdsa_p256"]["sha256"] == ECDSA_SHA and vectors.WYCHEPROOF["ed25519"]["sha256"] == ED_SHA
@@ -64,9 +69,14 @@ def test_wycheproof_cases_load_as_data():
     assert "r=0" not in next(c for c in ed.cases if c.id == "168").comment
 
 
-@pytest.mark.parametrize("which,relative", [("ecdsa_p256", "wycheproof/ecdsa_secp256r1_sha256_test.json"),
-                                            ("ed25519", "wycheproof/ed25519_test.json"),
-                                            ("bad", "bad-signatures/cases.json")])
+@pytest.mark.parametrize(
+    "which,relative",
+    [
+        ("ecdsa_p256", "wycheproof/ecdsa_secp256r1_sha256_test.json"),
+        ("ed25519", "wycheproof/ed25519_test.json"),
+        ("bad", "bad-signatures/cases.json"),
+    ],
+)
 def test_a_changed_or_missing_file_is_refused(tmp_path, monkeypatch, which, relative):
     copy = tmp_path / "vectors"
     shutil.copytree(VECTORS_DIR, copy)
@@ -76,7 +86,7 @@ def test_a_changed_or_missing_file_is_refused(tmp_path, monkeypatch, which, rela
     target = copy / relative
     raw = bytearray(target.read_bytes())
     position = raw.index(b'"invalid"') + 1
-    raw[position:position + 7] = b"valid  "[:7]  # flip one published answer; the file is still valid JSON
+    raw[position : position + 7] = b"valid  "[:7]  # flip one published answer; the file is still valid JSON
     target.write_bytes(bytes(raw))
     with pytest.raises(vectors.VectorFileChanged, match="not the pinned copy"):
         load()
@@ -90,7 +100,9 @@ def test_bad_signature_file_is_pinned_and_holds_no_private_key():
     assert vectors.file_sha256(path) == vectors.BAD_SIGNATURES["sha256"]
     assert vectors.BAD_SIGNATURES["sha256"] in (path.parent / "README.md").read_text()
     data = json.loads(path.read_text())
-    assert data["schema"] == "isogeny.bad-signatures/1" and "private" not in path.read_text().lower().replace("private key was never", "")
+    assert data["schema"] == "isogeny.bad-signatures/1" and "private" not in path.read_text().lower().replace(
+        "private key was never", ""
+    )
     assert all(set(c) == {"id", "what", "public_key", "message", "signature", "expected"} for c in data["cases"])
     cases = vectors.load_bad_signatures().cases
     assert tuple(c.id for c in cases) == vectors.BAD_SIGNATURE_IDS and len(cases) == 16
@@ -106,6 +118,7 @@ def test_bad_signature_file_is_pinned_and_holds_no_private_key():
 
 
 # ------------------------------------------------------------------ the reference library
+
 
 def test_reference_library_is_right_on_every_official_case():
     ecdsa = vectors.load_wycheproof("ecdsa_p256")
@@ -135,11 +148,13 @@ def test_reference_bench_has_the_adapter_shape():
 
 # ------------------------------------------------------------------ the demo components, through the harness
 
+
 @pytest.fixture(scope="module")
 def official_run(tmp_path_factory):
     vector_set = vectors.load_wycheproof("ecdsa_p256")
     result = demo_runner(tmp_path_factory.mktemp("official")).run_job(
-        {"op": "verify_batch", "subjects": SUBJECTS, "cases": as_cases(vector_set)}, time_limit=240)
+        {"op": "verify_batch", "subjects": SUBJECTS, "cases": as_cases(vector_set)}, time_limit=240
+    )
     print(f"\n484 official cases x 3 subjects, demo mode: {result.duration_ms} ms")
     return vector_set, result
 
@@ -149,8 +164,11 @@ def test_acme_sign_1_4_2_is_wrong_on_exactly_168_171_364_of_484(official_run):
     vector_set, result = official_run
     assert result.ok and result.mode == "demo" and len(result.lines) == 3 * 484
     assert wrong_ids(vector_set, result.lines, "acme-sign-1.4.2") == ["168", "171", "364"]
-    wrong = {line["id"]: line["valid"] for line in result.lines
-             if line["subject"] == "acme-sign-1.4.2" and line["id"] in ("168", "171", "364")}
+    wrong = {
+        line["id"]: line["valid"]
+        for line in result.lines
+        if line["subject"] == "acme-sign-1.4.2" and line["id"] in ("168", "171", "364")
+    }
     assert wrong == {"168": True, "171": True, "364": True}  # all three: a bad signature accepted
 
 
@@ -161,7 +179,9 @@ def test_acme_sign_1_4_3_is_right_on_all_484(official_run):
 
 def test_accept_all_control_is_wrong_on_every_invalid_official_case(official_run):
     vector_set, result = official_run
-    assert wrong_ids(vector_set, result.lines, "control-accept-all") == [c.id for c in vector_set.cases if c.expected == "invalid"]
+    assert wrong_ids(vector_set, result.lines, "control-accept-all") == [
+        c.id for c in vector_set.cases if c.expected == "invalid"
+    ]
     assert sum(c.expected == "invalid" for c in vector_set.cases) == 310
 
 
@@ -185,9 +205,14 @@ def test_bad_signature_cases_on_both_versions_and_the_control(tmp_path):
     assert "wrong on exactly **`r0-s0`** and **`s-plus-n`**" in readme
     # every wrong one is a value outside 1..n-1 that was accepted: the one planted bug
     by_id = {c.id: c for c in vector_set.cases}
-    assert all(by_id[i].expected == "invalid" and ("r = 0" in by_id[i].comment or "above the allowed range" in by_id[i].comment)
-               for i in wrong)
-    assert wrong_ids(vector_set, result.lines, "control-accept-all") == [c.id for c in vector_set.cases if c.expected == "invalid"]
+    assert all(
+        by_id[i].expected == "invalid"
+        and ("r = 0" in by_id[i].comment or "above the allowed range" in by_id[i].comment)
+        for i in wrong
+    )
+    assert wrong_ids(vector_set, result.lines, "control-accept-all") == [
+        c.id for c in vector_set.cases if c.expected == "invalid"
+    ]
 
 
 def test_vectors_module_holds_no_verdict_logic_and_reads_json_only():

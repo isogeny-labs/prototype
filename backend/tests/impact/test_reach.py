@@ -1,6 +1,7 @@
 """Phase 4e (change impact, first half): "Where it is used". The walk through a dependency list, the rules that say two
 things are the same, and the places in this assessment and elsewhere in the organization, on the demo data and on
 small lists written here. Reading it changes nothing."""
+
 from __future__ import annotations
 
 import json
@@ -22,21 +23,37 @@ WORDS_NEVER = re.compile(r"\b(secure|security score|score|severity|severe|critic
 
 def _cdx(described: str, components: list[tuple[str, str, str, str | None]], edges: dict[str, list[str]]) -> bytes:
     """A small CycloneDX 1.6 list: components are (bom-ref, type, name, version), edges ref -> refs it depends on."""
-    comps = [{"bom-ref": ref, "type": kind, "name": name, **({"version": version} if version else {})}
-             for ref, kind, name, version in components]
-    return json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
-                       "metadata": {"component": {"bom-ref": described, "type": "application", "name": "Thing", "version": "1"}},
-                       "components": comps,
-                       "dependencies": [{"ref": k, "dependsOn": v} for k, v in edges.items()]}).encode()
+    comps = [
+        {"bom-ref": ref, "type": kind, "name": name, **({"version": version} if version else {})}
+        for ref, kind, name, version in components
+    ]
+    return json.dumps(
+        {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "metadata": {"component": {"bom-ref": described, "type": "application", "name": "Thing", "version": "1"}},
+            "components": comps,
+            "dependencies": [{"ref": k, "dependsOn": v} for k, v in edges.items()],
+        }
+    ).encode()
 
 
-SHARED = _cdx("thing", [("pay", "application", "pay-api", "2.0"), ("ledger", "application", "ledger", "3.1"),
-                        ("py", "library", "python", "3.12.3"), ("ssl", "library", "openssl", "3.0.22"),
-                        ("lone", "library", "zlib", "1.3")],
-              {"thing": ["pay", "ledger"], "pay": ["py"], "py": ["ssl"], "ledger": ["ssl", "lone"]})
+SHARED = _cdx(
+    "thing",
+    [
+        ("pay", "application", "pay-api", "2.0"),
+        ("ledger", "application", "ledger", "3.1"),
+        ("py", "library", "python", "3.12.3"),
+        ("ssl", "library", "openssl", "3.0.22"),
+        ("lone", "library", "zlib", "1.3"),
+    ],
+    {"thing": ["pay", "ledger"], "pay": ["py"], "py": ["ssl"], "ledger": ["ssl", "lone"]},
+)
 
 
 # ---------------------------------------------------------------- the walk
+
 
 def test_every_top_entry_that_reaches_a_library_is_named_with_its_path():
     dl = read_dependency_list(SHARED)
@@ -55,21 +72,32 @@ def test_every_top_entry_that_reaches_a_library_is_named_with_its_path():
 
 
 def test_a_cycle_in_a_list_ends_the_walk():
-    dl = read_dependency_list(_cdx("thing", [("app", "application", "app", "1"), ("a", "library", "a", "1"), ("b", "library", "b", "1")],
-                                   {"thing": ["app"], "app": ["a"], "a": ["b"], "b": ["a"]}))
+    dl = read_dependency_list(
+        _cdx(
+            "thing",
+            [("app", "application", "app", "1"), ("a", "library", "a", "1"), ("b", "library", "b", "1")],
+            {"thing": ["app"], "app": ["a"], "a": ["b"], "b": ["a"]},
+        )
+    )
     assert reached_from(dl, "b", top_keys(dl, [])) == [("app", ["a 1"])]
 
 
 # ---------------------------------------------------------------- the same thing
 
+
 def test_versions_are_compared_as_the_app_reads_them():
-    assert same_version("3.0.22", "3.0.22-1~deb12u2") and same_version("v1.4.2", "1.4.2") and same_version("1.4", "1.4.0")
+    assert (
+        same_version("3.0.22", "3.0.22-1~deb12u2") and same_version("v1.4.2", "1.4.2") and same_version("1.4", "1.4.0")
+    )
     assert not same_version("1.4.2", "1.4.3") and not same_version(None, "1.4.2")
     # a version the app can't read matches only the same text
     assert same_version("devel", "DEVEL") and not same_version("devel", "1.0")
     # our own software is matched on the exact version text: acme-sign 1.4.3-otto is another program than 1.4.3
     sign = software_part("acme-sign", "1.4.3")
-    assert software_match(sign, "acme-sign", "1.4.3-otto") is None and software_match(sign, "acme-sign", "1.4.3") == "name_version"
+    assert (
+        software_match(sign, "acme-sign", "1.4.3-otto") is None
+        and software_match(sign, "acme-sign", "1.4.3") == "name_version"
+    )
 
 
 def test_the_rules_that_say_two_libraries_are_the_same():
@@ -83,7 +111,7 @@ def test_the_rules_that_say_two_libraries_are_the_same():
     assert software_match(part, "openssl", "3.0.22") == "knowledge_base"
     ecdsa = software_part("python-ecdsa", "0.13.2")
     assert software_match(ecdsa, "ecdsa", "0.13.2", "pkg:pypi/ecdsa@0.13.2") == "knowledge_base"
-    assert software_match(ecdsa, "ecdsa", "0.13.2", "pkg:npm/ecdsa@0.13.2") is None       # another ecosystem's "ecdsa"
+    assert software_match(ecdsa, "ecdsa", "0.13.2", "pkg:npm/ecdsa@0.13.2") is None  # another ecosystem's "ecdsa"
     # the knowledge base knows neither: the same name and version (capital letters ignored)
     sign = software_part("acme-sign", "1.4.2")
     assert sign.library is None
@@ -95,6 +123,7 @@ def test_the_rules_that_say_two_libraries_are_the_same():
 
 
 # ---------------------------------------------------------------- on the demo data, in a lab
+
 
 @pytest.fixture
 def lab(tmp_path):
@@ -119,8 +148,10 @@ def _acme(lab, project: str = "Acme Pay", with_list: bool = True, tie: bool = Tr
 
 def _other(lab, address: str, project: str = "Multi", folder: int | None = None) -> dict:
     made = lab.create_project(project, folder)
-    csv = (f"location,type,claim,value\n{address},tls,protocol_versions,TLS1.3\n"
-           "acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256\nelliptic 6.5.6,software,signature_algorithm,ECDSA P-256\n")
+    csv = (
+        f"location,type,claim,value\n{address},tls,protocol_versions,TLS1.3\n"
+        "acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256\nelliptic 6.5.6,software,signature_algorithm,ECDSA P-256\n"
+    )
     lab.import_file("other.csv", csv.encode(), assessment_id=made["assessment_id"])
     return made
 
@@ -130,7 +161,13 @@ def _rows(view: dict) -> dict:
 
 
 def _texts(block: dict) -> list[str]:
-    out = [block["title"], block["count_line"], *block["notes"], block["here"]["none"] or "", block["elsewhere"]["none"] or ""]
+    out = [
+        block["title"],
+        block["count_line"],
+        *block["notes"],
+        block["here"]["none"] or "",
+        block["elsewhere"]["none"] or "",
+    ]
     for part in ("here", "elsewhere"):
         out += [line["text"] + " " + line["sub"] for line in block[part]["lines"]]
     for extra in ("compatible", "connect"):
@@ -146,15 +183,24 @@ def test_a_library_names_your_software_that_reaches_it_and_the_system_it_is_tied
     assert block["title"] == "Where it is used" and block["part"] == "openssl 3.0.22"
     [user] = block["here"]["lines"]
     address = imp["addresses"][0]["address"]
-    assert user["text"] == "acme-pay-server 1.0.0" and user["link"] == {"page": "migration/systems", "item": f"server:{address}"}
-    assert user["sub"] == (f"Your own software, from your dependency list. Uses it, through python 3.12.3. Part of {address} "
-                           "(set by you).")
+    assert user["text"] == "acme-pay-server 1.0.0" and user["link"] == {
+        "page": "migration/systems",
+        "item": f"server:{address}",
+    }
+    assert user["sub"] == (
+        f"Your own software, from your dependency list. Uses it, through python 3.12.3. Part of {address} (set by you)."
+    )
     assert block["count"] == 1 and block["count_line"] == "Re-check this one if you change it."
-    assert block["elsewhere"]["lines"] == [] and block["elsewhere"]["none"] == "No other assessment in your organization names it."
+    assert (
+        block["elsewhere"]["lines"] == []
+        and block["elsewhere"]["none"] == "No other assessment in your organization names it."
+    )
     # an untied entry is listed and not counted, with how to tie it
     elliptic = rows["elliptic 6.5.6"]["impact"]
     assert [line["text"] for line in elliptic["here"]["lines"]] == ["acme-ledger 5.1.0"]
-    assert elliptic["here"]["lines"][0]["sub"].endswith("Not tied to a system of your file: choose one with Part of on Dependencies.")
+    assert elliptic["here"]["lines"][0]["sub"].endswith(
+        "Not tied to a system of your file: choose one with Part of on Dependencies."
+    )
     assert elliptic["count"] == 0
     # every line says where it came from and why it is there
     for row in rows.values():
@@ -170,13 +216,19 @@ def test_other_assessments_in_the_organization_are_named_and_archived_ones_are_l
     elliptic = _rows(lab.dependencies_view(pid))["elliptic 6.5.6"]["impact"]
     [line] = elliptic["elsewhere"]["lines"]
     assert line["text"] == "Multi › Assessment 1" and line["chip"] == "Open"
-    assert line["sub"] == "Names elliptic 6.5.6 as a signing program (the knowledge base recognises it as elliptic, at the same version)."
+    assert (
+        line["sub"]
+        == "Names elliptic 6.5.6 as a signing program (the knowledge base recognises it as elliptic, at the same version)."
+    )
     assert line["link"]["assessment_id"] == other["assessment_id"] and line["link"]["page"] == "migration/systems"
     assert elliptic["count"] == 1
     # a second assessment in the same project is counted with it, not as a line of its own
-    second = lab.create_project("Unused", None)          # (another project with nothing that matches)
-    lab.import_file("x.csv", b"location,type,claim,value\nfoo 1.0,software,signature_algorithm,ECDSA P-256\n",
-                    assessment_id=second["assessment_id"])
+    second = lab.create_project("Unused", None)  # (another project with nothing that matches)
+    lab.import_file(
+        "x.csv",
+        b"location,type,claim,value\nfoo 1.0,software,signature_algorithm,ECDSA P-256\n",
+        assessment_id=second["assessment_id"],
+    )
     assert len(_rows(lab.dependencies_view(pid))["elliptic 6.5.6"]["impact"]["elsewhere"]["lines"]) == 1
     # archived: the assessment, its project, or a folder above it
     lab.update_project(other["id"], {"archived": True})
@@ -202,7 +254,8 @@ def test_a_closed_assessment_reads_only_its_own_file_and_list_and_a_closed_one_e
     lab.update_assessment(made["assessment_id"], {"close": True, "signed_off_by": "Kevin"})
     block = _rows(lab.dependencies_view(pid))["elliptic 6.5.6"]["impact"]
     assert block["elsewhere"]["lines"] == [] and block["elsewhere"]["none"] == (
-        "This assessment is closed, so other assessments are not read: only its own scanner file and dependency list are.")
+        "This assessment is closed, so other assessments are not read: only its own scanner file and dependency list are."
+    )
     assert [line["text"] for line in block["here"]["lines"]] == ["acme-ledger 5.1.0"]
 
 
@@ -214,17 +267,21 @@ def test_a_library_reached_by_two_programs_names_both_and_the_what_if_card_says_
     rows = _rows(lab.dependencies_view(pid))
     block = rows["openssl 3.0.22"]["impact"]
     assert [(line["text"], line["sub"].split(". ")[1]) for line in block["here"]["lines"]] == [
-        ("pay-api 2.0", "Uses it, through python 3.12.3"), ("ledger 3.1", "Uses it directly")]
+        ("pay-api 2.0", "Uses it, through python 3.12.3"),
+        ("ledger 3.1", "Uses it directly"),
+    ]
     # the what-if card's "Where the library is used" reads the same walk
     used = next(g for g in lab.whatif_view(pid, "openssl", "3.5.0")["facts"] if g["key"] == "used")
     assert [line["text"] for line in used["lines"]] == [
         "openssl 3.0.22 is in your dependency list, under pay-api 2.0 (through python 3.12.3). pay-api 2.0 is not tied to a system of your scanner file.",
-        "openssl 3.0.22 is in your dependency list, under ledger 3.1 (direct). ledger 3.1 is not tied to a system of your scanner file."]
+        "openssl 3.0.22 is in your dependency list, under ledger 3.1 (direct). ledger 3.1 is not tied to a system of your scanner file.",
+    ]
 
 
 def test_with_no_dependency_list_only_the_scanner_file_is_read_and_it_says_so(lab):
     _, imp, pid = _acme(lab, with_list=False)
     from app.present.impact import block
+
     with lab.db() as db:
         facts = block(lab._impact(db, lab._plan(db, pid), software_part("acme-sign", "1.4.2")), on_fix=True)
     assert [line["text"] for line in facts["here"]["lines"]] == ["acme-sign 1.4.2"]

@@ -2,6 +2,7 @@
 the file already imported, exactly as Import does it today (its notices, its Demo data label, and the local test
 servers that file starts). Running it again adds nothing: each project is added once (by its key), even if archived.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -62,8 +63,16 @@ def load_demo_projects(lab: Any) -> dict:
         added.append(name)
         notices.extend(f"{name}: {n}" for n in imported.get("notices") or [])
     with lab.db() as db:
-        first = db.scalars(select(AssessmentRow).join(ProjectRow, ProjectRow.id == AssessmentRow.project_id)
-                           .where(ProjectRow.demo_key == "acme-pay").order_by(AssessmentRow.id.desc()).limit(1)).first()
-    summary = (f"Added {len(added)} demo projects in the Demo folder: {', '.join(added)}." if added
-               else "The demo projects are already here. Nothing was added.")
+        first = db.scalars(
+            select(AssessmentRow)
+            .join(ProjectRow, ProjectRow.id == AssessmentRow.project_id)
+            .where(ProjectRow.demo_key == "acme-pay")
+            .order_by(AssessmentRow.id.desc())
+            .limit(1)
+        ).first()
+    summary = (
+        f"Added {len(added)} demo projects in the Demo folder: {', '.join(added)}."
+        if added
+        else "The demo projects are already here. Nothing was added."
+    )
     return {"added": added, "summary": summary, "notices": notices, "open_assessment_id": first.id if first else None}

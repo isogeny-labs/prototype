@@ -12,6 +12,7 @@ claim was checked, what kind of system was measured, how an answer is labelled, 
 changes no result, and nothing about it is stored. A check of ours that has not run, couldn't run or couldn't be trusted
 has no tag: nothing was observed or proven. Something the file named (a claim, a system, a library's answer) that the app
 couldn't check rests only on the file, and reads From your file."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -31,8 +32,10 @@ MEANINGS = {
 # A result that is no result: nothing was observed or proven.
 NO_RESULT = frozenset({"couldnt_run", "couldnt_trust", "couldnt_check"})
 VERIFY_COULDNT = "Couldn't check"
-MODE_WORDS = {"demo": "in demo mode (a plain process on this computer, not isolated)",
-              "isolated": "in isolated mode (a locked-down container with no network)"}
+MODE_WORDS = {
+    "demo": "in demo mode (a plain process on this computer, not isolated)",
+    "isolated": "in isolated mode (a locked-down container with no network)",
+}
 UNTOUCHED = "Your live system was not touched."
 
 
@@ -44,8 +47,11 @@ def tag(key: str, note: str | None = None) -> dict:
 
 # ---------------------------------------------------------------- the four, with the item's own sentence
 
+
 def live(where: str | None) -> dict:
-    return tag(LIVE, f"Read from {where or 'the server'}, an address in your file that you confirmed, with handshakes only.")
+    return tag(
+        LIVE, f"Read from {where or 'the server'}, an address in your file that you confirmed, with handshakes only."
+    )
 
 
 def after_change(where: str | None, rolled_back: bool = False) -> dict:
@@ -56,10 +62,16 @@ def after_change(where: str | None, rolled_back: bool = False) -> dict:
 def lab_copy(what: str | None, mode: str | None = None, real: bool = False, sandbox: bool = False) -> dict:
     """A test of a signing program (or a library) on a copy on this computer."""
     if real and sandbox:
-        return tag(LAB, f"Run on a sandbox copy of {what or 'the library'}: a public copy fetched from its package registry, on this "
-                        f"computer, in its own locked-down container. {UNTOUCHED}")
+        return tag(
+            LAB,
+            f"Run on a sandbox copy of {what or 'the library'}: a public copy fetched from its package registry, on this "
+            f"computer, in its own locked-down container. {UNTOUCHED}",
+        )
     if real:
-        return tag(LAB, f"Run on a public copy of {what or 'the library'} on this computer, in its own locked-down container. {UNTOUCHED}")
+        return tag(
+            LAB,
+            f"Run on a public copy of {what or 'the library'} on this computer, in its own locked-down container. {UNTOUCHED}",
+        )
     if not what:
         return tag(LAB, f"Run on the reference library on this computer. {UNTOUCHED}")
     how = f", {MODE_WORDS[mode]}" if mode in MODE_WORDS else ""
@@ -82,13 +94,20 @@ def of_proof(proof: dict | None) -> dict | None:
     """A fix's proof line, as Fixes words it: only a proof that ran and was believed (it passed, or it did not pass) rests
     on its run. "Nothing was run", "Proof can't be trusted", "Proof did not finish" and a proof the plan has moved past read
     as a warning and rest on nothing here; a running or unstarted proof has no result yet."""
-    if not proof or proof.get("state") not in ("passed", "failed") or (proof.get("badge") or {}).get("tone") not in ("pass", "fail"):
+    if (
+        not proof
+        or proof.get("state") not in ("passed", "failed")
+        or (proof.get("badge") or {}).get("tone") not in ("pass", "fail")
+    ):
         return None
     return lab_proof()
 
 
 def lab_public_copy(library: str | None) -> dict:
-    return tag(LAB, f"Measured on a public copy of {library or 'the library'} on this computer, in its own locked-down container. {UNTOUCHED}")
+    return tag(
+        LAB,
+        f"Measured on a public copy of {library or 'the library'} on this computer, in its own locked-down container. {UNTOUCHED}",
+    )
 
 
 def from_file(note: str | None = None) -> dict:
@@ -96,10 +115,14 @@ def from_file(note: str | None = None) -> dict:
 
 
 def published(note: str | None = None) -> dict:
-    return tag(PUBLISHED, note or "From the maker's release notes, quoted under Details and evidence. The app has not measured it.")
+    return tag(
+        PUBLISHED,
+        note or "From the maker's release notes, quoted under Details and evidence. The app has not measured it.",
+    )
 
 
 # ---------------------------------------------------------------- the rule, for each kind of item
+
 
 def of_test(kind: str | None, result: dict | None, where: str | None = None) -> dict | None:
     """A result of a test of the plan (its first run, a retest, a proof, a watch run). A server test is handshakes to the
@@ -110,7 +133,9 @@ def of_test(kind: str | None, result: dict | None, where: str | None = None) -> 
         return None
     if kind in SERVER_KINDS:
         return live(where)
-    return lab_copy(result.get("component"), result.get("mode"), bool(result.get("real")), bool(result.get("sandbox_copy")))
+    return lab_copy(
+        result.get("component"), result.get("mode"), bool(result.get("real")), bool(result.get("sandbox_copy"))
+    )
 
 
 def of_verify(result: dict | None) -> dict | None:
@@ -123,7 +148,9 @@ def of_verify(result: dict | None) -> dict | None:
         return from_file("The app couldn't check this claim, so it rests only on what your file says.")
     if claim.get("location_kind") == "server":
         return live(claim.get("location"))
-    return tag(LAB, f"Checked by running a copy of {claim.get('location') or 'the program'} on this computer. {UNTOUCHED}")
+    return tag(
+        LAB, f"Checked by running a copy of {claim.get('location') or 'the program'} on this computer. {UNTOUCHED}"
+    )
 
 
 def of_system(kind: str | None, status: str | None, name: str | None) -> dict:
@@ -142,11 +169,16 @@ def of_answer(label: str | None, answer: str | None) -> dict:
     if label == "release_notes":
         return published()
     if label == "public_copy":
-        return tag(LAB, f"Measured on a public copy of this version on this computer, in its own locked-down container. {UNTOUCHED}")
-    if label == "your_environment":    # defined, and nothing in this version can produce it
+        return tag(
+            LAB,
+            f"Measured on a public copy of this version on this computer, in its own locked-down container. {UNTOUCHED}",
+        )
+    if label == "your_environment":  # defined, and nothing in this version can produce it
         return tag(LIVE, "Measured in your environment.")
-    if answer == "doesnt_apply":       # the knowledge base, from what the library's maker publishes, says what kind it is
-        return published("This question is not asked of this kind of library, by what its maker publishes. The app has not measured it.")
+    if answer == "doesnt_apply":  # the knowledge base, from what the library's maker publishes, says what kind it is
+        return published(
+            "This question is not asked of this kind of library, by what its maker publishes. The app has not measured it."
+        )
     return from_file("The app has no answer for this yet: it rests only on your dependency list.")
 
 
@@ -186,7 +218,11 @@ def of_check_row(row: dict) -> dict | None:
     if code in NO_RESULT:
         # Measure status that couldn't measure a system leaves its status standing on the file; any other check that
         # couldn't run (a test, a try on a copy, the measurement after Apply or Roll back) observed and proved nothing
-        return of_system(None, "couldnt_check", None) if origin == "measure" and kind in ("pq_status", "signing_status") else None
+        return (
+            of_system(None, "couldnt_check", None)
+            if origin == "measure" and kind in ("pq_status", "signing_status")
+            else None
+        )
     if origin == "try":
         return lab_try(clients=kind == "client_reach")
     if origin in ("after_apply", "after_rollback"):
@@ -209,7 +245,10 @@ def of_fix(fix: dict, address: str | None = None) -> dict:
     if kind == "dependency":
         return from_file("From your dependency list. The app has not checked that your system loads this library.")
     if kind == "developer_change":
-        return tag(LAB, "From the tests picked for a developer's change, run on a copy of that code on this computer. Nothing was merged.")
+        return tag(
+            LAB,
+            "From the tests picked for a developer's change, run on a copy of that code on this computer. Nothing was merged.",
+        )
     if kind == "applied_change":
         return after_change(address)
     if kind == "migration":
@@ -230,8 +269,13 @@ def of_fix(fix: dict, address: str | None = None) -> dict:
 
 # The small grey tags the pages already show beside a number ("measured", "measured on our test server", "published: FIPS
 # 203"), each given the look of the source it belongs to. Their words stay exactly as they are.
-_LAB_TAGS = ("measured on our test server", "measured on the reference library", "measured on the copy", "measured on nginx",
-             "measured on a public copy")
+_LAB_TAGS = (
+    "measured on our test server",
+    "measured on the reference library",
+    "measured on the copy",
+    "measured on nginx",
+    "measured on a public copy",
+)
 
 
 def family_of(text: str, measured: str | None) -> str | None:
@@ -276,6 +320,33 @@ def counted(sources: list[dict | None], extra_file: int = 0) -> list[dict]:
     return [{"key": k, "label": LABELS[k], "meaning": MEANINGS[k], "count": n[k]} for k in KEYS if n[k]]
 
 
-__all__ = ["FILE", "KEYS", "LAB", "LABELS", "LIVE", "MEANINGS", "PUBLISHED", "after_change", "colour_tags", "counted", "family_of",
-           "from_file", "lab_copy", "lab_proof", "lab_public_copy", "lab_try", "live", "of_answer", "of_answers", "of_check_row", "of_claim", "of_fix",
-           "of_library", "of_system", "of_test", "of_verify", "published", "tag"]
+__all__ = [
+    "FILE",
+    "KEYS",
+    "LAB",
+    "LABELS",
+    "LIVE",
+    "MEANINGS",
+    "PUBLISHED",
+    "after_change",
+    "colour_tags",
+    "counted",
+    "family_of",
+    "from_file",
+    "lab_copy",
+    "lab_proof",
+    "lab_public_copy",
+    "lab_try",
+    "live",
+    "of_answer",
+    "of_answers",
+    "of_check_row",
+    "of_claim",
+    "of_fix",
+    "of_library",
+    "of_system",
+    "of_test",
+    "of_verify",
+    "published",
+    "tag",
+]

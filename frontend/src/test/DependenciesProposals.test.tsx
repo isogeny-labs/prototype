@@ -65,7 +65,8 @@ const NOT_AFFECTED: DependencyAdvisory = {
   name: "Wrongly encoded signature accepted",
   line: "Named by advisory CVE-2024-42460: measured not affected",
   state: { key: "not_affected", label: "measured not affected", tone: "pass" },
-  detail: "The advisory check passed on elliptic 6.5.6 in this assessment: the published cases chosen for this advisory got the right answer.",
+  detail:
+    "The advisory check passed on elliptic 6.5.6 in this assessment: the published cases chosen for this advisory got the right answer.",
   fixed_line: "Its publisher names 6.5.7 as the fixed version; your list has 6.5.6.",
   advisory_link: { page: "advisories", item: "CVE-2024-42460" },
   evidence_link: { page: "evidence", item: "test-14" },
@@ -90,7 +91,10 @@ const DEP: Partial<OttoProposal> = {
   ],
   link: { page: "migration/dependencies", item: "row-1" },
 };
-const proposed = proposal({ ...DEP, note: "Accept marks this library “update first”. It runs nothing and changes nothing on any system." });
+const proposed = proposal({
+  ...DEP,
+  note: "Accept marks this library “update first”. It runs nothing and changes nothing on any system.",
+});
 const EFFECT = "Marked “update first”: python-ecdsa 0.13.2 to 0.13.3.";
 const accepted = acceptedProposal({
   ...DEP,
@@ -99,11 +103,21 @@ const accepted = acceptedProposal({
   note: "Undo takes the mark off again.",
 });
 const rejected = rejectedProposal("We vendor our own build", DEP);
-const STATUS = { label: "Update first", tone: "warn" as const, lines: [`${EFFECT} Accepted by You on 18 November 2026, 10:02 UTC.`] };
+const STATUS = {
+  label: "Update first",
+  tone: "warn" as const,
+  lines: [`${EFFECT} Accepted by You on 18 November 2026, 10:02 UTC.`],
+};
 
 /** The demo list with a change to the rows named by their labels. */
 function withRows(changes: Record<string, Partial<DependencyRow>>, base: View = DEPENDENCIES_DEMO): View {
-  return { ...base, groups: base.groups.map((g) => ({ ...g, rows: g.rows.map((r) => (changes[r.label] ? { ...r, ...changes[r.label] } : r)) })) };
+  return {
+    ...base,
+    groups: base.groups.map((g) => ({
+      ...g,
+      rows: g.rows.map((r) => (changes[r.label] ? { ...r, ...changes[r.label] } : r)),
+    })),
+  };
 }
 
 const NAMED = withRows({
@@ -111,8 +125,12 @@ const NAMED = withRows({
   [JAVA]: { advisories: [AFFECTED] },
   [ELLIPTIC]: { advisories: [NOT_AFFECTED] },
 });
-const AFTER_ACCEPT = withRows({ [ECDSA]: { advisories: [NOT_CHECKED, NO_TEST], otto_proposals: [accepted], otto_status: STATUS } });
-const AFTER_REJECT = withRows({ [ECDSA]: { advisories: [NOT_CHECKED, NO_TEST], otto_proposals: [rejected], otto_status: null } });
+const AFTER_ACCEPT = withRows({
+  [ECDSA]: { advisories: [NOT_CHECKED, NO_TEST], otto_proposals: [accepted], otto_status: STATUS },
+});
+const AFTER_REJECT = withRows({
+  [ECDSA]: { advisories: [NOT_CHECKED, NO_TEST], otto_proposals: [rejected], otto_status: null },
+});
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -152,7 +170,10 @@ describe("Dependencies: libraries named by an advisory", () => {
   it("says it in the table row, one line for each advisory, with the state as the chip's tone and the way to the proposed fix", async () => {
     await open([NAMED]);
     const ecdsa = within(row(ECDSA)).getAllByTestId("advisory-marker");
-    expect(ecdsa.map((m) => text(m))).toEqual(["Named by advisory CVE-2019-14859: not yet checkedSee the proposed fix", "Named by advisory CVE-2019-14853: not yet checked"]);
+    expect(ecdsa.map((m) => text(m))).toEqual([
+      "Named by advisory CVE-2019-14859: not yet checkedSee the proposed fix",
+      "Named by advisory CVE-2019-14853: not yet checked",
+    ]);
     expect(ecdsa.map((m) => m.getAttribute("data-state"))).toEqual(["not_checked", "not_checked"]);
     const java = within(row(JAVA)).getByTestId("advisory-marker");
     expect(text(java)).toBe("Named by advisory CVE-2022-21449: measured affectedSee the proposed fix");
@@ -186,7 +207,9 @@ describe("Dependencies: libraries named by an advisory", () => {
     const li = detail(JAVA).getByTestId("dependency-advisory");
     expect(li.getAttribute("data-advisory")).toBe("CVE-2022-21449");
     expect(li.getAttribute("data-state")).toBe("affected");
-    expect(text(affected.getByTestId("dependency-advisory-line"))).toBe("Named by advisory CVE-2022-21449: measured affected");
+    expect(text(affected.getByTestId("dependency-advisory-line"))).toBe(
+      "Named by advisory CVE-2022-21449: measured affected",
+    );
     expect(affected.getByTestId("dependency-advisory-line").getAttribute("data-tone")).toBe("fail");
     expect(text(affected.getByTestId("dependency-advisory-detail"))).toBe(AFFECTED.detail);
     expect(text(affected.getByTestId("dependency-advisory-fixed"))).toBe(AFFECTED.fixed_line);
@@ -209,11 +232,17 @@ describe("Dependencies: libraries named by an advisory", () => {
     expect(text(within(named[0]!).getByTestId("dependency-advisory-detail"))).toBe(NOT_CHECKED.detail);
     // not checked here: no evidence to see; the fix is the one on the advisory
     expect(within(named[0]!).queryByTestId("dependency-advisory-evidence")).toBeNull();
-    expect(href(within(named[0]!).getByTestId("dependency-advisory-fix"))).toBe("#/a/101/advisories?item=CVE-2019-14859");
+    expect(href(within(named[0]!).getByTestId("dependency-advisory-fix"))).toBe(
+      "#/a/101/advisories?item=CVE-2019-14859",
+    );
     // no test, so no fix is offered: the line and the advisory's link only
-    expect(text(within(named[1]!).getByTestId("dependency-advisory-detail"))).toBe("This advisory has no test yet, so nothing can be measured.");
+    expect(text(within(named[1]!).getByTestId("dependency-advisory-detail"))).toBe(
+      "This advisory has no test yet, so nothing can be measured.",
+    );
     expect(within(named[1]!).queryByTestId("dependency-advisory-fix")).toBeNull();
-    expect(href(within(named[1]!).getByTestId("dependency-advisory-link"))).toBe("#/a/101/advisories?item=CVE-2019-14853");
+    expect(href(within(named[1]!).getByTestId("dependency-advisory-link"))).toBe(
+      "#/a/101/advisories?item=CVE-2019-14853",
+    );
   });
 
   it("words no result of its own: nothing is called secure or scored", async () => {
@@ -264,7 +293,9 @@ describe("Dependencies: Otto's proposal to change a library's status", () => {
     expect(calls(fetchMock)).toEqual([GET]);
     fireEvent.change(screen.getByTestId("proposal-reject-reason"), { target: { value: "We vendor our own build" } });
     fireEvent.click(screen.getByTestId("proposal-reject-confirm"));
-    await waitFor(() => expect(text(panel().getByTestId("proposal-status"))).toBe("Not added (We vendor our own build)"));
+    await waitFor(() =>
+      expect(text(panel().getByTestId("proposal-status"))).toBe("Not added (We vendor our own build)"),
+    );
     expect(calls(fetchMock)).toEqual([GET, decide("reject"), GET]);
     expect(sent(fetchMock, decide("reject"))).toEqual({ reason: "We vendor our own build" });
     expect(text(panel().getByTestId("proposal-decided"))).toContain("Reason: We vendor our own build");
@@ -272,7 +303,9 @@ describe("Dependencies: Otto's proposal to change a library's status", () => {
     expect(text(panel().getByTestId("proposal-title"))).toBe(TITLE);
     expect((panel().getByTestId("proposal-reconsider") as HTMLButtonElement).disabled).toBe(false);
     expect(panel().queryByTestId("dependency-otto-status")).toBeNull();
-    expect(text(within(row(ECDSA)).getByTestId("proposal-marker"))).toBe("From OttoNot added (We vendor our own build)");
+    expect(text(within(row(ECDSA)).getByTestId("proposal-marker"))).toBe(
+      "From OttoNot added (We vendor our own build)",
+    );
   });
 
   it("Undo of an accept sends one POST, and the status is gone when the view is read again", async () => {
@@ -287,9 +320,15 @@ describe("Dependencies: Otto's proposal to change a library's status", () => {
   });
 
   it("a decision the backend refuses is shown in its words, and the view is not read again", async () => {
-    const { fetchMock } = await open([NAMED], { [decide("accept")]: ERROR("This assessment is closed. Start a new one to continue.") });
+    const { fetchMock } = await open([NAMED], {
+      [decide("accept")]: ERROR("This assessment is closed. Start a new one to continue."),
+    });
     fireEvent.click(detail(ECDSA).getByTestId("proposal-accept"));
-    await waitFor(() => expect(text(panel().getByTestId("otto-proposal"))).toContain("This assessment is closed. Start a new one to continue."));
+    await waitFor(() =>
+      expect(text(panel().getByTestId("otto-proposal"))).toContain(
+        "This assessment is closed. Start a new one to continue.",
+      ),
+    );
     expect(calls(fetchMock)).toEqual([GET, decide("accept")]);
     expect(text(panel().getByTestId("proposal-status"))).toBe("Proposed");
   });
@@ -307,8 +346,12 @@ describe("Dependencies: Otto's proposal to change a library's status", () => {
 describe("Dependencies: a system's box", () => {
   const SERVER = "server:localhost:8443";
   const LINE = "Marked “update first”: to 3.5.0. Accepted by You on 18 November 2026, 10:02 UTC.";
-  const withLines: View = { ...DEPENDENCIES_DEMO, systems: DEPENDENCIES_DEMO.systems.map((s) => (s.key === SERVER ? { ...s, otto_lines: [LINE] } : s)) };
-  const box = (key: string) => screen.getAllByTestId("dependency-system").find((b) => b.getAttribute("data-system") === key)!;
+  const withLines: View = {
+    ...DEPENDENCIES_DEMO,
+    systems: DEPENDENCIES_DEMO.systems.map((s) => (s.key === SERVER ? { ...s, otto_lines: [LINE] } : s)),
+  };
+  const box = (key: string) =>
+    screen.getAllByTestId("dependency-system").find((b) => b.getAttribute("data-system") === key)!;
 
   it("lists what a person accepted from Otto under the blockers, tagged From Otto, and never among them", async () => {
     await open([withLines]);

@@ -20,7 +20,9 @@ describe("Verify screen", () => {
     const rows = screen.getAllByTestId("result-row");
     expect(rows).toHaveLength(3);
     expect(screen.getAllByTestId("result-badge").map(chipWords)).toEqual(["False", "True", "Couldn't check"]);
-    expect(screen.getAllByTestId("verify-summary").map((s) => s.textContent)).toEqual(run.results.map((r) => r.summary));
+    expect(screen.getAllByTestId("verify-summary").map((s) => s.textContent)).toEqual(
+      run.results.map((r) => r.summary),
+    );
 
     const first = within(rows[0]!);
     expect(first.getByText("localhost:8443 accepts TLS 1.3 only")).not.toBeNull();
@@ -108,9 +110,11 @@ describe("Verify screen", () => {
     // A click on the open row (compact now) folds it away again, and the full table comes back.
     fireEvent.click(screen.getAllByTestId("result-row")[0]!);
     expect(screen.queryByText("TLS 1.2 handshake")).toBeNull();
-    expect(within(screen.getAllByTestId("result-row")[0]!).getByRole("button", { name: "Details and evidence" }).getAttribute("aria-expanded")).toBe(
-      "false",
-    );
+    expect(
+      within(screen.getAllByTestId("result-row")[0]!)
+        .getByRole("button", { name: "Details and evidence" })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
   });
 
   it("says so when a row has no evidence", async () => {
@@ -138,7 +142,9 @@ describe("Verify screen", () => {
   });
   it("wraps long evidence lines at spaces instead of splitting words", () => {
     renderVerify();
-    fireEvent.click(within(screen.getAllByTestId("result-row")[0]!).getByRole("button", { name: "Details and evidence" }));
+    fireEvent.click(
+      within(screen.getAllByTestId("result-row")[0]!).getByRole("button", { name: "Details and evidence" }),
+    );
     const command = screen.getByText("openssl s_client -connect localhost:8443 -tls1_2");
     for (const el of [command, document.querySelector("pre")!]) {
       expect(el.className).toContain("whitespace-pre-wrap");
@@ -169,7 +175,11 @@ describe("Verify screen: what it says about Otto (phase 5c)", () => {
   it("changes nothing else on the page: the same rows, results, buttons and standing line", () => {
     render(<VerifyScreen imp={demoImport} run={{ ...run, otto_note: NOTE }} onContinue={vi.fn()} />);
     expect(screen.getAllByTestId("result-row")).toHaveLength(3);
-    expect(screen.getAllByTestId("result-badge").map((el) => el.lastElementChild?.textContent)).toEqual(["False", "True", "Couldn't check"]);
+    expect(screen.getAllByTestId("result-badge").map((el) => el.lastElementChild?.textContent)).toEqual([
+      "False",
+      "True",
+      "Couldn't check",
+    ]);
     expect(screen.getAllByRole("button").map((b) => b.textContent?.replace(/[▸▾]/g, "").trim())).toEqual([
       "Details and evidence",
       "Details and evidence",
@@ -177,7 +187,9 @@ describe("Verify screen: what it says about Otto (phase 5c)", () => {
       "Continue to checks",
     ]);
     expect(screen.queryAllByRole("link")).toHaveLength(0);
-    expect(screen.getByText("Passing these tests doesn't prove a system secure. It shows these specific checks passed.")).not.toBeNull();
+    expect(
+      screen.getByText("Passing these tests doesn't prove a system secure. It shows these specific checks passed."),
+    ).not.toBeNull();
   });
 
   it("shows no such note when the answer carries none, or an empty one", () => {
@@ -201,16 +213,27 @@ describe("Verify, where each result came from", () => {
   it("draws one tag beside each result's word, in the backend's words", () => {
     renderVerify();
     const rows = screen.getAllByTestId("result-row");
-    expect(rows.map((r) => within(r).getAllByTestId("source-tag").map((t) => t.textContent))).toEqual([["Observed live"], ["Observed live"], ["From your file"]]);
-    expect(within(rows[0]!).getByTestId("result-badge").parentElement!.contains(within(rows[0]!).getByTestId("source-tag"))).toBe(true);
+    expect(
+      rows.map((r) =>
+        within(r)
+          .getAllByTestId("source-tag")
+          .map((t) => t.textContent),
+      ),
+    ).toEqual([["Observed live"], ["Observed live"], ["From your file"]]);
+    expect(
+      within(rows[0]!).getByTestId("result-badge").parentElement!.contains(within(rows[0]!).getByTestId("source-tag")),
+    ).toBe(true);
     expect(within(rows[2]!).getByTestId("source-tag").getAttribute("title")).toBe(run.results[2]!.source_tag!.meaning);
   });
 
   it("its details say what the tag means for this claim", () => {
     renderVerify();
-    fireEvent.click(within(screen.getAllByTestId("result-row")[2]!).getByRole("button", { name: "Details and evidence" }));
+    fireEvent.click(
+      within(screen.getAllByTestId("result-row")[2]!).getByRole("button", { name: "Details and evidence" }),
+    );
     const line = panel().getByTestId("source-line");
-    expect(text(line)).toBe("From your file The app couldn't check this claim, so it rests only on what your file says.");
+    expect(text(line)).toBe(
+      "From your file The app couldn't check this claim, so it rests only on what your file says.",
+    );
   });
 });
-

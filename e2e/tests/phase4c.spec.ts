@@ -13,7 +13,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BACKEND, DISCLAIMER, enterApp, PYTHON, screenshotFolder, stepLink, openFreshAssessment, closeResult, evidenceRow, resultPanel, stepNav, stepName, openGroupTab } from "./shared";
+import {
+  BACKEND,
+  DISCLAIMER,
+  enterApp,
+  PYTHON,
+  screenshotFolder,
+  stepLink,
+  openFreshAssessment,
+  closeResult,
+  evidenceRow,
+  resultPanel,
+  stepNav,
+  stepName,
+  openGroupTab,
+} from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = screenshotFolder("phase4c");
@@ -38,20 +52,31 @@ async function shot(target: Page, name: string): Promise<void> {
 async function goTo(target: Page, step: string): Promise<void> {
   // Phase 5a: the steps are the sidebar's pages of the open assessment.
   await stepLink(target, step).click();
-  await expect(stepNav(target).locator('[aria-current="page"]'), `expected the step "${step}" to open`).toHaveText(stepName(step));
+  await expect(stepNav(target).locator('[aria-current="page"]'), `expected the step "${step}" to open`).toHaveText(
+    stepName(step),
+  );
   // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
   // Crypto tests tab of Checks and of Evidence)
-  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(target, "Crypto tests", stepName(step) as "Checks" | "Evidence");
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step))
+    await openGroupTab(target, "Crypto tests", stepName(step) as "Checks" | "Evidence");
 }
 
 /** Upload demo/real-libraries.csv on Import (the drop zone's file input) and wait for the answer. */
 async function importRealFile(target: Page): Promise<void> {
   await stepLink(target, "1. Import").click();
-  const uploaded = target.waitForResponse((r) => r.url().includes("/api/import/file") && r.request().method() === "POST");
+  const uploaded = target.waitForResponse(
+    (r) => r.url().includes("/api/import/file") && r.request().method() === "POST",
+  );
   await target.getByLabel("Choose a file to import").setInputFiles(FILE);
   expect((await uploaded).status(), "expected the upload of demo/real-libraries.csv to be accepted").toBe(200);
-  await expect(target.getByTestId("claim-row"), "expected six claim rows (one per library claim in the file)").toHaveCount(6);
-  await expect(target.getByText("Demo data", { exact: true }), "a file of real libraries must not carry the Demo data label").toHaveCount(0);
+  await expect(
+    target.getByTestId("claim-row"),
+    "expected six claim rows (one per library claim in the file)",
+  ).toHaveCount(6);
+  await expect(
+    target.getByText("Demo data", { exact: true }),
+    "a file of real libraries must not carry the Demo data label",
+  ).toHaveCount(0);
 }
 
 async function verifyClaims(target: Page): Promise<void> {
@@ -66,11 +91,13 @@ async function openTests(target: Page): Promise<void> {
 }
 
 function group(target: Page, heading: string): Locator {
-  return target.getByTestId("lab-group").filter({ has: target.getByRole("heading", { level: 2, name: heading, exact: true }) });
+  return target
+    .getByTestId("lab-group")
+    .filter({ has: target.getByRole("heading", { level: 2, name: heading, exact: true }) });
 }
 
 function labRow(target: Page, heading: string, title: string): Locator {
-  return evidenceRow(target, title, group(target, heading));   // phase 5a: the table row of that group
+  return evidenceRow(target, title, group(target, heading)); // phase 5a: the table row of that group
 }
 
 /** Opens (or closes) the result behind a row of Evidence (phase 5a: in the right-side detail panel). */
@@ -91,14 +118,18 @@ async function cardStatuses(target: Page): Promise<string[]> {
 
 // ---------------------------------------------------------------- 1. demo mode (the main app of this run)
 
-test("demo mode: the real libraries import, but nothing of them can run, and every screen says so", async ({ page }) => {
+test("demo mode: the real libraries import, but nothing of them can run, and every screen says so", async ({
+  page,
+}) => {
   await enterApp(page);
   await openFreshAssessment(page, "Real libraries walk");
   await importRealFile(page);
   const notices = page.getByTestId("import-notice");
   await expect(notices, "expected one notice about the real software").toHaveCount(1);
   await expect(notices.first()).toContainText(/^Real software: /);
-  await expect(notices.first(), "the notice should say real software needs isolated mode").toContainText("isolated mode");
+  await expect(notices.first(), "the notice should say real software needs isolated mode").toContainText(
+    "isolated mode",
+  );
   await shot(page, "01-import-demo-mode.png");
 
   await verifyClaims(page);
@@ -113,7 +144,10 @@ test("demo mode: the real libraries import, but nothing of them can run, and eve
     // (since the 5c fixes the test plan is a part of Checks, "Test plan", so a group's heading is two levels further in)
     const one = groups.filter({ has: page.getByRole("heading", { level: 4, name: heading, exact: true }) });
     await expect(one, `expected a group "${heading}"`).toHaveCount(1);
-    await expect(one.getByTestId("test-group-note"), `expected the isolated-mode note under "${heading}"`).toContainText("isolated mode");
+    await expect(
+      one.getByTestId("test-group-note"),
+      `expected the isolated-mode note under "${heading}"`,
+    ).toContainText("isolated mode");
   }
   const notTested = page.getByTestId("not-tested");
   await expect(notTested.getByRole("heading", { name: "Not tested, and why" })).toBeVisible();
@@ -124,7 +158,9 @@ test("demo mode: the real libraries import, but nothing of them can run, and eve
 
 // ---------------------------------------------------------------- 2. isolated mode (a second copy of the app)
 
-test("isolated mode: the real libraries are verified, tested, fixed, measured and retested in their own containers", async ({ browser }) => {
+test("isolated mode: the real libraries are verified, tested, fixed, measured and retested in their own containers", async ({
+  browser,
+}) => {
   test.setTimeout(25 * 60_000);
   // A second copy of the app, with its own throwaway data folder and ports, left to choose its mode itself.
   const port = Number(process.env.E2E_APP_PORT ?? "8010") + 1;
@@ -133,23 +169,36 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
   let app: ChildProcess | null = null;
   const second = await browser.newContext({ baseURL: `http://127.0.0.1:${port}` });
   try {
-    const env: Record<string, string> = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", EVIDENCE_LAB_DATA_DIR: dataDir, EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort) };
-    for (const key of ["DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR"]) if (process.env[key]) env[key] = process.env[key] as string;
-    app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", "warning"], {
-      cwd: BACKEND,
-      stdio: "ignore",
-      env,
-    });
+    const env: Record<string, string> = {
+      PATH: process.env.PATH ?? "",
+      HOME: process.env.HOME ?? "",
+      EVIDENCE_LAB_DATA_DIR: dataDir,
+      EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort),
+    };
+    for (const key of ["DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR"])
+      if (process.env[key]) env[key] = process.env[key] as string;
+    app = spawn(
+      PYTHON,
+      ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", "warning"],
+      {
+        cwd: BACKEND,
+        stdio: "ignore",
+        env,
+      },
+    );
     let session: any = null;
     await expect
-      .poll(async () => {
-        try {
-          session = await (await second.request.get("/api/session")).json();
-          return true;
-        } catch {
-          return false;
-        }
-      }, { timeout: 30_000 })
+      .poll(
+        async () => {
+          try {
+            session = await (await second.request.get("/api/session")).json();
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 30_000 },
+      )
       .toBe(true);
     test.skip(
       session.mode !== "isolated",
@@ -164,13 +213,19 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     await importRealFile(view);
     const notice = view.getByTestId("import-notice");
     await expect(notice, "expected one notice about the real software").toHaveCount(1);
-    await expect(notice.first(), "the notice should say each library runs in its own locked-down container").toContainText("Each runs in its own locked-down container");
+    await expect(
+      notice.first(),
+      "the notice should say each library runs in its own locked-down container",
+    ).toContainText("Each runs in its own locked-down container");
     await expect(notice.first()).toContainText(/^Real software: /);
     await shot(view, "03-import-real-libraries.png");
 
     // ---- Verify
     await verifyClaims(view);
-    await expect(view.getByTestId("result-row").getByTestId("result-badge"), "expected six True badges").toHaveText(Array(6).fill("True"), { timeout: 60_000 });
+    await expect(view.getByTestId("result-row").getByTestId("result-badge"), "expected six True badges").toHaveText(
+      Array(6).fill("True"),
+      { timeout: 60_000 },
+    );
     await shot(view, "04-verify-real-libraries.png");
 
     // ---- Tests, Run all
@@ -178,31 +233,50 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     await expect(view.getByTestId("test-card"), "expected 15 suggested tests").toHaveCount(15);
     await expect(view.getByTestId("test-group"), "expected six groups").toHaveCount(6);
     for (const heading of GROUPS) {
-      await expect(view.getByRole("heading", { level: 4, name: heading, exact: true }), `expected a group "${heading}"`).toBeVisible();
+      await expect(
+        view.getByRole("heading", { level: 4, name: heading, exact: true }),
+        `expected a group "${heading}"`,
+      ).toBeVisible();
     }
-    await expect(view.getByTestId("test-group-note"), "in isolated mode no group should carry a can't-run note").toHaveCount(0);
+    await expect(
+      view.getByTestId("test-group-note"),
+      "in isolated mode no group should carry a can't-run note",
+    ).toHaveCount(0);
     await shot(view, "05-tests-real-libraries.png");
     await view.getByRole("button", { name: "Run all" }).click();
     await expect
-      .poll(() => cardStatuses(view), { timeout: 10 * 60_000, intervals: [2_000], message: "expected all 15 tests to finish within 10 minutes" })
+      .poll(() => cardStatuses(view), {
+        timeout: 10 * 60_000,
+        intervals: [2_000],
+        message: "expected all 15 tests to finish within 10 minutes",
+      })
       .toEqual(Array(15).fill("done"));
 
     // ---- Evidence Lab: the results
     await goTo(view, "4. Evidence Lab");
     await expect(view.getByTestId("evidence-row")).toHaveCount(15);
-    await expect(view.getByTestId("disclaimer"), "the Evidence Lab screen should carry the fixed disclaimer line").toHaveText(DISCLAIMER);
+    await expect(
+      view.getByTestId("disclaimer"),
+      "the Evidence Lab screen should carry the fixed disclaimer line",
+    ).toHaveText(DISCLAIMER);
     await shot(view, "06-evidence-lab-results.png");
 
     // openjdk 17.0.2: the exam fails, with its advisory and the text-only fix line
     const javaExam = labRow(view, "Signing program: openjdk 17.0.2", EXAM);
-    await expect(javaExam.getByTestId("result-badge"), "openjdk 17.0.2 Independent exam should read Failed").toContainText("Failed");
+    await expect(
+      javaExam.getByTestId("result-badge"),
+      "openjdk 17.0.2 Independent exam should read Failed",
+    ).toContainText("Failed");
     await toggleRow(javaExam, EXAM);
     const javaDetail = resultPanel(view).getByTestId("result-detail");
     await expect(javaDetail).toBeVisible();
     const advisories = javaDetail.getByTestId("advisories");
     await expect(advisories).toContainText("Published advisories for this version");
     await expect(advisories, "expected the openjdk advisory CVE-2022-21449").toContainText("CVE-2022-21449");
-    await expect(advisories.getByRole("link").first(), "expected a link to the OpenJDK advisory").toHaveAttribute("href", /^https:\/\/openjdk\.org\//);
+    await expect(advisories.getByRole("link").first(), "expected a link to the OpenJDK advisory").toHaveAttribute(
+      "href",
+      /^https:\/\/openjdk\.org\//,
+    );
     const fixLine = javaDetail.getByTestId("fix-line");
     await expect(fixLine).toContainText("Text-only suggestion: update to the fixed version");
     await expect(fixLine.getByRole("button", { name: "View in Fixes" })).toBeVisible();
@@ -215,7 +289,10 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     await expect(kem.getByTestId("result-badge"), "the ML-KEM-768 exam should read Passed").toContainText("Passed");
     await toggleRow(kem, kemTitle);
     for (const cell of ["125 of 125", "300 of 300", "230 of 230"]) {
-      await expect(resultPanel(view).getByTestId("result-detail").getByRole("cell", { name: cell, exact: true }), `expected "${cell}" in the ML-KEM-768 parts table`).toBeVisible();
+      await expect(
+        resultPanel(view).getByTestId("result-detail").getByRole("cell", { name: cell, exact: true }),
+        `expected "${cell}" in the ML-KEM-768 parts table`,
+      ).toBeVisible();
     }
     await shot(view, "08-mlkem-exam-result.png");
     await toggleRow(kem, kemTitle);
@@ -225,28 +302,43 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     await expect(dsa.getByTestId("result-badge"), "the ML-DSA-65 exam should read Passed").toContainText("Passed");
     await toggleRow(dsa, dsaTitle);
     for (const cell of ["25 of 25", "195 of 195", "255 of 255"]) {
-      await expect(resultPanel(view).getByTestId("result-detail").getByRole("cell", { name: cell, exact: true }), `expected "${cell}" in the ML-DSA-65 parts table`).toBeVisible();
+      await expect(
+        resultPanel(view).getByTestId("result-detail").getByRole("cell", { name: cell, exact: true }),
+        `expected "${cell}" in the ML-DSA-65 parts table`,
+      ).toBeVisible();
     }
     await shot(view, "09-mldsa-exam-result.png");
     await toggleRow(dsa, dsaTitle);
 
     // python-ecdsa: stops with a general program error on some cases: a note, never a result
     const pyExam = labRow(view, "Signing program: python-ecdsa 0.13.2", EXAM);
-    await expect(pyExam.getByTestId("also-noticed"), "expected an Also noticed note about general program errors").toContainText("general program error");
+    await expect(
+      pyExam.getByTestId("also-noticed"),
+      "expected an Also noticed note about general program errors",
+    ).toContainText("general program error");
     await shot(view, "10-python-ecdsa-also-noticed.png");
 
     // ---- Fixes
     await goTo(view, "5. Fixes");
     const list = view.getByRole("navigation", { name: /^Open findings with a fix/ });
     const javaFix = "Update openjdk to the fixed version (17.0.3)";
-    await expect(list.getByRole("button").filter({ hasText: javaFix }).first(), `expected the Fixes list to hold "${javaFix}"`).toBeVisible();
+    await expect(
+      list.getByRole("button").filter({ hasText: javaFix }).first(),
+      `expected the Fixes list to hold "${javaFix}"`,
+    ).toBeVisible();
     await list.getByRole("button").filter({ hasText: javaFix }).first().click();
     const summary = view.getByTestId("fix-summary");
-    await expect(view.getByTestId("detail-panel").getByRole("heading", { name: javaFix, level: 2 })).toBeVisible();   // the panel's heading
+    await expect(view.getByTestId("detail-panel").getByRole("heading", { name: javaFix, level: 2 })).toBeVisible(); // the panel's heading
     await expect(summary.getByTestId("fix-status")).toHaveText("Text only");
     await expect(view.getByTestId("advisories"), "expected the advisories box with its link in the fix").toBeVisible();
-    await expect(view.getByTestId("advisories").getByRole("link").first()).toHaveAttribute("href", /^https:\/\/openjdk\.org\//);
-    await expect(view.getByRole("button", { name: /pull request/i }), "a real library gets no pull request").toHaveCount(0);
+    await expect(view.getByTestId("advisories").getByRole("link").first()).toHaveAttribute(
+      "href",
+      /^https:\/\/openjdk\.org\//,
+    );
+    await expect(
+      view.getByRole("button", { name: /pull request/i }),
+      "a real library gets no pull request",
+    ).toHaveCount(0);
     await shot(view, "11-fixes-update-to-fixed-version.png");
 
     // ---- Migration
@@ -260,45 +352,79 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     };
     await openSystem("openssl 3.5.9 (ECDSA P-256)");
     const signatures = view.locator('[data-testid="migration-track"][data-track="signatures"]');
-    await expect(signatures.getByTestId("track-next"), "expected openssl's Signatures track to say it is not blocked").toContainText("Not blocked");
+    await expect(
+      signatures.getByTestId("track-next"),
+      "expected openssl's Signatures track to say it is not blocked",
+    ).toContainText("Not blocked");
     await shot(view, "12-migration-openssl-not-blocked.png");
     await openSystem("openjdk 17.0.2");
-    await expect(view.getByTestId("migration-system"), "expected the blocker for openjdk").toContainText("can't make post-quantum signatures");
+    await expect(view.getByTestId("migration-system"), "expected the blocker for openjdk").toContainText(
+      "can't make post-quantum signatures",
+    );
     await shot(view, "13-migration-openjdk-blocked.png");
     await view.getByRole("button", { name: "Roadmap", exact: true }).click();
-    const target = view.getByTestId("roadmap-band").filter({ has: view.getByRole("heading", { name: "At the target", exact: true }) });
-    await expect(target.getByTestId("roadmap-row").filter({ hasText: "openssl 3.5.9 (ML-DSA-65)" }), "expected openssl 3.5.9 (ML-DSA-65) in the band At the target").toHaveCount(1);
+    const target = view
+      .getByTestId("roadmap-band")
+      .filter({ has: view.getByRole("heading", { name: "At the target", exact: true }) });
+    await expect(
+      target.getByTestId("roadmap-row").filter({ hasText: "openssl 3.5.9 (ML-DSA-65)" }),
+      "expected openssl 3.5.9 (ML-DSA-65) in the band At the target",
+    ).toHaveCount(1);
     await shot(view, "14-roadmap.png");
 
     // ---- Retest: openjdk 17.0.3
     await goTo(view, "4. Evidence Lab");
     await view.getByRole("button", { name: "Retest new version" }).click();
     const menu = view.getByRole("menu");
-    await expect(menu.getByRole("menuitem"), "expected six versions in the retest menu (three libraries, two each)").toHaveCount(6);
+    await expect(
+      menu.getByRole("menuitem"),
+      "expected six versions in the retest menu (three libraries, two each)",
+    ).toHaveCount(6);
     await shot(view, "15-retest-menu.png");
     await menu.getByRole("menuitem", { name: /^openjdk 17\.0\.3/ }).click();
-    await expect(view.getByTestId("lab-cell-after").getByTestId("result-badge"), "expected every test to have an After result within 10 minutes")
-      .toHaveCount(15, { timeout: 10 * 60_000 });
+    await expect(
+      view.getByTestId("lab-cell-after").getByTestId("result-badge"),
+      "expected every test to have an After result within 10 minutes",
+    ).toHaveCount(15, { timeout: 10 * 60_000 });
     await expect(view.getByTestId("retest-progress")).toHaveCount(0);
     const columns = view.getByTestId("lab-columns");
     await expect(columns).toContainText("Before: openjdk 17.0.2");
     await expect(columns).toContainText("After: openjdk 17.0.3");
     const heading = "Signing program: openjdk 17.0.2";
     // (the group heading may now name the new version, so the group is found by the library's name)
-    const javaGroup = view.getByTestId("lab-group").filter({ has: view.getByRole("heading", { level: 2, name: /^Signing program: openjdk / }) });
+    const javaGroup = view
+      .getByTestId("lab-group")
+      .filter({ has: view.getByRole("heading", { level: 2, name: /^Signing program: openjdk / }) });
     await expect(javaGroup, `expected one openjdk group (it was "${heading}")`).toHaveCount(1);
     const javaExamRow = evidenceRow(view, EXAM, javaGroup);
     const javaTricksRow = evidenceRow(view, TRICKS, javaGroup);
-    await expect(javaExamRow.getByTestId("lab-cell-before").getByTestId("result-badge"), "exam before: Failed").toContainText("Failed");
-    await expect(javaExamRow.getByTestId("lab-cell-after").getByTestId("result-badge"), "exam after: still Failed (three cases remain)").toContainText("Failed");
-    await expect(javaTricksRow.getByTestId("lab-cell-before").getByTestId("result-badge"), "tricks before: Failed").toContainText("Failed");
-    await expect(javaTricksRow.getByTestId("lab-cell-after").getByTestId("result-badge"), "tricks after: Passed").toContainText("Passed");
+    await expect(
+      javaExamRow.getByTestId("lab-cell-before").getByTestId("result-badge"),
+      "exam before: Failed",
+    ).toContainText("Failed");
+    await expect(
+      javaExamRow.getByTestId("lab-cell-after").getByTestId("result-badge"),
+      "exam after: still Failed (three cases remain)",
+    ).toContainText("Failed");
+    await expect(
+      javaTricksRow.getByTestId("lab-cell-before").getByTestId("result-badge"),
+      "tricks before: Failed",
+    ).toContainText("Failed");
+    await expect(
+      javaTricksRow.getByTestId("lab-cell-after").getByTestId("result-badge"),
+      "tricks after: Passed",
+    ).toContainText("Passed");
     await shot(view, "16-before-after-java.png");
 
     await toggleRow(javaExamRow, EXAM);
     const after = resultPanel(view).getByTestId("result-detail").first();
-    await expect(after, "the first detail of a before/after row is the After one").toHaveAttribute("aria-label", /^After: openjdk 17\.0\.3/);
-    await expect(after, "expected openjdk 17.0.3 to still get three of the 484 official cases wrong").toContainText("3 of 484 official cases wrong");
+    await expect(after, "the first detail of a before/after row is the After one").toHaveAttribute(
+      "aria-label",
+      /^After: openjdk 17\.0\.3/,
+    );
+    await expect(after, "expected openjdk 17.0.3 to still get three of the 484 official cases wrong").toContainText(
+      "3 of 484 official cases wrong",
+    );
     await shot(view, "17-java-17.0.3-still-three-wrong.png");
 
     await expect(view.getByTestId("disclaimer")).toHaveText(DISCLAIMER);

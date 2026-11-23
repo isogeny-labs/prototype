@@ -8,6 +8,7 @@ types are generated from this file (cd frontend && npm run gen:api), so the shap
 Development-only. The running app does not serve this description (FastAPI's openapi_url is off) and the routes do
 not use the shapes at runtime: they return exactly the data they returned before.
 """
+
 from __future__ import annotations
 
 import json
@@ -70,8 +71,10 @@ def main(argv: list[str]) -> int:
     text = description()
     if "--check" in argv:
         if not OUT.is_file() or OUT.read_text(encoding="utf-8") != text:
-            print(f"{OUT.relative_to(REPO_ROOT)} is out of date. Run: .venv/bin/python tools/api_schema.py, "
-                  "then in frontend/: npm run gen:api")
+            print(
+                f"{OUT.relative_to(REPO_ROOT)} is out of date. Run: .venv/bin/python tools/api_schema.py, "
+                "then in frontend/: npm run gen:api"
+            )
             return 1
         print(f"{OUT.relative_to(REPO_ROOT)} is up to date.")
         return 0

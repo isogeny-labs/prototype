@@ -1,5 +1,6 @@
 """Phase 5b: every check in one list, in the four work groups; each run in one row only; every row in the words of the
 page it came from; links that hold both ways; and nothing in the ledger that could decide a result."""
+
 import ast
 from pathlib import Path
 
@@ -25,7 +26,7 @@ def test_the_four_groups_in_order_with_counts_and_every_claim_and_test_in_its_gr
     by = {g["key"]: g for g in view["groups"]}
     claims = by["verification"]["rows"]
     assert len(claims) == 3 and {r["came_from"]["label"] for r in claims} == {"Verify"}
-    assert [r["result"]["label"] for r in claims] == ["False", "True", "True"]       # expected.json V1 to V3
+    assert [r["result"]["label"] for r in claims] == ["False", "True", "True"]  # expected.json V1 to V3
     assert by["verification"]["counts"] == {"open": 0, "in_progress": 0, "done": 3}
     tests = [r for r in by["encryption"]["rows"] if r["came_from"]["key"] == "plan"]
     retests = [r for r in by["encryption"]["rows"] if r["came_from"]["key"] == "retest"]
@@ -33,7 +34,7 @@ def test_the_four_groups_in_order_with_counts_and_every_claim_and_test_in_its_gr
     assert by["encryption"]["counts"]["done"] == len(tests) + len(retests)
     # Nothing measured for Migration in this walk, and no dependency list: each says why it is empty.
     assert by["migration"]["rows"] == [] and by["migration"]["empty_text"] == G.EMPTY_CHECKS["migration"]
-    assert by["migration"]["counts"]["open"] == 2                                   # the server and the signing program
+    assert by["migration"]["counts"]["open"] == 2  # the server and the signing program
     assert by["dependencies"]["empty_text"] == G.EMPTY_CHECKS["dependencies"]
 
 
@@ -49,7 +50,11 @@ def test_every_row_repeats_the_words_of_the_page_it_came_from(demo_flow):
     verify = {r["claim_id"]: r for r in demo_flow.verify["results"]}
     for claim_id, res in verify.items():
         row = rows[f"claim-{claim_id}"]
-        assert row["result"]["label"] == res["result"] and row["plain"] == res["summary"] and row["name"] == res["claim"]["text"]
+        assert (
+            row["result"]["label"] == res["result"]
+            and row["plain"] == res["summary"]
+            and row["name"] == res["claim"]["text"]
+        )
 
 
 def test_each_reviewed_run_is_in_exactly_one_row(demo_flow):
@@ -58,8 +63,13 @@ def test_each_reviewed_run_is_in_exactly_one_row(demo_flow):
     counted = [rid for r in led["rows"] for rid in r.get("run_ids") or []]
     assert len(counted) == len(set(counted))
     with lab.db() as db:
-        reviewed = set(db.scalars(select(ReviewRow.run_id).join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
-                                  .where(TestRunRow.plan_id == plan.id)).all())
+        reviewed = set(
+            db.scalars(
+                select(ReviewRow.run_id)
+                .join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
+                .where(TestRunRow.plan_id == plan.id)
+            ).all()
+        )
     assert reviewed <= set(counted)
 
 
@@ -87,7 +97,7 @@ def test_a_retested_check_is_related_by_the_version_its_newest_result_ran_on(dem
     nodes = lab.relation_graph(plan.id)["nodes"]
     assert nodes[f"test:{plan.item['official_vectors']}"]["sub"] == "acme-sign 1.4.3 · Passed"
     assert nodes[f"test:{plan.item['bad_signatures']}"]["sub"] == "acme-sign 1.4.3 · Passed"
-    server = nodes[f"test:{plan.item['tls_versions']}"]["sub"]          # a server test names its address, as before
+    server = nodes[f"test:{plan.item['tls_versions']}"]["sub"]  # a server test names its address, as before
     assert server.startswith("localhost:") and server.endswith(" · Failed")
 
 
@@ -116,11 +126,23 @@ def test_fixes_are_in_their_group_once_with_counts_and_links_to_where_they_came_
 def test_every_fix_status_word_the_app_can_show_is_sorted():
     words = set(present_fixes.STATUS_WORDS.values())
     source = (Path(__file__).resolve().parents[2] / "app" / "present" / "changes.py").read_text()
-    badge_words = {"Text only", "In place (measured)", "Applied · matches the try", "Applied · does not match the try",
-                   "Applied · measuring", "Ready to download", "Rolled back", "Try running", "Try did not pass",
-                   "Ready to apply", "Try passed", "Waiting for approval", "Ready to try"}
+    badge_words = {
+        "Text only",
+        "In place (measured)",
+        "Applied · matches the try",
+        "Applied · does not match the try",
+        "Applied · measuring",
+        "Ready to download",
+        "Rolled back",
+        "Try running",
+        "Try did not pass",
+        "Ready to apply",
+        "Try passed",
+        "Waiting for approval",
+        "Ready to try",
+    }
     for word in badge_words:
-        assert f'"{word}"' in source, word          # each is a real badge of the change box
+        assert f'"{word}"' in source, word  # each is a real badge of the change box
     assert (words | badge_words) <= set(G.FIX_STATE_BY_WORD)
     assert G.fix_state("Merged") == G.fix_state("In place (measured)") == "done"
 
@@ -129,10 +151,17 @@ def test_the_ledger_imports_nothing_that_decides_a_result():
     for path in LEDGER.glob("*.py"):
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
-            names = ([a.name for a in node.names] if isinstance(node, ast.Import) else
-                     [node.module or ""] if isinstance(node, ast.ImportFrom) else [])
+            names = (
+                [a.name for a in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+                if isinstance(node, ast.ImportFrom)
+                else []
+            )
             for name in names:
-                assert "reviewer" not in name and not name.startswith("app.run") and not name.startswith("app.checks"), (path.name, name)
+                assert (
+                    "reviewer" not in name and not name.startswith("app.run") and not name.startswith("app.checks")
+                ), (path.name, name)
 
 
 @pytest.fixture(scope="module")
@@ -157,7 +186,10 @@ def test_a_migration_measurement_is_a_check_in_migration_in_the_words_of_the_sys
     assert len(migration["rows"]) == len(systems) == 2
     for row in migration["rows"]:
         key = row["id"].removeprefix("system-")
-        assert row["came_from"]["label"] == "Measure status" and row["link"] == {"page": "migration/systems", "item": key}
+        assert row["came_from"]["label"] == "Measure status" and row["link"] == {
+            "page": "migration/systems",
+            "item": key,
+        }
         assert row["result"]["label"] == systems[key]["status"]["label"]
     assert migration["counts"] == {"open": 0, "in_progress": 0, "done": 2}
     # Tests not run yet are open rows of the test plan, never results.
@@ -172,10 +204,11 @@ def test_evidence_can_be_downloaded_after_only_a_verify_and_holds_every_check(tm
         assert lab.lab_view(plan.id)["download"]["can_start"] is False
         assert "Verify the claims first" in lab.lab_view(plan.id)["download"]["blocked_reason"]
         lab.verify(plan.imp["id"])
-        lab.verify(plan.imp["id"])                                  # twice: every Verify run is kept in the file
+        lab.verify(plan.imp["id"])  # twice: every Verify run is kept in the file
         assert lab.lab_view(plan.id)["download"]["can_start"] is True
         export = lab.export_evidence(plan.id)
         from app.evidence.export import build_evidence
+
         evidence = build_evidence(lab, plan.id)
         assert len(evidence["verify_runs"]) == 2 and evidence["verify"] == evidence["verify_runs"][0]
         checks = {c["check"]: c for c in evidence["checks"]}
@@ -199,6 +232,7 @@ def test_the_overview_counts_each_test_once_by_its_newest_result_as_evidence_sho
     assert failed == sum(1 for r in newest if r["code"] == "failed")
     # The Projects table and the Project overview read the same: one result per test.
     from app.projects.counts import assessment_counts
+
     assert failed == assessment_counts(lab, plan.imp["id"])["tests"]["failed"]
 
 
@@ -222,16 +256,41 @@ def test_migration_links_the_readiness_test_and_the_post_quantum_claim_from_its_
     Verification; Migration links both from its foot, as the same measurement as Measure status. Neither is moved or
     counted twice."""
     from app.ledger.checks import LedgerMixin, _measure_key
+
     link = {"page": "evidence", "item": "x"}
-    claim = {"id": "claim-4", "group": "verification", "kind": "verify", "name": "localhost:8451 is post-quantum",
-             "ran_on": "localhost:8451", "evidence_link": link,
-             "verify": {"claim": {"location_kind": "server", "kind": "post_quantum", "location": "localhost:8451"}}}
-    test = {"id": "test-7", "group": "encryption", "kind": "pq_readiness", "name": "Post-quantum readiness",
-            "ran_on": "localhost:8451", "evidence_link": link}
-    system = {"id": "system-server:localhost:8451", "group": "migration", "kind": "pq_status", "name": "Post-quantum status",
-              "ran_on": "localhost:8451", "evidence_link": link}
-    other = {"id": "test-8", "group": "encryption", "kind": "tls_versions", "name": "Old TLS versions",
-             "ran_on": "localhost:8451", "evidence_link": link}
+    claim = {
+        "id": "claim-4",
+        "group": "verification",
+        "kind": "verify",
+        "name": "localhost:8451 is post-quantum",
+        "ran_on": "localhost:8451",
+        "evidence_link": link,
+        "verify": {"claim": {"location_kind": "server", "kind": "post_quantum", "location": "localhost:8451"}},
+    }
+    test = {
+        "id": "test-7",
+        "group": "encryption",
+        "kind": "pq_readiness",
+        "name": "Post-quantum readiness",
+        "ran_on": "localhost:8451",
+        "evidence_link": link,
+    }
+    system = {
+        "id": "system-server:localhost:8451",
+        "group": "migration",
+        "kind": "pq_status",
+        "name": "Post-quantum status",
+        "ran_on": "localhost:8451",
+        "evidence_link": link,
+    }
+    other = {
+        "id": "test-8",
+        "group": "encryption",
+        "kind": "tls_versions",
+        "name": "Old TLS versions",
+        "ran_on": "localhost:8451",
+        "evidence_link": link,
+    }
 
     def public(r):
         out = dict(r)
@@ -240,16 +299,19 @@ def test_migration_links_the_readiness_test_and_the_post_quantum_claim_from_its_
             out["pq_claim"] = True
         out.pop("verify", None)
         return out
-    groups = [{"key": "verification", "label": "Verification", "rows": [public(claim)]},
-              {"key": "encryption", "label": "Crypto tests", "rows": [public(test), public(other)]},
-              {"key": "migration", "label": "Migration", "rows": [public(system)]},
-              {"key": "dependencies", "label": "Dependencies", "rows": []}]
+
+    groups = [
+        {"key": "verification", "label": "Verification", "rows": [public(claim)]},
+        {"key": "encryption", "label": "Crypto tests", "rows": [public(test), public(other)]},
+        {"key": "migration", "label": "Migration", "rows": [public(system)]},
+        {"key": "dependencies", "label": "Dependencies", "rows": []},
+    ]
     LedgerMixin._mark_same_measurements(groups)
     by = {g["key"]: g for g in groups}
     assert [a["id"] for a in by["migration"]["also"]] == ["claim-4", "test-7"]
     assert by["verification"]["also"] == [] and by["encryption"]["also"] == []
     assert {o["id"] for o in by["migration"]["rows"][0]["same_as"]} == {"claim-4", "test-7"}
-    assert by["encryption"]["rows"][1]["same_as"] == []                                # another test is not marked
+    assert by["encryption"]["rows"][1]["same_as"] == []  # another test is not marked
     assert all("measures" not in r and "pq_claim" not in r for g in groups for r in g["rows"])
 
 
@@ -262,7 +324,9 @@ def test_the_dependencies_group_counts_the_same_on_checks_evidence_and_the_overv
     deps = next(g for g in view["groups"] if g["key"] == "dependencies")
     by_state = G.counts(lib["state"] for lib in view["libraries"])
     assert deps["counts"] == view["evidence_counts"]["dependencies"] == by_state
-    assert by_state["done"] == sum(1 for lib in view["libraries"] if any(c["answer"] in ("yes", "no") for c in lib["cells"]))
+    assert by_state["done"] == sum(
+        1 for lib in view["libraries"] if any(c["answer"] in ("yes", "no") for c in lib["cells"])
+    )
     blocks = lab.assessment_blocks(plan.imp["id"], plan.id)
     assert next(g for g in blocks["groups"] if g["key"] == "dependencies")["checks"] == by_state
 
@@ -271,6 +335,7 @@ def test_the_overview_checks_and_related_only_read_they_never_lock_a_measurement
     """Phase 5b's pages repeat what the other pages say. Looking at them writes nothing down: before Migration is
     opened, no measurement of it is locked by the Overview, Checks, Related or the Project overview."""
     from app.db import PlanItemRow, TestSpecRow
+
     lab = make_lab(tmp_path)
     try:
         plan = demo_plan(lab)
@@ -278,8 +343,13 @@ def test_the_overview_checks_and_related_only_read_they_never_lock_a_measurement
 
         def written():
             with lab.db() as db:
-                return (db.query(TestSpecRow).count(),
-                        db.query(PlanItemRow).filter(PlanItemRow.plan_id == plan.id, PlanItemRow.origin == "migration").count())
+                return (
+                    db.query(TestSpecRow).count(),
+                    db.query(PlanItemRow)
+                    .filter(PlanItemRow.plan_id == plan.id, PlanItemRow.origin == "migration")
+                    .count(),
+                )
+
         before = written()
         lab.assessment_blocks(plan.imp["id"], plan.id)
         lab.checks_view(plan.id)

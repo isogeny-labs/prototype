@@ -14,6 +14,7 @@ Trusted keys are part of the app (trusted-pack-keys.json beside this file), neve
 built on this computer by the research command is signed with a key made here; its public half is in the data
 folder and is trusted by this installation only.
 """
+
 from __future__ import annotations
 
 import json
@@ -33,13 +34,17 @@ PACK_SCHEMA = "isogeny.test-pack/1"
 # asking code as text. It is taken only from this computer's own key, with the switch on (see `OttoMixin.install_pack`).
 PACK_SCHEMA_2 = "isogeny.test-pack/2"
 SANDBOX_ARMS = re.compile(r"^(affected-b|fixed-b|more-affected-[12]|more-fixed-[12])$")
-ONLY_MADE_HERE = ("This test pack carries code that asks a library its questions, as text. Such a pack is taken only when it was made on "
-                  "this computer, by its own research run.")
-NEEDS_SANDBOX = ("This test pack was made by Sandbox research. It can be installed only while Sandbox research is on (Settings).")
+ONLY_MADE_HERE = (
+    "This test pack carries code that asks a library its questions, as text. Such a pack is taken only when it was made on "
+    "this computer, by its own research run."
+)
+NEEDS_SANDBOX = (
+    "This test pack was made by Sandbox research. It can be installed only while Sandbox research is on (Settings)."
+)
 SIGNING_CONTEXT = b"isogeny-evidence-lab/test-pack/v1\n"
 KEYS_SCHEMA = "isogeny.pack-keys/1"
 TRUSTED_KEYS_FILE = Path(__file__).with_name("trusted-pack-keys.json")
-LOCAL_KEY_FILE = "otto-local-pack-key.pub"          # in the data folder: the public half of a key made on this computer
+LOCAL_KEY_FILE = "otto-local-pack-key.pub"  # in the data folder: the public half of a key made on this computer
 MAX_BYTES = 4 * 1024 * 1024
 MAX_ADVISORIES = 60
 TEST_STATES = ("ready", "not_offered", "none")
@@ -60,12 +65,13 @@ class PackError(ValueError):
 @dataclass(frozen=True)
 class Pack:
     """One pack that passed every check."""
+
     pack: dict
     fingerprint: str
     public_key: str
     signature: str
-    made_here: bool            # signed with the key made on this computer (a live research run), not the shipped one
-    signer: str                # the trusted key's own label
+    made_here: bool  # signed with the key made on this computer (a live research run), not the shipped one
+    signer: str  # the trusted key's own label
 
     @property
     def version(self) -> str:
@@ -73,7 +79,12 @@ class Pack:
 
     @property
     def envelope(self) -> dict:
-        return {"pack": self.pack, "fingerprint": self.fingerprint, "public_key": self.public_key, "signature": self.signature}
+        return {
+            "pack": self.pack,
+            "fingerprint": self.fingerprint,
+            "public_key": self.public_key,
+            "signature": self.signature,
+        }
 
     def design(self, design_sha256: str) -> dict | None:
         for test in self.pack["tests"]:
@@ -94,6 +105,7 @@ def version_key(version: str) -> tuple[int, ...]:
 
 # ---------------------------------------------------------------- trusted keys
 
+
 def _keys_in(path: Path) -> dict[str, str]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -103,8 +115,13 @@ def _keys_in(path: Path) -> dict[str, str]:
         return {}
     out = {}
     for key in data["keys"]:
-        if isinstance(key, dict) and isinstance(key.get("public_key"), str) and _HEX64.match(key["public_key"]) \
-                and isinstance(key.get("label"), str) and 0 < len(key["label"]) <= 200:
+        if (
+            isinstance(key, dict)
+            and isinstance(key.get("public_key"), str)
+            and _HEX64.match(key["public_key"])
+            and isinstance(key.get("label"), str)
+            and 0 < len(key["label"]) <= 200
+        ):
             out[key["public_key"]] = key["label"]
     return out
 
@@ -124,6 +141,7 @@ def trusted_keys(data_dir: Path | None = None) -> dict[str, tuple[str, bool]]:
 
 # ---------------------------------------------------------------- the shape
 
+
 def _fail(text: str) -> NoReturn:
     raise PackError(text)
 
@@ -131,19 +149,19 @@ def _fail(text: str) -> NoReturn:
 def _keys(value: object, wanted: set, what: str, optional: frozenset | set = frozenset()) -> dict:
     if not isinstance(value, dict) or not wanted <= set(value) or set(value) - wanted - set(optional):
         _fail(f"The pack's {what} does not have exactly the fields it must have.")
-    return value   # type: ignore[return-value]
+    return value  # type: ignore[return-value]
 
 
 def _text(value: object, what: str, limit: int, empty: bool = False) -> str:
     if not isinstance(value, str) or len(value) > limit or (not empty and not value.strip()):
         _fail(f"The pack's {what} is not a short piece of text.")
-    return value   # type: ignore[return-value]
+    return value  # type: ignore[return-value]
 
 
 def _count(value: object, what: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         _fail(f"The pack's {what} is not a whole number.")
-    return value   # type: ignore[return-value]
+    return value  # type: ignore[return-value]
 
 
 def _quote(value: object, what: str) -> None:
@@ -161,7 +179,13 @@ def _trial(value: object, what: str, arms: tuple[str, ...], more: bool = False) 
     for name in ("hypothesis", "decision"):
         if not isinstance(trial[name], str) or not _RECORD.match(trial[name]):
             _fail(f"The pack's {what} does not name its Otto ledger entries.")
-    if trial["outcome"] not in ("supported", "refuted", "inconclusive", "instrument_failure", "degenerate") or not isinstance(trial["replayed"], bool):
+    if trial["outcome"] not in (
+        "supported",
+        "refuted",
+        "inconclusive",
+        "instrument_failure",
+        "degenerate",
+    ) or not isinstance(trial["replayed"], bool):
         _fail(f"The pack's {what} has an outcome this version does not know.")
     extra = set()
     if more and isinstance(trial["arms"], dict):
@@ -169,14 +193,31 @@ def _trial(value: object, what: str, arms: tuple[str, ...], more: bool = False) 
     measured = _keys(trial["arms"], set(arms) | extra, what)
     for arm in (*arms, *sorted(extra)):
         figures = measured[arm]
-        if not isinstance(figures, dict) or not figures or len(figures) > 8 or not all(
-                isinstance(k, str) and len(k) <= 30 and (isinstance(v, str) and len(v) <= 60 or isinstance(v, int) and not isinstance(v, bool))
-                for k, v in figures.items()):
+        if (
+            not isinstance(figures, dict)
+            or not figures
+            or len(figures) > 8
+            or not all(
+                isinstance(k, str)
+                and len(k) <= 30
+                and (isinstance(v, str) and len(v) <= 60 or isinstance(v, int) and not isinstance(v, bool))
+                for k, v in figures.items()
+            )
+        ):
             _fail(f"The pack's {what} holds figures this version can't read.")
 
 
-def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisory_id: str, ready: bool, design: dict | None,
-             scripts: dict) -> None:
+def _sandbox(
+    value: object,
+    trial: object,
+    ledger: object,
+    what: str,
+    *,
+    advisory_id: str,
+    ready: bool,
+    design: dict | None,
+    scripts: dict,
+) -> None:
     """What a test tried on sandbox copies adds to its entry: the copy set (held to the exact shape of a copy set's
     record: every file with its fingerprints, the asking code as text, the image), the second author's asking code, the
     two known-answer checks, the versions, and when the trial was registered. The registration must come before the
@@ -186,7 +227,12 @@ def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisor
     its test is not taken, even though this computer made it. The verify command holds an evidence file's packs to the
     same rules, written out a second time (backend/evidence/sandbox.py): change one, change the other."""
     from app.sandbox import copies
-    block = _keys(value, {"set", "second", "known", "second_known", "versions", "screen_sha256", "registered"}, f"sandbox part of {what}")
+
+    block = _keys(
+        value,
+        {"set", "second", "known", "second_known", "versions", "screen_sha256", "registered"},
+        f"sandbox part of {what}",
+    )
     try:
         record = copies.check_set(block["set"])
     except copies.CopyError as exc:
@@ -194,7 +240,9 @@ def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisor
     written = record["asking"]["kind"] == "written"
     second = block["second"]
     if written != (second is not None):
-        _fail(f"The asking code of {what} was written for it, and a second author's code must stand beside it (and only then).")
+        _fail(
+            f"The asking code of {what} was written for it, and a second author's code must stand beside it (and only then)."
+        )
     if second is not None:
         s = _keys(second, {"author", "source", "sha256", "lines", "set", "image"}, f"second asking code of {what}")
         _text(s["author"], f"second author of {what}", 80)
@@ -211,8 +259,13 @@ def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisor
                 _fail(f"The known-answer check of {what} is missing.")
             continue
         k = _keys(known, {"seed", "valid", "spoiled", "versions", "controls_refused"}, f"known-answer check of {what}")
-        if not isinstance(k["seed"], str) or not _HEX64.match(k["seed"]) or not isinstance(k["controls_refused"], bool) \
-                or not isinstance(k["versions"], dict) or len(k["versions"]) > 8:
+        if (
+            not isinstance(k["seed"], str)
+            or not _HEX64.match(k["seed"])
+            or not isinstance(k["controls_refused"], bool)
+            or not isinstance(k["versions"], dict)
+            or len(k["versions"]) > 8
+        ):
             _fail(f"The known-answer check of {what} is not in the shape this version knows.")
         for name2 in ("valid", "spoiled"):
             _count(k[name2], f"known-answer check of {what}")
@@ -223,7 +276,11 @@ def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisor
             _count(c["rejected_spoiled"], f"known-answer check of {what}")
         if written and not k["controls_refused"]:
             _fail(f"The known-answer check of {what} did not refuse its own controls.")
-    versions = _keys(block["versions"], {"affected", "fixed", "more_affected", "more_fixed", "left_out", "after_last_affected"}, f"versions of {what}")
+    versions = _keys(
+        block["versions"],
+        {"affected", "fixed", "more_affected", "more_fixed", "left_out", "after_last_affected"},
+        f"versions of {what}",
+    )
     if not isinstance(versions["after_last_affected"], bool):
         _fail(f"The versions of {what} do not say whether the publisher named the fixed version.")
     in_set = {v["version"] for v in record["versions"]}
@@ -232,7 +289,11 @@ def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisor
             _fail(f"The {name} version of {what} is not in its copy set.")
         for known in (block["known"], block["second_known"]):
             marks = (known or {}).get("versions", {}).get(versions[name]) if known else None
-            if known is not None and (marks is None or marks["accepted_valid"] != known["valid"] or marks["rejected_spoiled"] != known["spoiled"]):
+            if known is not None and (
+                marks is None
+                or marks["accepted_valid"] != known["valid"]
+                or marks["rejected_spoiled"] != known["spoiled"]
+            ):
                 _fail(f"The asking code of {what} did not pass the known-answer check on its {name} version.")
     for name in ("more_affected", "more_fixed"):
         if not isinstance(versions[name], list) or len(versions[name]) > 2 or not set(versions[name]) <= in_set:
@@ -243,7 +304,9 @@ def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisor
         e = _keys(entry, {"version", "reason"}, f"a version left out of {what}")
         _text(e["version"], f"a version left out of {what}", 60)
         _text(e["reason"], f"reason a version was left out of {what}", 300)
-    if block["screen_sha256"] is not None and (not isinstance(block["screen_sha256"], str) or not _HEX64.match(block["screen_sha256"])):
+    if block["screen_sha256"] is not None and (
+        not isinstance(block["screen_sha256"], str) or not _HEX64.match(block["screen_sha256"])
+    ):
         _fail(f"The screen of the asking code of {what} is not named by its fingerprint.")
     if written and block["screen_sha256"] is None:
         _fail(f"The asking code of {what} was written for it, and the pack does not name the rules it was screened by.")
@@ -251,8 +314,13 @@ def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisor
     if not isinstance(trial, dict) or registered["hypothesis"] != trial.get("hypothesis"):
         _fail(f"The registration of {what} is not of its own trial.")
     pins = registered["pins"]
-    if not isinstance(pins, dict) or not 4 <= len(pins) <= 16 or not all(isinstance(k, str) and len(k) <= 120 and isinstance(v, str)
-                                                                         and _HEX64.match(v) for k, v in pins.items()):
+    if (
+        not isinstance(pins, dict)
+        or not 4 <= len(pins) <= 16
+        or not all(
+            isinstance(k, str) and len(k) <= 120 and isinstance(v, str) and _HEX64.match(v) for k, v in pins.items()
+        )
+    ):
         _fail(f"The registration of {what} does not give the fingerprints of what it froze.")
     for name in ("at", "first_run_at"):
         if registered[name] is not None:
@@ -262,15 +330,43 @@ def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisor
     place = next((e.get("seq") for e in entries if e.get("id") == registered["hypothesis"]), None)
     if place is None or not isinstance(place, int):
         _fail(f"The registration of {what} is not among its ledger entries.")
-    later_registrations = sorted(e["seq"] for e in entries if e.get("kind") == "hypothesis" and isinstance(e.get("seq"), int) and e["seq"] > place)
+    later_registrations = sorted(
+        e["seq"]
+        for e in entries
+        if e.get("kind") == "hypothesis" and isinstance(e.get("seq"), int) and e["seq"] > place
+    )
     upto = later_registrations[0] if later_registrations else None
     earlier_runs = [e for e in entries if e.get("kind") == "run" and isinstance(e.get("seq"), int) and e["seq"] < place]
-    own_runs = [e for e in entries if e.get("kind") == "run" and isinstance(e.get("seq"), int) and e["seq"] > place and (upto is None or e["seq"] < upto)]
+    own_runs = [
+        e
+        for e in entries
+        if e.get("kind") == "run"
+        and isinstance(e.get("seq"), int)
+        and e["seq"] > place
+        and (upto is None or e["seq"] < upto)
+    ]
     if earlier_runs or (trial.get("outcome") == "supported" and not own_runs):
         _fail(f"The trial of {what} was not registered before its first run.")
     try:
-        _bears_out(block, record, trial, entries, place, own_runs, what, advisory_id=advisory_id, ready=ready, design=design, scripts=scripts)
-    except (KeyError, TypeError, AttributeError, ValueError):       # (a part that is not in its form at all: said plainly, never an error of the program)
+        _bears_out(
+            block,
+            record,
+            trial,
+            entries,
+            place,
+            own_runs,
+            what,
+            advisory_id=advisory_id,
+            ready=ready,
+            design=design,
+            scripts=scripts,
+        )
+    except (
+        KeyError,
+        TypeError,
+        AttributeError,
+        ValueError,
+    ):  # (a part that is not in its form at all: said plainly, never an error of the program)
         raise PackError(f"The sandbox part of {what} is not in the form this version writes.") from None
 
 
@@ -288,21 +384,38 @@ def _whole(figures: dict, name: str, what: str) -> int:
     return value
 
 
-def _bears_out(block: dict, record: dict, trial: dict, entries: list[dict], place: int, own_runs: list[dict], what: str, *,
-               advisory_id: str, ready: bool, design: dict | None, scripts: dict) -> None:
+def _bears_out(
+    block: dict,
+    record: dict,
+    trial: dict,
+    entries: list[dict],
+    place: int,
+    own_runs: list[dict],
+    what: str,
+    *,
+    advisory_id: str,
+    ready: bool,
+    design: dict | None,
+    scripts: dict,
+) -> None:
     """The parts of a sandbox test's proof agree with each other.
 
-      - Each part of the trial ran on the version the proof names for it, of the library of the copy set.
-      - The registration froze what it must, and what can be worked out again from the pack is the same: the copy set's
-        record, the design, and the two pinned scripts.
-      - The times the proof gives for the registration and the first run are the ledger's own, and in that order.
-      - A test that is offered ("ready") has the counts for it: the affected copy at least one case wrong, the fixed
-        copy and every further fixed version none, every further affected version at least one, the control every case
-        that must be rejected, and the second author's code the same answer on every case of both copies.
+    - Each part of the trial ran on the version the proof names for it, of the library of the copy set.
+    - The registration froze what it must, and what can be worked out again from the pack is the same: the copy set's
+      record, the design, and the two pinned scripts.
+    - The times the proof gives for the registration and the first run are the ledger's own, and in that order.
+    - A test that is offered ("ready") has the counts for it: the affected copy at least one case wrong, the fixed
+      copy and every further fixed version none, every further affected version at least one, the control every case
+      that must be rejected, and the second author's code the same answer on every case of both copies.
     """
     versions, registered, second, arms = block["versions"], block["registered"], block["second"], trial["arms"]
     # ---- each part ran on the version the proof names
-    named = {"reference": versions["fixed"], "affected": versions["affected"], "fixed": versions["fixed"], "accept-all": versions["fixed"]}
+    named = {
+        "reference": versions["fixed"],
+        "affected": versions["affected"],
+        "fixed": versions["fixed"],
+        "accept-all": versions["fixed"],
+    }
     named.update({f"more-affected-{n}": v for n, v in enumerate(versions["more_affected"], start=1)})
     named.update({f"more-fixed-{n}": v for n, v in enumerate(versions["more_fixed"], start=1)})
     if second is not None:
@@ -314,7 +427,9 @@ def _bears_out(block: dict, record: dict, trial: dict, entries: list[dict], plac
             _fail(f"A part of the trial of {what} did not run on the version its proof names.")
     # ---- what was frozen
     pins = registered["pins"]
-    kinds = ["designs/", "/set-a-", "/known-a-", "/versions-", "/arms-"] + (["/set-b-", "/known-b-"] if second is not None else [])
+    kinds = ["designs/", "/set-a-", "/known-a-", "/versions-", "/arms-"] + (
+        ["/set-b-", "/known-b-"] if second is not None else []
+    )
     if not all(sum(1 for name in pins if kind in name) == 1 for kind in kinds):
         _fail(f"The registration of {what} did not freeze everything a trial on sandbox copies rests on.")
     for script in ("trial_sandbox.py", "qualify.py"):
@@ -330,7 +445,9 @@ def _bears_out(block: dict, record: dict, trial: dict, entries: list[dict], plac
     # ---- the times are the ledger's own
     at_of = {e["seq"]: e.get("at") for e in entries if isinstance(e.get("seq"), int)}
     first_run = min((e["seq"] for e in own_runs), default=None)
-    if registered["at"] != at_of.get(place) or registered["first_run_at"] != (at_of.get(first_run) if first_run is not None else None):
+    if registered["at"] != at_of.get(place) or registered["first_run_at"] != (
+        at_of.get(first_run) if first_run is not None else None
+    ):
         _fail(f"The times the proof of {what} gives are not the times of its ledger entries.")
     # ---- an offered test has the counts for it
     if not ready:
@@ -339,23 +456,36 @@ def _bears_out(block: dict, record: dict, trial: dict, entries: list[dict], plac
         _fail(f"The test of {what} is offered without its design or without a run after its registration.")
     total, reject = len(design["cases"]["ids"]), int(design["cases"]["must_reject"])
     for arm in named:
-        if _whole(arms[arm], "total", what) != total or _whole(arms[arm], "right", what) + _whole(arms[arm], "wrong", what) != total:
+        if (
+            _whole(arms[arm], "total", what) != total
+            or _whole(arms[arm], "right", what) + _whole(arms[arm], "wrong", what) != total
+        ):
             _fail(f"A part of the trial of {what} did not answer exactly the cases of its design.")
-    holds = (_whole(arms["reference"], "wrong", what) == 0 and _whole(arms["affected"], "wrong", what) >= 1
-             and _whole(arms["fixed"], "wrong", what) == 0 and _whole(arms["accept-all"], "wrong", what) == reject
-             and all(_whole(arms[arm], "wrong", what) >= 1 for arm in named if arm.startswith("more-affected"))
-             and all(_whole(arms[arm], "wrong", what) == 0 for arm in named if arm.startswith("more-fixed"))
-             and all(_whole(arms[arm], "agree", what) == total for arm in ("affected-b", "fixed-b") if arm in named))
+    holds = (
+        _whole(arms["reference"], "wrong", what) == 0
+        and _whole(arms["affected"], "wrong", what) >= 1
+        and _whole(arms["fixed"], "wrong", what) == 0
+        and _whole(arms["accept-all"], "wrong", what) == reject
+        and all(_whole(arms[arm], "wrong", what) >= 1 for arm in named if arm.startswith("more-affected"))
+        and all(_whole(arms[arm], "wrong", what) == 0 for arm in named if arm.startswith("more-fixed"))
+        and all(_whole(arms[arm], "agree", what) == total for arm in ("affected-b", "fixed-b") if arm in named)
+    )
     if not holds:
         _fail(f"The counts of the trial of {what} do not bear out that its test is offered.")
 
 
 def check_pack(pack: object) -> dict:
     """The pack's content, if it is exactly what a pack must be and every design in it can be run here."""
-    top = _keys(pack, {"schema", "version", "built_at", "previous", "signer", "research", "otto", "advisories", "tests"}, "content")
+    top = _keys(
+        pack,
+        {"schema", "version", "built_at", "previous", "signer", "research", "otto", "advisories", "tests"},
+        "content",
+    )
     if top["schema"] not in (PACK_SCHEMA, PACK_SCHEMA_2):
         _fail("This is not a test pack this version knows.")
-    second = top["schema"] == PACK_SCHEMA_2       # sandbox research: a pack of the second format may hold what a test on sandbox copies adds
+    second = (
+        top["schema"] == PACK_SCHEMA_2
+    )  # sandbox research: a pack of the second format may hold what a test on sandbox copies adds
     if not isinstance(top["version"], str) or not _VERSION.match(top["version"]):
         _fail("The pack's version is not in the form year.month.number.")
     if not isinstance(top["built_at"], str) or not _TIME.match(top["built_at"]):
@@ -364,21 +494,35 @@ def check_pack(pack: object) -> dict:
         _fail("The pack does not name the pack before it by its fingerprint.")
     _text(top["signer"], "signer line", 200)
     research = _keys(top["research"], {"snapshot", "snapshot_sha256", "answers", "answers_note"}, "research part")
-    if not isinstance(research["snapshot"], str) or not _DATE.match(research["snapshot"]) or research["answers"] not in ("recorded", "live", "mixed") \
-            or not isinstance(research["snapshot_sha256"], str) or not _HEX64.match(research["snapshot_sha256"]):
+    if (
+        not isinstance(research["snapshot"], str)
+        or not _DATE.match(research["snapshot"])
+        or research["answers"] not in ("recorded", "live", "mixed")
+        or not isinstance(research["snapshot_sha256"], str)
+        or not _HEX64.match(research["snapshot_sha256"])
+    ):
         _fail("The pack's research part is not in the shape this version knows.")
     _text(research["answers_note"], "line about where its answers came from", 200)
     otto = _keys(top["otto"], {"repository", "commit", "version", "ledger", "scripts"}, "Otto part")
     ledger = _keys(otto["ledger"], {"height", "head", "root"}, "Otto ledger line")
     _count(ledger["height"], "Otto ledger height")
-    if not all(isinstance(ledger[k], str) and _RECORD.match(ledger[k]) for k in ("head", "root")) \
-            or not isinstance(otto["commit"], str) or not re.match(r"^[0-9a-f]{40}$", otto["commit"]):
+    if (
+        not all(isinstance(ledger[k], str) and _RECORD.match(ledger[k]) for k in ("head", "root"))
+        or not isinstance(otto["commit"], str)
+        or not re.match(r"^[0-9a-f]{40}$", otto["commit"])
+    ):
         _fail("The pack's Otto part does not name a commit and a ledger head.")
     _text(otto["repository"], "Otto repository", 100)
     _text(otto["version"], "Otto version", 40)
     scripts = otto["scripts"]
-    if not isinstance(scripts, dict) or not scripts or len(scripts) > (16 if second else 8) or not all(
-            isinstance(k, str) and len(k) <= 60 and isinstance(v, str) and _HEX64.match(v) for k, v in scripts.items()):
+    if (
+        not isinstance(scripts, dict)
+        or not scripts
+        or len(scripts) > (16 if second else 8)
+        or not all(
+            isinstance(k, str) and len(k) <= 60 and isinstance(v, str) and _HEX64.match(v) for k, v in scripts.items()
+        )
+    ):
         _fail("The pack does not give the fingerprints of the scripts Otto's harness ran.")
 
     tests = top["tests"]
@@ -400,12 +544,32 @@ def check_pack(pack: object) -> dict:
         _fail("The pack holds no advisories, or too many.")
     seen, used = set(), set()
     for advisory in advisories:
-        a = _keys(advisory, {"id", "aliases", "package", "published", "sources", "reading", "reading_refused", "test", "fix", "steps", "ledger"}, "advisory")
+        a = _keys(
+            advisory,
+            {
+                "id",
+                "aliases",
+                "package",
+                "published",
+                "sources",
+                "reading",
+                "reading_refused",
+                "test",
+                "fix",
+                "steps",
+                "ledger",
+            },
+            "advisory",
+        )
         if not isinstance(a["id"], str) or not _ID.match(a["id"]) or a["id"] in seen:
             _fail("An advisory in the pack has no plain id, or is there twice.")
         seen.add(a["id"])
         what = f"advisory {a['id']}"
-        if not isinstance(a["aliases"], list) or len(a["aliases"]) > 8 or not all(isinstance(x, str) and 0 < len(x) <= 40 for x in a["aliases"]):
+        if (
+            not isinstance(a["aliases"], list)
+            or len(a["aliases"]) > 8
+            or not all(isinstance(x, str) and 0 < len(x) <= 40 for x in a["aliases"])
+        ):
             _fail(f"The other names of {what} are not plain text.")
         package = _keys(a["package"], {"name", "ecosystem"}, f"package of {what}")
         _text(package["name"], f"package of {what}", 60)
@@ -420,7 +584,10 @@ def check_pack(pack: object) -> dict:
             _text(s["label"], f"source of {what}", 8)
             _text(s["title"], f"source of {what}", 300)
             _text(s["publisher"], f"source of {what}", 200)
-            for link in (s["url"], s["read_from"]):          # the page a person would open, and the address the text was read from
+            for link in (
+                s["url"],
+                s["read_from"],
+            ):  # the page a person would open, and the address the text was read from
                 if not isinstance(link, str) or not link.startswith("https://") or len(link) > 400:
                     _fail(f"A source of {what} has no https link.")
             if not isinstance(s["fetched"], str) or not _DATE.match(s["fetched"]):
@@ -431,7 +598,11 @@ def check_pack(pack: object) -> dict:
         else:
             if a["reading_refused"] is not None:
                 _fail(f"{what.capitalize()} has a reading and a refusal at once.")
-            r = _keys(reading, {"plain_name", "weakness", "weakness_quote", "kind", "area", "affected", "fixed", "notes"}, f"reading of {what}")
+            r = _keys(
+                reading,
+                {"plain_name", "weakness", "weakness_quote", "kind", "area", "affected", "fixed", "notes"},
+                f"reading of {what}",
+            )
             _text(r["plain_name"], f"plain name of {what}", 60)
             _text(r["weakness"], f"weakness of {what}", 800)
             _text(r["notes"], f"notes of {what}", 2000, empty=True)
@@ -445,23 +616,51 @@ def check_pack(pack: object) -> dict:
                 fixed = _keys(r["fixed"], {"version", "quote"}, f"fixed version of {what}")
                 _text(fixed["version"], f"fixed version of {what}", 40)
                 _quote(fixed["quote"], f"quote of {what}")
-        test = _keys(a["test"], {"state", "reason", "design_sha256", "trial"}, f"test of {what}", optional={"sandbox"} if second else frozenset())
+        test = _keys(
+            a["test"],
+            {"state", "reason", "design_sha256", "trial"},
+            f"test of {what}",
+            optional={"sandbox"} if second else frozenset(),
+        )
         if test["state"] not in TEST_STATES:
             _fail(f"The test of {what} is in a state this version does not know.")
         _text(test["reason"], f"reason for the test state of {what}", 1000)
-        _trial(test["trial"], f"trial of {what}", ("reference", "affected", "fixed", "accept-all"), more="sandbox" in test)
+        _trial(
+            test["trial"], f"trial of {what}", ("reference", "affected", "fixed", "accept-all"), more="sandbox" in test
+        )
         if "sandbox" in test:
-            _sandbox(test["sandbox"], test["trial"], a["ledger"], what, advisory_id=a["id"], ready=test["state"] == "ready",
-                     design=by_hash.get(test["design_sha256"]) if isinstance(test["design_sha256"], str) else None, scripts=scripts)
+            _sandbox(
+                test["sandbox"],
+                test["trial"],
+                a["ledger"],
+                what,
+                advisory_id=a["id"],
+                ready=test["state"] == "ready",
+                design=by_hash.get(test["design_sha256"]) if isinstance(test["design_sha256"], str) else None,
+                scripts=scripts,
+            )
         if test["state"] == "ready":
-            if test["design_sha256"] not in by_hash or by_hash[test["design_sha256"]]["advisory"] != a["id"] or test["design_sha256"] in used:
+            if (
+                test["design_sha256"] not in by_hash
+                or by_hash[test["design_sha256"]]["advisory"] != a["id"]
+                or test["design_sha256"] in used
+            ):
                 _fail(f"The test of {what} is not among the pack's tests.")
-            if reading is None or test["trial"] is None or test["trial"]["outcome"] != "supported" or not test["trial"]["replayed"]:
+            if (
+                reading is None
+                or test["trial"] is None
+                or test["trial"]["outcome"] != "supported"
+                or not test["trial"]["replayed"]
+            ):
                 _fail(f"The test of {what} is offered without a trial that held on public copies.")
             used.add(test["design_sha256"])
-        elif test["design_sha256"] is not None and (not isinstance(test["design_sha256"], str) or not _HEX64.match(test["design_sha256"])):
+        elif test["design_sha256"] is not None and (
+            not isinstance(test["design_sha256"], str) or not _HEX64.match(test["design_sha256"])
+        ):
             _fail(f"The test of {what} names a design in a form this version does not know.")
-        fix = _keys(a["fix"], {"state", "reason", "kind", "library", "version", "quote", "summary", "trial"}, f"fix of {what}")
+        fix = _keys(
+            a["fix"], {"state", "reason", "kind", "library", "version", "quote", "summary", "trial"}, f"fix of {what}"
+        )
         if fix["state"] not in FIX_STATES:
             _fail(f"The fix of {what} is in a state this version does not know.")
         _text(fix["reason"], f"reason for the fix state of {what}", 1000)
@@ -476,19 +675,45 @@ def check_pack(pack: object) -> dict:
             _text(fix["version"], f"version of the fix of {what}", 40)
             _text(fix["summary"], f"summary of the fix of {what}", 700)
             _quote(fix["quote"], f"quote of the fix of {what}")
-        if fix["state"] == "proven" and (test["state"] != "ready" or fix["trial"] is None or fix["trial"]["outcome"] != "supported"
-                                         or not fix["trial"]["replayed"]):
+        if fix["state"] == "proven" and (
+            test["state"] != "ready"
+            or fix["trial"] is None
+            or fix["trial"]["outcome"] != "supported"
+            or not fix["trial"]["replayed"]
+        ):
             _fail(f"The fix of {what} is called proven without a test and a trial that held on public copies.")
         steps = a["steps"]
         if not isinstance(steps, list) or len(steps) > (20 if second else 12):
             _fail(f"The Claude steps of {what} are not a list.")
         for step in steps:
-            s = _keys(step, {"step", "source", "model", "prompt_sha256", "answer", "answer_sha256", "input_tokens", "output_tokens",
-                             "cost_nano_usd", "at", "how", "outcome", "refusal", "claim"}, f"Claude step of {what}")
-            if s["source"] not in ("recorded", "live") or s["outcome"] not in ("used", "refused") \
-                    or not all(isinstance(s[k], str) and _HEX64.match(s[k]) for k in ("prompt_sha256", "answer_sha256")) \
-                    or not isinstance(s["claim"], str) or not _RECORD.match(s["claim"]) \
-                    or (s["model"] is not None and (not isinstance(s["model"], str) or len(s["model"]) > 80)):
+            s = _keys(
+                step,
+                {
+                    "step",
+                    "source",
+                    "model",
+                    "prompt_sha256",
+                    "answer",
+                    "answer_sha256",
+                    "input_tokens",
+                    "output_tokens",
+                    "cost_nano_usd",
+                    "at",
+                    "how",
+                    "outcome",
+                    "refusal",
+                    "claim",
+                },
+                f"Claude step of {what}",
+            )
+            if (
+                s["source"] not in ("recorded", "live")
+                or s["outcome"] not in ("used", "refused")
+                or not all(isinstance(s[k], str) and _HEX64.match(s[k]) for k in ("prompt_sha256", "answer_sha256"))
+                or not isinstance(s["claim"], str)
+                or not _RECORD.match(s["claim"])
+                or (s["model"] is not None and (not isinstance(s["model"], str) or len(s["model"]) > 80))
+            ):
                 _fail(f"A Claude step of {what} is not in the shape this version knows.")
             _text(s["step"], f"Claude step of {what}", 40)
             _text(s["answer"], f"answer of a Claude step of {what}", 20000)
@@ -513,15 +738,17 @@ def check_pack(pack: object) -> dict:
             _text(e["what"], f"Otto ledger entry of {what}", 300)
     if used != set(by_hash):
         _fail("The pack holds a test that no advisory in it offers.")
-    return top   # type: ignore[return-value]
+    return top  # type: ignore[return-value]
 
 
 def sha256_hex_text(text: str) -> str:
     import hashlib
+
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------- reading one pack file
+
 
 def read_envelope(raw: bytes, keys: dict[str, tuple[str, bool]]) -> Pack:
     """One pack from the bytes of its file. Raises PackError with a plain sentence when it can't be used."""
@@ -534,8 +761,14 @@ def read_envelope(raw: bytes, keys: dict[str, tuple[str, bool]]) -> Pack:
     if not isinstance(data, dict) or set(data) != {"pack", "fingerprint", "public_key", "signature"}:
         _fail("The file is not a signed test pack.")
     fingerprint, public_key, signature = data["fingerprint"], data["public_key"], data["signature"]
-    if not (isinstance(fingerprint, str) and _HEX64.match(fingerprint) and isinstance(public_key, str) and _HEX64.match(public_key)
-            and isinstance(signature, str) and _HEX128.match(signature)):
+    if not (
+        isinstance(fingerprint, str)
+        and _HEX64.match(fingerprint)
+        and isinstance(public_key, str)
+        and _HEX64.match(public_key)
+        and isinstance(signature, str)
+        and _HEX128.match(signature)
+    ):
         _fail("The pack's fingerprint, key or signature is not in the form it must have.")
     try:
         same = sha256_hex(data["pack"]) == fingerprint and canonical_bytes(data) == raw.rstrip(b"\n")
@@ -544,7 +777,9 @@ def read_envelope(raw: bytes, keys: dict[str, tuple[str, bool]]) -> Pack:
     if not same:
         _fail("The pack was changed after it was signed (its fingerprint does not match).")
     try:
-        Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key)).verify(bytes.fromhex(signature), SIGNING_CONTEXT + fingerprint.encode("ascii"))
+        Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key)).verify(
+            bytes.fromhex(signature), SIGNING_CONTEXT + fingerprint.encode("ascii")
+        )
     except (InvalidSignature, ValueError):
         raise PackError("The pack's signature does not hold.") from None
     if public_key not in keys:
@@ -555,7 +790,14 @@ def read_envelope(raw: bytes, keys: dict[str, tuple[str, bool]]) -> Pack:
         # A pack of the second format carries asking code. No outside party can ship code into the app this way: not
         # even a key shipped with the app signs one.
         _fail(ONLY_MADE_HERE)
-    return Pack(pack=pack, fingerprint=fingerprint, public_key=public_key, signature=signature, made_here=made_here, signer=label)
+    return Pack(
+        pack=pack,
+        fingerprint=fingerprint,
+        public_key=public_key,
+        signature=signature,
+        made_here=made_here,
+        signer=label,
+    )
 
 
 def read_file(path: Path, keys: dict[str, tuple[str, bool]]) -> Pack:
@@ -570,8 +812,16 @@ def read_file(path: Path, keys: dict[str, tuple[str, bool]]) -> Pack:
 
 def follows(pack: Pack, newest_installed: Pack | dict | None) -> str | None:
     """Why this pack can't be installed next, or None when it can: packs install in order, each naming the one before."""
-    before = None if newest_installed is None else (newest_installed.fingerprint if isinstance(newest_installed, Pack) else newest_installed["fingerprint"])
-    before_version = None if newest_installed is None else (newest_installed.version if isinstance(newest_installed, Pack) else newest_installed["version"])
+    before = (
+        None
+        if newest_installed is None
+        else (newest_installed.fingerprint if isinstance(newest_installed, Pack) else newest_installed["fingerprint"])
+    )
+    before_version = (
+        None
+        if newest_installed is None
+        else (newest_installed.version if isinstance(newest_installed, Pack) else newest_installed["version"])
+    )
     if before_version is not None and version_key(pack.version) <= version_key(before_version):
         return f"Pack {pack.version} is not newer than the installed pack {before_version}."
     if pack.pack["previous"] != before:
@@ -586,7 +836,9 @@ def found_in(folder: Path, keys: dict[str, tuple[str, bool]]) -> tuple[list[Pack
     Only files named <version>.json are looked at. Nothing is downloaded: the folder is on this computer."""
     good, refused = [], []
     try:
-        names = sorted(p.name for p in folder.iterdir() if p.is_file() and p.suffix == ".json" and _VERSION.match(p.stem))
+        names = sorted(
+            p.name for p in folder.iterdir() if p.is_file() and p.suffix == ".json" and _VERSION.match(p.stem)
+        )
     except OSError:
         return [], []
     for name in names[:200]:

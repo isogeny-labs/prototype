@@ -35,6 +35,7 @@ the harness. Three things are done instead, and none of them starts anything the
   3. this app's own pinned record checker for that kind of entry (a file that ships with the app, never a file or
      a command from the ledger) is run again on every checked entry, and its answer is compared with the stored one.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -57,18 +58,21 @@ DECISION_CHECKER_SOURCE = Path(__file__).with_name("checker") / "decisions.py"
 DECISION_CHECKER = "decisions.py"
 CHECKER_TIMEOUT_SECONDS = 60
 AUTHOR = "evidence-lab"
-ENTRY_KINDS = ("objective", "claim", "verdict")      # the only kinds of entry an assessment's ledger holds
-PARAM_KINDS = ("run", "step")                        # what the first pinned checker checks: a bound run, or a Claude step
-DECISION_KINDS = ("decision",)                       # what the second one checks: a decision on one of Otto's proposals
+ENTRY_KINDS = ("objective", "claim", "verdict")  # the only kinds of entry an assessment's ledger holds
+PARAM_KINDS = ("run", "step")  # what the first pinned checker checks: a bound run, or a Claude step
+DECISION_KINDS = ("decision",)  # what the second one checks: a decision on one of Otto's proposals
 # The only programs an objective may name, each with the file that ships with the app and the kinds of entry it
 # checks. A name from a ledger is looked up here and nowhere else: it never becomes a path.
 CHECKERS = {CHECKER: (CHECKER_SOURCE, PARAM_KINDS), DECISION_CHECKER: (DECISION_CHECKER_SOURCE, DECISION_KINDS)}
 # The fields of each kind of entry, exactly as this app (through Otto's harness) writes them. An entry with any other
 # field is not ours: in particular nothing but an objective may carry a verifier.
-ENTRY_FIELDS = {"objective": frozenset({"type", "statement", "verifier", "author", "created_at"}),
-                "claim": frozenset({"type", "objective_id", "artifact", "cites", "author", "created_at"}),
-                "verdict": frozenset({"type", "claim_id", "objective_id", "status", "detail", "evidence", "tier", "attempt", "author",
-                                      "created_at"})}
+ENTRY_FIELDS = {
+    "objective": frozenset({"type", "statement", "verifier", "author", "created_at"}),
+    "claim": frozenset({"type", "objective_id", "artifact", "cites", "author", "created_at"}),
+    "verdict": frozenset(
+        {"type", "claim_id", "objective_id", "status", "detail", "evidence", "tier", "attempt", "author", "created_at"}
+    ),
+}
 VERIFIER_FIELDS = frozenset({"kind", "checker", "checker_sha256", "params", "timeout_seconds"})
 VERDICT_STATUSES = ("accept", "reject", "unavailable", "invalid_spec")
 VERDICT_TIER = "V0-certificate"
@@ -117,7 +121,7 @@ class Ledger:
         """The harness's lab on this folder. Before every use the folder is made what the app wrote: the ledger is a
         regular file (never a link to somewhere else), and the checker in it is a regular file with exactly the bytes
         of the checker that ships with the app. The harness starts that file, so no other may stand in its place."""
-        module = harness.module("lab")          # raises OttoNotInstalled with the plain reason
+        module = harness.module("lab")  # raises OttoNotInstalled with the plain reason
         self.folder.mkdir(parents=True, exist_ok=True)
         ledger = self.folder / "ledger.jsonl"
         if self.folder.is_symlink() or ledger.is_symlink() or (ledger.exists() and not ledger.is_file()):
@@ -131,36 +135,92 @@ class Ledger:
                 if target.is_symlink() or target.exists():
                     if target.is_dir() and not target.is_symlink():
                         raise harness.OttoNotInstalled(NOT_OUR_FOLDER)
-                    target.unlink()                 # a link is removed, never followed
-                with open(target, "xb") as fh:      # a new regular file, made here
+                    target.unlink()  # a link is removed, never followed
+                with open(target, "xb") as fh:  # a new regular file, made here
                     fh.write(ours)
         return module.Lab(str(self.folder))
 
     def _verifier(self, params: dict, checker: str = CHECKER) -> dict:
         # the pin is the checker that ships with the app, which is also what _lab keeps in the folder
-        return {"kind": "certificate", "checker": checker, "checker_sha256": _sha256(CHECKERS[checker][0]), "params": params,
-                "timeout_seconds": CHECKER_TIMEOUT_SECONDS}
+        return {
+            "kind": "certificate",
+            "checker": checker,
+            "checker_sha256": _sha256(CHECKERS[checker][0]),
+            "params": params,
+            "timeout_seconds": CHECKER_TIMEOUT_SECONDS,
+        }
 
-    def lock_check(self, *, title: str, program: str, spec_hash: str, design_sha256: str, pack_fingerprint: str, pack_version: str,
-                   advisory_id: str) -> str:
+    def lock_check(
+        self,
+        *,
+        title: str,
+        program: str,
+        spec_hash: str,
+        design_sha256: str,
+        pack_fingerprint: str,
+        pack_version: str,
+        advisory_id: str,
+    ) -> str:
         """The lock entry of one advisory check. Returns its record id. Written before the check can run."""
         with self._guard:
             lab = self._lab()
-            return lab.add({"type": "objective",
-                            "statement": (f"Every run of “{title}” on {program} belongs to the test locked with fingerprint {spec_hash}, "
-                                          "and was reviewed by a reviewer that did not propose it."),
-                            "verifier": self._verifier({"kind": "run", "test": spec_hash, "design": design_sha256, "pack": pack_fingerprint,
-                                                        "pack_version": pack_version, "advisory": advisory_id, "program": program})}, AUTHOR)
+            return lab.add(
+                {
+                    "type": "objective",
+                    "statement": (
+                        f"Every run of “{title}” on {program} belongs to the test locked with fingerprint {spec_hash}, "
+                        "and was reviewed by a reviewer that did not propose it."
+                    ),
+                    "verifier": self._verifier(
+                        {
+                            "kind": "run",
+                            "test": spec_hash,
+                            "design": design_sha256,
+                            "pack": pack_fingerprint,
+                            "pack_version": pack_version,
+                            "advisory": advisory_id,
+                            "program": program,
+                        }
+                    ),
+                },
+                AUTHOR,
+            )
 
-    def record_run(self, objective_id: str, *, spec_hash: str, run_id: int, run_sha256: str, review_sha256: str, proposed_by: str,
-                   reviewer: str, phase: str, ran_on: dict) -> tuple[str, str]:
+    def record_run(
+        self,
+        objective_id: str,
+        *,
+        spec_hash: str,
+        run_id: int,
+        run_sha256: str,
+        review_sha256: str,
+        proposed_by: str,
+        reviewer: str,
+        phase: str,
+        ran_on: dict,
+    ) -> tuple[str, str]:
         """One reviewed run of a locked check. Returns (the claim's id, the checker's verdict: accept or reject).
         The entry holds fingerprints and names only, never whether the run passed or failed."""
         with self._guard:
             lab = self._lab()
-            claim = lab.add({"type": "claim", "objective_id": objective_id, "cites": [],
-                             "artifact": {"test": spec_hash, "run_id": int(run_id), "run_sha256": run_sha256, "review_sha256": review_sha256,
-                                          "proposed_by": proposed_by, "reviewer": reviewer, "phase": phase, "ran_on": ran_on}}, AUTHOR)
+            claim = lab.add(
+                {
+                    "type": "claim",
+                    "objective_id": objective_id,
+                    "cites": [],
+                    "artifact": {
+                        "test": spec_hash,
+                        "run_id": int(run_id),
+                        "run_sha256": run_sha256,
+                        "review_sha256": review_sha256,
+                        "proposed_by": proposed_by,
+                        "reviewer": reviewer,
+                        "phase": phase,
+                        "ran_on": ran_on,
+                    },
+                },
+                AUTHOR,
+            )
             _, verdict = lab.verify(claim)
             return claim, verdict["status"]
 
@@ -168,10 +228,17 @@ class Ledger:
         """One Claude step taken in the app, in full. Returns (the claim's id, the checker's verdict)."""
         with self._guard:
             lab = self._lab()
-            objective = lab.add({"type": "objective",
-                                 "statement": (f"The record of Otto's {step['step'].replace('_', ' ')} step for {advisory_id} is whole: the prompt and "
-                                               "the answer are there with their SHA-256, and the source of the answer is named."),
-                                 "verifier": self._verifier({"kind": "step", "step": step["step"], "advisory": advisory_id})}, AUTHOR)
+            objective = lab.add(
+                {
+                    "type": "objective",
+                    "statement": (
+                        f"The record of Otto's {step['step'].replace('_', ' ')} step for {advisory_id} is whole: the prompt and "
+                        "the answer are there with their SHA-256, and the source of the answer is named."
+                    ),
+                    "verifier": self._verifier({"kind": "step", "step": step["step"], "advisory": advisory_id}),
+                },
+                AUTHOR,
+            )
             artifact: dict = {"advisory": advisory_id, "step": step, "outcome": outcome}
             if refusal:
                 artifact["refusal"] = refusal
@@ -179,8 +246,23 @@ class Ledger:
             _, verdict = lab.verify(claim)
             return claim, verdict["status"]
 
-    def record_decision(self, *, objective_id: str | None, proposal_id: str, kind: str, title: str, proposal_sha256: str, decision: str,
-                        before: str, after: str, by: str, at: str, reason: str | None, number: int, about: dict) -> tuple[str, str, str]:
+    def record_decision(
+        self,
+        *,
+        objective_id: str | None,
+        proposal_id: str,
+        kind: str,
+        title: str,
+        proposal_sha256: str,
+        decision: str,
+        before: str,
+        after: str,
+        by: str,
+        at: str,
+        reason: str | None,
+        number: int,
+        about: dict,
+    ) -> tuple[str, str, str]:
         """One decision a person recorded on one of Otto's proposals. Returns (the entry that names the proposal, the
         decision's own entry, the checker's verdict: accept or reject). `objective_id` is the entry that names this
         proposal, from its earlier decisions; None for its first one. The checker's verdict says the entry is whole
@@ -188,15 +270,41 @@ class Ledger:
         with self._guard:
             lab = self._lab()
             if objective_id is None:
-                objective_id = lab.add({"type": "objective",
-                                        "statement": (f"Every decision a person records on Otto's proposal “{title}” names what was proposed by "
-                                                      "its SHA-256, says who decided and when, and is a step the state before it allows."),
-                                        "verifier": self._verifier({"kind": "decision", "proposal": proposal_id, "proposal_kind": kind},
-                                                                   DECISION_CHECKER)}, AUTHOR)
-            claim = lab.add({"type": "claim", "objective_id": objective_id, "cites": [],
-                             "artifact": {"proposal": proposal_id, "proposal_kind": kind, "proposal_sha256": proposal_sha256, "title": title,
-                                          "decision": decision, "before": before, "after": after, "by": by, "at": at, "reason": reason,
-                                          "number": int(number), "about": about}}, AUTHOR)
+                objective_id = lab.add(
+                    {
+                        "type": "objective",
+                        "statement": (
+                            f"Every decision a person records on Otto's proposal “{title}” names what was proposed by "
+                            "its SHA-256, says who decided and when, and is a step the state before it allows."
+                        ),
+                        "verifier": self._verifier(
+                            {"kind": "decision", "proposal": proposal_id, "proposal_kind": kind}, DECISION_CHECKER
+                        ),
+                    },
+                    AUTHOR,
+                )
+            claim = lab.add(
+                {
+                    "type": "claim",
+                    "objective_id": objective_id,
+                    "cites": [],
+                    "artifact": {
+                        "proposal": proposal_id,
+                        "proposal_kind": kind,
+                        "proposal_sha256": proposal_sha256,
+                        "title": title,
+                        "decision": decision,
+                        "before": before,
+                        "after": after,
+                        "by": by,
+                        "at": at,
+                        "reason": reason,
+                        "number": int(number),
+                        "about": about,
+                    },
+                },
+                AUTHOR,
+            )
             _, verdict = lab.verify(claim)
             return objective_id, claim, verdict["status"]
 
@@ -257,13 +365,15 @@ class Ledger:
                 elif rid in claims:
                     what = f"Run {record['artifact']['run_id']} ({PHASE_WORDS.get(record['artifact']['phase'], record['artifact']['phase'])}) bound to the locked test"
                 elif entry["kind"] == "verdict" and record.get("claim_id") in claims:
-                    what = ("The pinned checker: bound and consistent" if record["status"] == "accept"
-                            else f"The pinned checker did not accept the entry ({record['status']})")
+                    what = (
+                        "The pinned checker: bound and consistent"
+                        if record["status"] == "accept"
+                        else f"The pinned checker did not accept the entry ({record['status']})"
+                    )
                 else:
                     continue
                 out.append({"seq": entry["seq"], "kind": entry["kind"], "id": rid, "at": entry["ts"], "what": what})
             return out
-
 
     def about_proposal(self, objective_id: str) -> list[dict]:
         """The entries about one proposal's decisions, oldest first, in the same form as `about`. The words say what
@@ -283,8 +393,11 @@ class Ledger:
                     art = record["artifact"]
                     what = f"Decision {art.get('number')}: {DECISION_WORDS.get(art.get('decision'), 'recorded')} by {art.get('by')}"
                 elif entry["kind"] == "verdict" and record.get("claim_id") in claims:
-                    what = ("The pinned checker: the entry is whole and in order" if record["status"] == "accept"
-                            else f"The pinned checker did not accept the entry ({record['status']})")
+                    what = (
+                        "The pinned checker: the entry is whole and in order"
+                        if record["status"] == "accept"
+                        else f"The pinned checker did not accept the entry ({record['status']})"
+                    )
                 else:
                     continue
                 out.append({"seq": entry["seq"], "kind": entry["kind"], "id": rid, "at": entry["ts"], "what": what})
@@ -309,14 +422,19 @@ def only_our_checker(entries: list) -> str | None:
     checker's fingerprint."""
     ours = {name: _sha256(source) for name, (source, _) in CHECKERS.items()}
     other_version = False
-    kinds: dict[str, str] = {}              # record id -> the kind of the entry that holds it
-    objective_of: dict[str, str] = {}       # claim id -> the objective it was made under
-    settled: set[str] = set()               # the claims that already have an accept or a reject
+    kinds: dict[str, str] = {}  # record id -> the kind of the entry that holds it
+    objective_of: dict[str, str] = {}  # claim id -> the objective it was made under
+    settled: set[str] = set()  # the claims that already have an accept or a reject
     if len(entries) > MAX_ENTRIES:
         return TOO_LONG
     for entry in entries:
-        if not isinstance(entry, dict) or not isinstance(entry.get("payload"), dict) or not isinstance(entry.get("kind"), str) \
-                or entry["kind"] not in ENTRY_KINDS or entry["payload"].get("type") != entry["kind"]:
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("payload"), dict)
+            or not isinstance(entry.get("kind"), str)
+            or entry["kind"] not in ENTRY_KINDS
+            or entry["payload"].get("type") != entry["kind"]
+        ):
             return NOT_OUR_KIND
         kind, payload = entry["kind"], entry["payload"]
         if set(payload) != ENTRY_FIELDS[kind]:
@@ -327,11 +445,19 @@ def only_our_checker(entries: list) -> str | None:
             return NOT_OUR_FORM
         if kind == "objective":
             verifier = payload["verifier"]
-            if not isinstance(verifier, dict) or set(verifier) != VERIFIER_FIELDS \
-                    or verifier["kind"] != "certificate" or not isinstance(verifier["checker"], str) or verifier["checker"] not in CHECKERS \
-                    or type(verifier["timeout_seconds"]) is not int or verifier["timeout_seconds"] != CHECKER_TIMEOUT_SECONDS \
-                    or not isinstance(verifier["params"], dict) or verifier["params"].get("kind") not in CHECKERS[verifier["checker"]][1] \
-                    or not isinstance(verifier["checker_sha256"], str) or not _HEX64.match(verifier["checker_sha256"]):
+            if (
+                not isinstance(verifier, dict)
+                or set(verifier) != VERIFIER_FIELDS
+                or verifier["kind"] != "certificate"
+                or not isinstance(verifier["checker"], str)
+                or verifier["checker"] not in CHECKERS
+                or type(verifier["timeout_seconds"]) is not int
+                or verifier["timeout_seconds"] != CHECKER_TIMEOUT_SECONDS
+                or not isinstance(verifier["params"], dict)
+                or verifier["params"].get("kind") not in CHECKERS[verifier["checker"]][1]
+                or not isinstance(verifier["checker_sha256"], str)
+                or not _HEX64.match(verifier["checker_sha256"])
+            ):
                 return NOT_OUR_CHECKER
             if verifier["checker_sha256"] != ours[verifier["checker"]]:
                 other_version = True
@@ -342,14 +468,25 @@ def only_our_checker(entries: list) -> str | None:
                 return NOT_OUR_ORDER
             objective_of[rid] = payload["objective_id"]
         else:
-            if payload["status"] not in VERDICT_STATUSES or payload["tier"] != VERDICT_TIER or not isinstance(payload["evidence"], dict) \
-                    or not isinstance(payload["detail"], str) or type(payload["attempt"]) is not int or payload["attempt"] < 0:
+            if (
+                payload["status"] not in VERDICT_STATUSES
+                or payload["tier"] != VERDICT_TIER
+                or not isinstance(payload["evidence"], dict)
+                or not isinstance(payload["detail"], str)
+                or type(payload["attempt"]) is not int
+                or payload["attempt"] < 0
+            ):
                 return NOT_OUR_FORM
-            if not _is_id(payload["claim_id"]) or not _is_id(payload["objective_id"]) or kinds.get(payload["claim_id"]) != "claim" \
-                    or kinds.get(payload["objective_id"]) != "objective" or objective_of.get(payload["claim_id"]) != payload["objective_id"]:
+            if (
+                not _is_id(payload["claim_id"])
+                or not _is_id(payload["objective_id"])
+                or kinds.get(payload["claim_id"]) != "claim"
+                or kinds.get(payload["objective_id"]) != "objective"
+                or objective_of.get(payload["claim_id"]) != payload["objective_id"]
+            ):
                 return NOT_OUR_ORDER
             if payload["status"] in ("accept", "reject"):
-                if payload["claim_id"] in settled:      # the harness never settles an entry twice
+                if payload["claim_id"] in settled:  # the harness never settles an entry twice
                     return NOT_OUR_ORDER
                 settled.add(payload["claim_id"])
         if kinds.setdefault(rid, kind) != kind:
@@ -372,8 +509,15 @@ def run_checker(params: dict, artifact: dict, checker: str = CHECKER) -> str:
     try:
         sent = json.dumps({"params": params, "artifact": artifact}).encode("utf-8")
         with tempfile.TemporaryDirectory(prefix="evidence-otto-check-") as empty:
-            done = subprocess.run([sys.executable, "-I", str(source)], input=sent, capture_output=True, cwd=empty,
-                                  timeout=CHECKER_TIMEOUT_SECONDS, env={"PATH": os.environ.get("PATH", "")}, shell=False)
+            done = subprocess.run(
+                [sys.executable, "-I", str(source)],
+                input=sent,
+                capture_output=True,
+                cwd=empty,
+                timeout=CHECKER_TIMEOUT_SECONDS,
+                env={"PATH": os.environ.get("PATH", "")},
+                shell=False,
+            )
         if done.returncode != 0:
             return "unavailable"
         said = json.loads(done.stdout)
@@ -395,15 +539,21 @@ def check_again(entries: list[dict]) -> list[str]:
         if entry["kind"] != "verdict" or verdict["status"] not in ("accept", "reject"):
             continue
         if time.monotonic() - started > CHECK_AGAIN_SECONDS:
-            problems.append(f"the entries could not all be checked again within {CHECK_AGAIN_SECONDS // 60} minutes; "
-                            f"entry {entry.get('seq')} and those after it were not")
+            problems.append(
+                f"the entries could not all be checked again within {CHECK_AGAIN_SECONDS // 60} minutes; "
+                f"entry {entry.get('seq')} and those after it were not"
+            )
             break
         claim, objective = records[verdict["claim_id"]], records[verdict["objective_id"]]
         now = run_checker(objective["verifier"]["params"], claim["artifact"], objective["verifier"]["checker"])
         if now == "unavailable":
-            problems.append(f"entry {entry.get('seq')} could not be checked again (the pinned checker gave no usable answer)")
+            problems.append(
+                f"entry {entry.get('seq')} could not be checked again (the pinned checker gave no usable answer)"
+            )
         elif now != verdict["status"]:
-            problems.append(f"entry {entry.get('seq')}: the stored verdict is {verdict['status']} but the pinned checker now says {now}")
+            problems.append(
+                f"entry {entry.get('seq')}: the stored verdict is {verdict['status']} but the pinned checker now says {now}"
+            )
     return problems
 
 
@@ -426,7 +576,7 @@ def verify_lines(lines: list[str], scratch: Path) -> list[str]:
     scratch.mkdir(parents=True, exist_ok=True)
     (scratch / "ledger.jsonl").write_text("".join(line + "\n" for line in lines), encoding="utf-8")
     try:
-        problems = list(module.Lab(str(scratch)).audit(reverify=False))     # never reverify=True: see the note at the top
+        problems = list(module.Lab(str(scratch)).audit(reverify=False))  # never reverify=True: see the note at the top
     except ledger_module.LedgerError as exc:
         return [f"the chain does not hold: {exc}"]
     except (ValueError, RecursionError) as exc:

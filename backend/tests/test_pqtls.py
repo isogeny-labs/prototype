@@ -1,4 +1,5 @@
 """Phase 4a: real TLS with post-quantum key exchange through the OpenSSL inside the `cryptography` library."""
+
 import socket
 import ssl
 import tempfile
@@ -53,8 +54,15 @@ def test_hybrid_server_hybrid_and_classical_clients(servers):
     assert (h.tls_version, h.group) == ("TLS 1.3", "X25519MLKEM768")
     assert h.client_share_bytes == 1216 and h.server_share_bytes == 1120
     assert h.detail == "handshake completed (TLS 1.3, X25519MLKEM768)"
-    assert [m["type"] for m in h.messages] == ["ClientHello", "ServerHello", "EncryptedExtensions", "Certificate",
-                                               "CertificateVerify", "Finished", "Finished"]
+    assert [m["type"] for m in h.messages] == [
+        "ClientHello",
+        "ServerHello",
+        "EncryptedExtensions",
+        "Certificate",
+        "CertificateVerify",
+        "Finished",
+        "Finished",
+    ]
     assert h.messages[0] == {"direction": "sent", "type": "ClientHello", "bytes": h.client_hello_bytes}
     assert h.client_hello_bytes > 1216 and h.duration_ms > 0
     info = describe_certificate(h.certificate_der)
@@ -181,6 +189,7 @@ def test_test_certificates():
 
 
 # ---------------------------------------------------------------------------------------------- unavailable
+
 
 @pytest.fixture
 def fresh_state():

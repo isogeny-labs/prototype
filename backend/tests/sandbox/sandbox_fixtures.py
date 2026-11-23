@@ -1,4 +1,5 @@
 """What the sandbox tests share: the pack and the lab files of one real run (tests/sandbox/fixtures), read as data."""
+
 from __future__ import annotations
 
 import copy

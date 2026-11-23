@@ -23,7 +23,12 @@ export function AdvisoriesBox({ advisories }: { advisories?: Advisories | null }
               <>
                 {" "}
                 {item.href && item.href.startsWith("https://") ? (
-                  <a href={item.href} target="_blank" rel="noreferrer noopener" className="underline hover:text-slate-100">
+                  <a
+                    href={item.href}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="underline hover:text-slate-100"
+                  >
                     {item.link}
                   </a>
                 ) : (

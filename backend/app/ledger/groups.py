@@ -1,5 +1,6 @@
 """The four work groups (phase 5b; since 20 November 2026 the second is called "Crypto tests", its key is still "encryption"), the same on Checks, Evidence, Fixes and the Overview, and how an item's state is
 counted (Open, In progress, Done). The counts decide nothing: they sort what the pages already say."""
+
 from __future__ import annotations
 
 from typing import Iterable
@@ -23,10 +24,14 @@ EMPTY_CHECKS = {
     "migration": "Nothing measured yet. Measure status is on Migration.",
     "dependencies": "No dependency list yet. Add one on Dependencies.",
 }
-EMPTY_DEPENDENCIES_LISTED = "No library has been measured on a public copy yet. Measure on a public copy is on Dependencies."
+EMPTY_DEPENDENCIES_LISTED = (
+    "No library has been measured on a public copy yet. Measure on a public copy is on Dependencies."
+)
 EMPTY_FIXES = {
-    "verification": ("Verification has no fixes of its own. A false claim's fix sits with the test that checks it, "
-                     "under Crypto tests."),
+    "verification": (
+        "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, "
+        "under Crypto tests."
+    ),
     "encryption": "No failed test has a fix.",
     "migration": "No system's plan needs a change yet.",
     "dependencies": "No library blocks a track.",
@@ -43,13 +48,25 @@ STARTED_ON = {
 # 17 November 2026). "Applied · matches the try" was not named in the plan: it is applied and not yet measured in
 # place, so it counts as in progress.
 FIX_STATE_BY_WORD = {
-    "Code not connected": "open", "Text only": "open", "Ready to try": "open", "Ready to download": "open",
-    "Proof failed": "open", "Try did not pass": "open", "Rolled back": "open",
-    "Proving": "in_progress", "Ready for review": "in_progress", "Waiting for approval": "in_progress",
-    "Ready to merge": "in_progress", "Try running": "in_progress", "Try passed": "in_progress",
-    "Ready to apply": "in_progress", "Applied · measuring": "in_progress", "Applied · does not match the try": "in_progress",
+    "Code not connected": "open",
+    "Text only": "open",
+    "Ready to try": "open",
+    "Ready to download": "open",
+    "Proof failed": "open",
+    "Try did not pass": "open",
+    "Rolled back": "open",
+    "Proving": "in_progress",
+    "Ready for review": "in_progress",
+    "Waiting for approval": "in_progress",
+    "Ready to merge": "in_progress",
+    "Try running": "in_progress",
+    "Try passed": "in_progress",
+    "Ready to apply": "in_progress",
+    "Applied · measuring": "in_progress",
+    "Applied · does not match the try": "in_progress",
     "Applied · matches the try": "in_progress",
-    "Merged": "done", "In place (measured)": "done",
+    "Merged": "done",
+    "In place (measured)": "done",
 }
 
 
@@ -61,19 +78,25 @@ def fix_state(word: str) -> str:
 
 def group_of_fix(fix: dict) -> str:
     """The group of the work a fix came from (a fix state from `fix_states`)."""
-    if fix.get("source_kind") == "dependency" or fix.get("test_kind") == "capability" or str(fix.get("id", "")).startswith("dependency-"):
+    if (
+        fix.get("source_kind") == "dependency"
+        or fix.get("test_kind") == "capability"
+        or str(fix.get("id", "")).startswith("dependency-")
+    ):
         return "dependencies"
     if fix.get("source_kind") == "migration":
         return "migration"
-    return "encryption"   # a failed test's fix: the code change, a server setting, a library's fixed version
+    return "encryption"  # a failed test's fix: the code change, a server setting, a library's fixed version
 
 
 # Phase 6d: a suggestion that comes from a developer's change sits in its group under a heading of its own and is not
 # counted with the assessment's findings (the plan: "listed under their own heading and never count as findings"). A
 # developer's change is not the system until someone merges it.
 APART_LABEL = "From a developer's change"
-APART_NOTE = ("A developer's change is not the system until someone merges it. A suggestion listed here is not counted with "
-              "the assessment's findings.")
+APART_NOTE = (
+    "A developer's change is not the system until someone merges it. A suggestion listed here is not counted with "
+    "the assessment's findings."
+)
 
 
 def fix_is_apart(fix: dict) -> bool:

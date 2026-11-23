@@ -1,4 +1,5 @@
 """The one fix template (the missing range check in acme-sign): it applies only to the exact lines it expects."""
+
 import pytest
 
 from app.run import components
@@ -15,13 +16,22 @@ def wrong(case_id, comment="", expected="invalid"):
     return {"id": case_id, "comment": comment, "flags": [], "expected": expected, "got": "accept"}
 
 
-BAD = {"kind": "bad_signatures", "reason_code": None, "detail": {"wrong": [wrong("r0-s0", "r = 0, s = 0"), wrong("s-plus-n", "s + n")]}}
-OFFICIAL = {"kind": "official_vectors", "reason_code": None,
-            "detail": {"wrong": [wrong("168", "r=0 and s=0"), wrong("171", "r=0 and s=n"), wrong("364", "s larger than n")]}}
+BAD = {
+    "kind": "bad_signatures",
+    "reason_code": None,
+    "detail": {"wrong": [wrong("r0-s0", "r = 0, s = 0"), wrong("s-plus-n", "s + n")]},
+}
+OFFICIAL = {
+    "kind": "official_vectors",
+    "reason_code": None,
+    "detail": {"wrong": [wrong("168", "r=0 and s=0"), wrong("171", "r=0 and s=n"), wrong("364", "s larger than n")]},
+}
 
 
 def propose(text=OLD, failed=(OFFICIAL, BAD), name="acme-sign", file_name="acme_sign.py"):
-    return RuleEngine().propose_change({"component": {"name": name, "version": "1.4.2"}, "failed": list(failed), "files": {file_name: text}})
+    return RuleEngine().propose_change(
+        {"component": {"name": name, "version": "1.4.2"}, "failed": list(failed), "files": {file_name: text}}
+    )
 
 
 def test_the_template_turns_the_bundled_1_4_2_into_exactly_the_registered_1_4_3():
@@ -46,32 +56,64 @@ def test_each_edit_says_what_the_screen_shows_and_where_it_landed():
     landed = sorted((e["old_start"], e["old_end"], e["new_start"], e["new_end"]) for e in (check, version))
     assert landed == [(s.old_start, s.old_end, s.new_start, s.new_end) for s in spots]
     new_lines = NEW.decode().split("\n")
-    assert new_lines[check["new_start"]:check["new_end"]] == ["    if not (1 <= r < N and 1 <= s < N):", '        return {"valid": False}']
-    assert new_lines[version["new_start"]:version["new_end"]] == ['VERSION = "1.4.3"']
-    assert OLD.split("\n")[version["old_start"]:version["old_end"]] == ['VERSION = "1.4.2"']
+    assert new_lines[check["new_start"] : check["new_end"]] == [
+        "    if not (1 <= r < N and 1 <= s < N):",
+        '        return {"valid": False}',
+    ]
+    assert new_lines[version["new_start"] : version["new_end"]] == ['VERSION = "1.4.3"']
+    assert OLD.split("\n")[version["old_start"] : version["old_end"]] == ['VERSION = "1.4.2"']
 
 
 def test_it_answers_only_the_failures_that_are_about_the_range():
-    other = {"kind": "bad_signatures", "reason_code": None, "detail": {"wrong": [wrong("r0-s0"), wrong("changed-message")]}}
+    other = {
+        "kind": "bad_signatures",
+        "reason_code": None,
+        "detail": {"wrong": [wrong("r0-s0"), wrong("changed-message")]},
+    }
     server = {"kind": "tls_versions", "reason_code": None, "detail": {"accepted_outside_claim": ["TLS 1.2"]}}
     assert propose(failed=[server, other, BAD])["answers"] == [2]
-    for failed in ([], [server], [other], [{"kind": "bad_signatures", "reason_code": None, "detail": {"wrong": []}}],
-                   [{"kind": "official_vectors", "reason_code": None, "detail": {"wrong": [wrong("1", "signature malleability")]}}],
-                   [{"kind": "official_vectors", "reason_code": None, "detail": {"wrong": [wrong("168", "r=0 and s=0", expected="valid")]}}],
-                   [{"kind": "bad_signatures", "reason_code": "component_no_answer", "detail": {}}], ["not a result"]):
+    for failed in (
+        [],
+        [server],
+        [other],
+        [{"kind": "bad_signatures", "reason_code": None, "detail": {"wrong": []}}],
+        [
+            {
+                "kind": "official_vectors",
+                "reason_code": None,
+                "detail": {"wrong": [wrong("1", "signature malleability")]},
+            }
+        ],
+        [
+            {
+                "kind": "official_vectors",
+                "reason_code": None,
+                "detail": {"wrong": [wrong("168", "r=0 and s=0", expected="valid")]},
+            }
+        ],
+        [{"kind": "bad_signatures", "reason_code": "component_no_answer", "detail": {}}],
+        ["not a result"],
+    ):
         assert propose(failed=failed) is None, failed
 
 
-@pytest.mark.parametrize("text", [
-    OLD.replace('VERSION = "1.4.2"', 'VERSION = "1.4.1"'),                                  # the version line is not there
-    OLD.replace('VERSION = "1.4.2"\n', 'VERSION = "1.4.2"\nVERSION = "1.4.2"\n'),           # ... or is there twice
-    OLD.replace("    except ValueError:\n        return {\"valid\": False}\n", "    except ValueError:\n        return {\"valid\": 0}\n"),
-    OLD.replace("        r, s = der_decode(", "        r,s = der_decode("),                 # one anchor line differs by a space
-    OLD + OLD[OLD.index("def cmd_verify(req):"):OLD.index("def cmd_bench(req):")],          # the four lines appear twice
-    OLD.replace("\n", "\r\n"),                                                              # other line ends: not the exact lines
-    NEW.decode(),                                                                           # already changed
-    "",
-], ids=["no-version", "version-twice", "changed-anchor", "space", "check-twice", "crlf", "already-fixed", "empty"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        OLD.replace('VERSION = "1.4.2"', 'VERSION = "1.4.1"'),  # the version line is not there
+        OLD.replace('VERSION = "1.4.2"\n', 'VERSION = "1.4.2"\nVERSION = "1.4.2"\n'),  # ... or is there twice
+        OLD.replace(
+            '    except ValueError:\n        return {"valid": False}\n',
+            '    except ValueError:\n        return {"valid": 0}\n',
+        ),
+        OLD.replace("        r, s = der_decode(", "        r,s = der_decode("),  # one anchor line differs by a space
+        OLD + OLD[OLD.index("def cmd_verify(req):") : OLD.index("def cmd_bench(req):")],  # the four lines appear twice
+        OLD.replace("\n", "\r\n"),  # other line ends: not the exact lines
+        NEW.decode(),  # already changed
+        "",
+    ],
+    ids=["no-version", "version-twice", "changed-anchor", "space", "check-twice", "crlf", "already-fixed", "empty"],
+)
 def test_a_missing_or_repeated_anchor_gives_no_change(text):
     assert text != OLD and propose(text=text) is None
 
@@ -80,12 +122,22 @@ def test_no_change_for_another_component_or_another_file():
     assert propose(name="other-sign") is None and propose(name=None) is None
     assert propose(file_name="other.py") is None
     assert RuleEngine().propose_change({}) is None
-    assert RuleEngine().propose_change({"component": {"name": "acme-sign"}, "failed": [BAD], "files": {"acme_sign.py": OLD.encode()}}) is None
+    assert (
+        RuleEngine().propose_change(
+            {"component": {"name": "acme-sign"}, "failed": [BAD], "files": {"acme_sign.py": OLD.encode()}}
+        )
+        is None
+    )
 
 
 def test_other_files_are_passed_through_untouched_and_nothing_is_run():
-    reply = RuleEngine().propose_change({"component": {"name": "acme-sign", "version": "1.4.2"}, "failed": [BAD],
-                                         "files": {"acme_sign.py": OLD, "notes.txt": "raise SystemExit\n"}})
+    reply = RuleEngine().propose_change(
+        {
+            "component": {"name": "acme-sign", "version": "1.4.2"},
+            "failed": [BAD],
+            "files": {"acme_sign.py": OLD, "notes.txt": "raise SystemExit\n"},
+        }
+    )
     assert reply["files"]["notes.txt"] == "raise SystemExit\n" and set(reply["files"]) == {"acme_sign.py", "notes.txt"}
     assert all(e["file"] == "acme_sign.py" for e in reply["edits"])
 
@@ -97,7 +149,9 @@ def test_the_template_and_the_wording_agree_on_what_one_cause_means():
     lists = [demo, demo[:1], [wrong("1", cases["1"].comment)], demo + [wrong("1", cases["1"].comment)], []]
     lists += [[wrong(c.id, c.comment)] for c in list(cases.values())[:60] if c.expected == "invalid"]
     for wrong_cases in lists:
-        assert out_of_range_cause("official_vectors", {"wrong": wrong_cases}) == present._range_cause_official(wrong_cases)
+        assert out_of_range_cause("official_vectors", {"wrong": wrong_cases}) == present._range_cause_official(
+            wrong_cases
+        )
     assert out_of_range_cause("official_vectors", {"wrong": demo}) is True
     bad_ids = [c.id for c in vectors.load_bad_signatures().cases]
     for ids in ([i] for i in bad_ids + ["r0-s0"]):

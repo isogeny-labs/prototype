@@ -3,22 +3,64 @@ import pytest
 from app.checks.addresses import AddressError, is_loopback_ip, parse_address, resolve_all, validate_host, validate_port
 
 
-@pytest.mark.parametrize("text,host,port", [
-    ("localhost:8443", "localhost", 8443), ("Example.COM:443", "example.com", 443),
-    ("127.0.0.1:1", "127.0.0.1", 1), ("[::1]:65535", "::1", 65535), ("a-b.example:8443", "a-b.example", 8443),
-])
+@pytest.mark.parametrize(
+    "text,host,port",
+    [
+        ("localhost:8443", "localhost", 8443),
+        ("Example.COM:443", "example.com", 443),
+        ("127.0.0.1:1", "127.0.0.1", 1),
+        ("[::1]:65535", "::1", 65535),
+        ("a-b.example:8443", "a-b.example", 8443),
+    ],
+)
 def test_good_addresses(text, host, port):
     hp = parse_address(text)
     assert (hp.host, hp.port) == (host, port)
 
 
-@pytest.mark.parametrize("text", [
-    "-connect:443", "a b:443", "x;rm:443", "../:443", "..:443", "localhost", "localhost:", ":443", "localhost:0",
-    "localhost:65536", "localhost:99999", "localhost:-1", "localhost:44a", "localhost:443/path", "https://localhost:443",
-    "host name:443", "host\n:443", "host:443\n", "$(id):443", "`id`:443", "a|b:443", "a&b:443", "-h:1", "a..b:443",
-    ".a:443", "a-:443", "999.1.1.1:443", "1.2.3:443", "::1:443", "[::1]", "[zz]:443", "a" * 300 + ":443", "", " ",
-    "user@host:443", "host:443:443", "ho\x00st:443", "hóst:443",
-])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "-connect:443",
+        "a b:443",
+        "x;rm:443",
+        "../:443",
+        "..:443",
+        "localhost",
+        "localhost:",
+        ":443",
+        "localhost:0",
+        "localhost:65536",
+        "localhost:99999",
+        "localhost:-1",
+        "localhost:44a",
+        "localhost:443/path",
+        "https://localhost:443",
+        "host name:443",
+        "host\n:443",
+        "host:443\n",
+        "$(id):443",
+        "`id`:443",
+        "a|b:443",
+        "a&b:443",
+        "-h:1",
+        "a..b:443",
+        ".a:443",
+        "a-:443",
+        "999.1.1.1:443",
+        "1.2.3:443",
+        "::1:443",
+        "[::1]",
+        "[zz]:443",
+        "a" * 300 + ":443",
+        "",
+        " ",
+        "user@host:443",
+        "host:443:443",
+        "ho\x00st:443",
+        "hóst:443",
+    ],
+)
 def test_hostile_or_malformed_addresses_are_rejected(text):
     with pytest.raises(AddressError):
         parse_address(text)

@@ -14,6 +14,7 @@ could not be confirmed. Exit codes: 0 verified, 1 failed, 2 consistent but signe
 This package reads the file as data only. It imports nothing from the app except the canonical JSON
 writer and the default data folder setting.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -39,10 +40,10 @@ NOT_CONFIRMED_TEXT = "The file is consistent with itself, but the signer could n
 
 @dataclass(frozen=True)
 class Outcome:
-    code: int               # VERIFIED | FAILED | SIGNER_NOT_CONFIRMED
+    code: int  # VERIFIED | FAILED | SIGNER_NOT_CONFIRMED
     message: str
     fingerprint: str | None = None
-    signer: str | None = None   # SHA-256 of the public key in the file
+    signer: str | None = None  # SHA-256 of the public key in the file
 
     @property
     def ok(self) -> bool:
@@ -69,7 +70,9 @@ def verify_bytes(raw: bytes, trusted_public_key: str | None) -> Outcome:
         return _fail("the file is not written exactly as the app writes it. It was changed after it was made.")
     if not isinstance(parsed, dict) or set(parsed) != {"evidence", "fingerprint", "public_key", "signature"}:
         return _fail("the file does not have exactly the four parts evidence, fingerprint, public_key and signature.")
-    evidence, fingerprint, public_key, signature = (parsed[k] for k in ("evidence", "fingerprint", "public_key", "signature"))
+    evidence, fingerprint, public_key, signature = (
+        parsed[k] for k in ("evidence", "fingerprint", "public_key", "signature")
+    )
     if not (isinstance(fingerprint, str) and _HEX64.match(fingerprint)):
         return _fail("the fingerprint is not 64 lowercase hex characters.")
     if not (isinstance(public_key, str) and _HEX64.match(public_key)):
@@ -82,7 +85,8 @@ def verify_bytes(raw: bytes, trusted_public_key: str | None) -> Outcome:
         return _fail("the fingerprint does not match the evidence. The evidence was changed after it was signed.")
     try:
         Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key)).verify(
-            bytes.fromhex(signature), SIGNING_CONTEXT + fingerprint.encode("ascii"))
+            bytes.fromhex(signature), SIGNING_CONTEXT + fingerprint.encode("ascii")
+        )
     except (InvalidSignature, ValueError):
         return _fail("the signature is not valid for the public key in the file.")
     signer = hashlib.sha256(bytes.fromhex(public_key)).hexdigest()

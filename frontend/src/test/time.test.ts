@@ -37,10 +37,12 @@ describe("formatTime", () => {
 
 describe("localTimes", () => {
   it("writes each marked time in a sentence in the viewer's zone", () => {
-    expect(localTimes("Accepted by You on [[time:2026-11-18T19:46:03Z]].")).toBe("Accepted by You on 18 November 2026, 2:46 pm EST.");
-    expect(localTimes("Rolled back [[time:2026-11-18T19:46:03Z]]. Measured again [[time:2026-11-18T19:47:10Z]]: Classical.")).toBe(
-      "Rolled back 18 November 2026, 2:46 pm EST. Measured again 18 November 2026, 2:47 pm EST: Classical.",
+    expect(localTimes("Accepted by You on [[time:2026-11-18T19:46:03Z]].")).toBe(
+      "Accepted by You on 18 November 2026, 2:46 pm EST.",
     );
+    expect(
+      localTimes("Rolled back [[time:2026-11-18T19:46:03Z]]. Measured again [[time:2026-11-18T19:47:10Z]]: Classical."),
+    ).toBe("Rolled back 18 November 2026, 2:46 pm EST. Measured again 18 November 2026, 2:47 pm EST: Classical.");
   });
 
   it("changes nothing else: plain text, a date, and a mark that is not whole", () => {
@@ -74,8 +76,13 @@ describe("withLocalTimes", () => {
 describe("every request", () => {
   it("asks the server for marked times, and every answer has them written in the viewer's zone", async () => {
     const fetchMock = mockApi({
-      "GET /api/session": { body: { needs_setup: false, logged_in: true, note: "Started [[time:2026-11-18T19:46:03Z]]." } },
-      "POST /api/login": { status: 409, body: { error: { message: "Closed on [[time:2026-11-18T19:46:03Z]].", line: null, field: null } } },
+      "GET /api/session": {
+        body: { needs_setup: false, logged_in: true, note: "Started [[time:2026-11-18T19:46:03Z]]." },
+      },
+      "POST /api/login": {
+        status: 409,
+        body: { error: { message: "Closed on [[time:2026-11-18T19:46:03Z]].", line: null, field: null } },
+      },
     });
     const session = (await api.getSession()) as unknown as { note: string };
     expect(session.note).toBe("Started 18 November 2026, 2:46 pm EST.");

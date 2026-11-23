@@ -29,7 +29,9 @@ function WaitingCell({ title, waiting }: { title: string; waiting: ProofWaiting 
       <div className="min-w-0">
         <p>{waiting.text}</p>
         {waiting.detail ? <p className="text-xs text-slate-400">{waiting.detail}</p> : null}
-        {waiting.percent !== null ? <ProgressBar label={`${title}: ${waiting.text}`} percent={waiting.percent} /> : null}
+        {waiting.percent !== null ? (
+          <ProgressBar label={`${title}: ${waiting.text}`} percent={waiting.percent} />
+        ) : null}
       </div>
     </div>
   );

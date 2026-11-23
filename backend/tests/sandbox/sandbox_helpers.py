@@ -2,6 +2,7 @@
 
 The switch can be on only on a marked computer, in isolated mode, with Otto installed. A fast test has no Docker, so it
 stands in for the two outside conditions (the mode and the harness) and leaves the switch's own rules as they are."""
+
 from __future__ import annotations
 
 from conftest import make_lab
@@ -12,10 +13,19 @@ from app.run import runner
 ISOLATED = runner.ModeInfo("isolated", "Isolated mode (stand-in for a test).", None, True, "stand-in", "stand-in")
 
 
-def sandbox_lab(tmp_path, monkeypatch, *, marked: bool = True, isolated: bool = True, otto: bool = True, key: bool = False, **overrides):
+def sandbox_lab(
+    tmp_path,
+    monkeypatch,
+    *,
+    marked: bool = True,
+    isolated: bool = True,
+    otto: bool = True,
+    key: bool = False,
+    **overrides,
+):
     """A started lab on a computer that is (or is not) marked as the sandbox. The mode and the harness are stand-ins;
     `key` stands in for an API key being present (Live Otto still has to be switched on)."""
-    overrides.setdefault("watch_clock", False)       # no look by itself in a test, unless the test is about the clock
+    overrides.setdefault("watch_clock", False)  # no look by itself in a test, unless the test is about the clock
     lab = make_lab(tmp_path, sandbox_research=marked, **overrides)
     if isolated:
         monkeypatch.setattr(lab, "mode", ISOLATED)

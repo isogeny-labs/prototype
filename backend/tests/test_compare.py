@@ -55,36 +55,42 @@ def test_works_for_groups_too():
 EC256 = {"key_type": "EC", "curve": "secp256r1", "key_size": 256}
 
 
-@pytest.mark.parametrize("claimed,cert,want", [
-    ("ECDSA P-256", EC256, True),
-    ("ECDSA P-384", EC256, False),
-    ("ECDSA P-256", {"key_type": "EC", "curve": "secp256k1", "key_size": 256}, False),
-    ("ECDSA P-256", {"key_type": "RSA", "curve": None, "key_size": 2048}, False),
-    ("RSA 2048", {"key_type": "RSA", "curve": None, "key_size": 2048}, True),
-    ("RSA 2048", {"key_type": "RSA", "curve": None, "key_size": 4096}, False),
-    ("RSA 2048", EC256, False),
-    ("Ed25519", {"key_type": "Ed25519", "key_size": 256}, True),
-    ("ML-DSA-65", EC256, None),
-])
+@pytest.mark.parametrize(
+    "claimed,cert,want",
+    [
+        ("ECDSA P-256", EC256, True),
+        ("ECDSA P-384", EC256, False),
+        ("ECDSA P-256", {"key_type": "EC", "curve": "secp256k1", "key_size": 256}, False),
+        ("ECDSA P-256", {"key_type": "RSA", "curve": None, "key_size": 2048}, False),
+        ("RSA 2048", {"key_type": "RSA", "curve": None, "key_size": 2048}, True),
+        ("RSA 2048", {"key_type": "RSA", "curve": None, "key_size": 4096}, False),
+        ("RSA 2048", EC256, False),
+        ("Ed25519", {"key_type": "Ed25519", "key_size": 256}, True),
+        ("ML-DSA-65", EC256, None),
+    ],
+)
 def test_certificate_rule(claimed, cert, want):
     assert certificate_matches(claimed, cert) is want
 
 
-@pytest.mark.parametrize("name,curve,size,want", [
-    ("ECDSA-P256", None, None, "ECDSA P-256"),
-    ("ecdsa", "secp256r1", "256", "ECDSA P-256"),
-    ("SHA256withECDSA", "prime256v1", None, "ECDSA P-256"),
-    ("ECDSA P-384", None, None, "ECDSA P-384"),
-    ("ECDSA", None, "256", None),
-    ("RSA-2048", None, None, "RSA 2048"),
-    ("SHA256withRSA", None, 3072, "RSA 3072"),
-    ("SHA256withRSA", None, None, None),
-    ("Ed25519", None, None, "Ed25519"),
-    ("ML-DSA-65", None, None, "ML-DSA-65"),   # since phase 4c the post-quantum names are known
-    ("mlkem768", None, None, "ML-KEM-768"),
-    ("ML-DSA-99", None, None, None),
-    ("", None, None, None),
-])
+@pytest.mark.parametrize(
+    "name,curve,size,want",
+    [
+        ("ECDSA-P256", None, None, "ECDSA P-256"),
+        ("ecdsa", "secp256r1", "256", "ECDSA P-256"),
+        ("SHA256withECDSA", "prime256v1", None, "ECDSA P-256"),
+        ("ECDSA P-384", None, None, "ECDSA P-384"),
+        ("ECDSA", None, "256", None),
+        ("RSA-2048", None, None, "RSA 2048"),
+        ("SHA256withRSA", None, 3072, "RSA 3072"),
+        ("SHA256withRSA", None, None, None),
+        ("Ed25519", None, None, "Ed25519"),
+        ("ML-DSA-65", None, None, "ML-DSA-65"),  # since phase 4c the post-quantum names are known
+        ("mlkem768", None, None, "ML-KEM-768"),
+        ("ML-DSA-99", None, None, None),
+        ("", None, None, None),
+    ],
+)
 def test_algorithm_names(name, curve, size, want):
     assert normalize_algorithm(name, curve, size) == want
 
@@ -98,8 +104,20 @@ def test_same_algorithm_is_exact_after_normalising():
     assert not same_algorithm("", "")
 
 
-@pytest.mark.parametrize("text,want", [("TLS1.3", "TLS 1.3"), ("TLSv1.2", "TLS 1.2"), ("1.3", "TLS 1.3"),
-                                       ("tls 1.0", "TLS 1.0"), ("TLSv1_1", "TLS 1.1"), ("TLSv1", "TLS 1.0"),
-                                       ("SSL3", None), ("1.4", None), ("", None), ("TLS", None)])
+@pytest.mark.parametrize(
+    "text,want",
+    [
+        ("TLS1.3", "TLS 1.3"),
+        ("TLSv1.2", "TLS 1.2"),
+        ("1.3", "TLS 1.3"),
+        ("tls 1.0", "TLS 1.0"),
+        ("TLSv1_1", "TLS 1.1"),
+        ("TLSv1", "TLS 1.0"),
+        ("SSL3", None),
+        ("1.4", None),
+        ("", None),
+        ("TLS", None),
+    ],
+)
 def test_tls_version_names(text, want):
     assert normalize_tls_version(text) == want

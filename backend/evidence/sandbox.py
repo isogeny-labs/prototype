@@ -31,6 +31,7 @@ change the other; a test holds both to the same forged packs.
 What can't be checked from a file: that the bytes on the registry were what the publisher meant (the first fetch
 trusts the registry), and that the image on the computer that made the pack held those files. docs/LIMITS.md says so.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -60,11 +61,27 @@ def _sha_text(text: str) -> str:
 
 def _content(record: dict) -> dict:
     """What a copy set's id is the fingerprint of (written out a second time; `app/sandbox/copies.py` has the first)."""
-    return {"library": record["library"], "registry": record["registry"], "package": record["package"], "language": record["language"],
-            "versions": [{"version": v["version"], "files": [{"file": f["file"], "sha256": f["sha256"]} for f in v["files"]],
-                          "tree_sha256": v["tree_sha256"]} for v in record["versions"]],
-            "asking": {"kind": record["asking"]["kind"], "sha256": record["asking"]["sha256"], "template_sha256": record["asking"]["template_sha256"]},
-            "harness_sha256": record["harness_sha256"], "base_images": dict(record["base_images"])}
+    return {
+        "library": record["library"],
+        "registry": record["registry"],
+        "package": record["package"],
+        "language": record["language"],
+        "versions": [
+            {
+                "version": v["version"],
+                "files": [{"file": f["file"], "sha256": f["sha256"]} for f in v["files"]],
+                "tree_sha256": v["tree_sha256"],
+            }
+            for v in record["versions"]
+        ],
+        "asking": {
+            "kind": record["asking"]["kind"],
+            "sha256": record["asking"]["sha256"],
+            "template_sha256": record["asking"]["template_sha256"],
+        },
+        "harness_sha256": record["harness_sha256"],
+        "base_images": dict(record["base_images"]),
+    }
 
 
 def _slug(library: str) -> str:
@@ -97,20 +114,34 @@ def _one(advisory: dict, design: dict | None, scripts: object) -> None:
             raise SandboxProblem(f"the asking code of {what} does not match its fingerprint.")
         written = asking["kind"] == "written"
         if written != (second is not None):
-            raise SandboxProblem(f"the asking code of {what} was written for it, and a second author's code must stand beside it (and only then).")
-        if second is not None and (_sha_text(second["source"]) != second["sha256"] or second["sha256"] == asking["sha256"]):
-            raise SandboxProblem(f"the second asking code of {what} does not match its fingerprint, or is the first one over again.")
+            raise SandboxProblem(
+                f"the asking code of {what} was written for it, and a second author's code must stand beside it (and only then)."
+            )
+        if second is not None and (
+            _sha_text(second["source"]) != second["sha256"] or second["sha256"] == asking["sha256"]
+        ):
+            raise SandboxProblem(
+                f"the second asking code of {what} does not match its fingerprint, or is the first one over again."
+            )
         # 3. the copy set is named by the fingerprint of its content
         the_id = hashlib.sha256(canonical_bytes(_content(record))).hexdigest()[:16]
-        if record["id"] != the_id or record["image"]["tag"] != f"evidence-lab-sandbox-{_slug(record['library'])}:{the_id}":
+        if (
+            record["id"] != the_id
+            or record["image"]["tag"] != f"evidence-lab-sandbox-{_slug(record['library'])}:{the_id}"
+        ):
             raise SandboxProblem(f"the copy set of {what} is not named by the fingerprint of its content.")
         # 4. every file's fingerprint is the registry's own
         for version in record["versions"]:
             for f in version["files"]:
                 given = str(f["registry_fingerprint"])
-                if not _HEX64.match(str(f["sha256"])) or (given.startswith("sha256:") and given != "sha256:" + f["sha256"]) \
-                        or not given.startswith(("sha256:", "sha512:")):
-                    raise SandboxProblem(f"a file of a public copy of {what} does not carry the registry's own fingerprint.")
+                if (
+                    not _HEX64.match(str(f["sha256"]))
+                    or (given.startswith("sha256:") and given != "sha256:" + f["sha256"])
+                    or not given.startswith(("sha256:", "sha512:"))
+                ):
+                    raise SandboxProblem(
+                        f"a file of a public copy of {what} does not carry the registry's own fingerprint."
+                    )
         in_set = {v["version"] for v in record["versions"]}
         affected, fixed = versions["affected"], versions["fixed"]
         if not {affected, fixed, *versions["more_affected"], *versions["more_fixed"]} <= in_set:
@@ -123,19 +154,33 @@ def _one(advisory: dict, design: dict | None, scripts: object) -> None:
                 continue
             for version in (affected, fixed):
                 marks = known["versions"].get(version) or {}
-                if marks.get("accepted_valid") != known["valid"] or marks.get("rejected_spoiled") != known["spoiled"] or not known["valid"]:
-                    raise SandboxProblem(f"the asking code of {what} did not pass the known-answer check on {_plain(version, 30)}.")
+                if (
+                    marks.get("accepted_valid") != known["valid"]
+                    or marks.get("rejected_spoiled") != known["spoiled"]
+                    or not known["valid"]
+                ):
+                    raise SandboxProblem(
+                        f"the asking code of {what} did not pass the known-answer check on {_plain(version, 30)}."
+                    )
             if written and known.get("controls_refused") is not True:
                 raise SandboxProblem(f"the known-answer check of {what} did not refuse its own two controls.")
         # 7. registered before the first run, with everything frozen
         if not isinstance(trial, dict) or registered["hypothesis"] != trial.get("hypothesis"):
             raise SandboxProblem(f"the registration of {what} is not of its own trial.")
         pins = registered["pins"]
-        if not isinstance(pins, dict) or not all(isinstance(k, str) and isinstance(v, str) and _HEX64.match(v) for k, v in pins.items()):
+        if not isinstance(pins, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) and _HEX64.match(v) for k, v in pins.items()
+        ):
             raise SandboxProblem(f"the registration of {what} does not give the fingerprints of what it froze.")
-        needed = ["designs/", "/set-a-", "/known-a-", "/versions-", "/arms-"] + (["/set-b-", "/known-b-"] if second is not None else [])
-        if not all(script in pins for script in SCRIPTS) or not all(sum(1 for name in pins if part in name) == 1 for part in needed):
-            raise SandboxProblem(f"the registration of {what} did not freeze everything a trial on sandbox copies rests on.")
+        needed = ["designs/", "/set-a-", "/known-a-", "/versions-", "/arms-"] + (
+            ["/set-b-", "/known-b-"] if second is not None else []
+        )
+        if not all(script in pins for script in SCRIPTS) or not all(
+            sum(1 for name in pins if part in name) == 1 for part in needed
+        ):
+            raise SandboxProblem(
+                f"the registration of {what} did not freeze everything a trial on sandbox copies rests on."
+            )
         if not isinstance(scripts, dict) or any(pins[script] != scripts.get(script) for script in SCRIPTS):
             raise SandboxProblem(f"the registration of {what} did not freeze the scripts the pack says were run.")
         in_name, of_file = _file_pin(record)
@@ -146,15 +191,24 @@ def _one(advisory: dict, design: dict | None, scripts: object) -> None:
             if pins.get(f"designs/{advisory.get('id')}-{in_name}.json") != of_file:
                 raise SandboxProblem(f"the design of {what} is not the one its registration froze.")
         entries = [e for e in advisory.get("ledger") or [] if isinstance(e, dict) and isinstance(e.get("seq"), int)]
-        place = next((e["seq"] for e in entries if e.get("id") == registered["hypothesis"] and e.get("kind") == "hypothesis"), None)
+        place = next(
+            (e["seq"] for e in entries if e.get("id") == registered["hypothesis"] and e.get("kind") == "hypothesis"),
+            None,
+        )
         if place is None:
             raise SandboxProblem(f"the registration of {what} is not among its ledger entries.")
         later = sorted(e["seq"] for e in entries if e.get("kind") == "hypothesis" and e["seq"] > place)
-        runs = [e["seq"] for e in entries if e.get("kind") == "run" and e["seq"] > place and (not later or e["seq"] < later[0])]
+        runs = [
+            e["seq"]
+            for e in entries
+            if e.get("kind") == "run" and e["seq"] > place and (not later or e["seq"] < later[0])
+        ]
         if any(e.get("kind") == "run" and e["seq"] < place for e in entries):
             raise SandboxProblem(f"a trial run of {what} stands in the ledger before the trial was registered.")
         at_of = {e["seq"]: e.get("at") for e in entries}
-        if registered["at"] != at_of.get(place) or registered["first_run_at"] != (at_of.get(min(runs)) if runs else None):
+        if registered["at"] != at_of.get(place) or registered["first_run_at"] != (
+            at_of.get(min(runs)) if runs else None
+        ):
             raise SandboxProblem(f"the times the proof of {what} gives are not the times of its ledger entries.")
         # 8. each part ran on the version the proof names
         named = {"reference": fixed, "affected": affected, "fixed": fixed, "accept-all": fixed}
@@ -178,9 +232,15 @@ def _one(advisory: dict, design: dict | None, scripts: object) -> None:
             total, reject = len(design["cases"]["ids"]), int(design["cases"]["must_reject"])
             for name in ("reference", "affected", "fixed", "accept-all", *extra):
                 if _n(arms[name], "total") != total or _n(arms[name], "right") + _n(arms[name], "wrong") != total:
-                    raise SandboxProblem(f"a part of the trial of {what} did not answer exactly the cases of its design.")
-            ok = (_n(arms["reference"], "wrong") == 0 and _n(arms["affected"], "wrong") >= 1 and _n(arms["fixed"], "wrong") == 0
-                  and _n(arms["accept-all"], "wrong") == reject)
+                    raise SandboxProblem(
+                        f"a part of the trial of {what} did not answer exactly the cases of its design."
+                    )
+            ok = (
+                _n(arms["reference"], "wrong") == 0
+                and _n(arms["affected"], "wrong") >= 1
+                and _n(arms["fixed"], "wrong") == 0
+                and _n(arms["accept-all"], "wrong") == reject
+            )
             ok = ok and all(_n(arms[name], "wrong") >= 1 for name in extra if name.startswith("more-affected"))
             ok = ok and all(_n(arms[name], "wrong") == 0 for name in extra if name.startswith("more-fixed"))
             if second is not None:
@@ -242,18 +302,29 @@ def check_runs(runs: list[dict], envelopes: list[dict]) -> list[str]:
         for image in images:
             described = sets.get(image)
             if described is None:
-                raise SandboxProblem(f"a run in the file ran in the sandbox image {_plain(image, 120)}, and no test pack in the file says what "
-                                     "that image holds.")
+                raise SandboxProblem(
+                    f"a run in the file ran in the sandbox image {_plain(image, 120)}, and no test pack in the file says what "
+                    "that image holds."
+                )
             held = described.get("versions")
             versions = [v.get("version") for v in held if isinstance(v, dict)] if isinstance(held, list) else []
-            if not isinstance(ran[0], str) or not isinstance(ran[1], str) or ran[0] != described.get("library") or ran[1] not in versions:
-                raise SandboxProblem(f"a run in the file ran in the sandbox image {_plain(image, 120)}, which does not hold the library version "
-                                     "the run names.")
+            if (
+                not isinstance(ran[0], str)
+                or not isinstance(ran[1], str)
+                or ran[0] != described.get("library")
+                or ran[1] not in versions
+            ):
+                raise SandboxProblem(
+                    f"a run in the file ran in the sandbox image {_plain(image, 120)}, which does not hold the library version "
+                    "the run names."
+                )
         counted += 1
     if not counted:
         return []
-    return [f"Sandbox research: {counted} {'run' if counted == 1 else 'runs'} on a sandbox copy, each in an image named after a copy set that a "
-            "test pack in the file describes, file by file."]
+    return [
+        f"Sandbox research: {counted} {'run' if counted == 1 else 'runs'} on a sandbox copy, each in an image named after a copy set that a "
+        "test pack in the file describes, file by file."
+    ]
 
 
 def check_packs(envelopes: list[dict], shipped_keys: set[str]) -> list[str]:
@@ -266,21 +337,33 @@ def check_packs(envelopes: list[dict], shipped_keys: set[str]) -> list[str]:
             continue
         packs += 1
         if envelope.get("public_key") in shipped_keys:
-            raise SandboxProblem(f"test pack {_plain(pack.get('version'), 40)} carries asking code and is signed by a key shipped with the app. "
-                                 "Such a pack is only ever made on the computer that uses it.")
+            raise SandboxProblem(
+                f"test pack {_plain(pack.get('version'), 40)} carries asking code and is signed by a key shipped with the app. "
+                "Such a pack is only ever made on the computer that uses it."
+            )
         designs = {t.get("design_sha256"): t.get("design") for t in pack.get("tests") or [] if isinstance(t, dict)}
         for advisory in pack.get("advisories") or []:
             test = advisory.get("test") if isinstance(advisory, dict) else None
             if not isinstance(test, dict) or "sandbox" not in test:
                 continue
             otto = pack.get("otto")
-            _one(advisory, designs.get(test.get("design_sha256")), otto.get("scripts") if isinstance(otto, dict) else None)
+            _one(
+                advisory,
+                designs.get(test.get("design_sha256")),
+                otto.get("scripts") if isinstance(otto, dict) else None,
+            )
             tests += 1
             written += 1 if ((test["sandbox"].get("set") or {}).get("asking") or {}).get("kind") == "written" else 0
     if not packs:
         return []
-    return [f"Sandbox research: {packs} test {'pack' if packs == 1 else 'packs'} made on the computer that used "
-            f"{'it' if packs == 1 else 'them'}, with {tests} {'test' if tests == 1 else 'tests'} tried on sandbox copies"
-            + (f" ({written} with asking code written for the library, each beside a second author's version that agreed on every case)" if written else "")
-            + ": each copy set named by the fingerprint of its content, every file with the registry's own fingerprint, each trial "
-              "registered before its first run, and its counts bearing out what the pack says."]
+    return [
+        f"Sandbox research: {packs} test {'pack' if packs == 1 else 'packs'} made on the computer that used "
+        f"{'it' if packs == 1 else 'them'}, with {tests} {'test' if tests == 1 else 'tests'} tried on sandbox copies"
+        + (
+            f" ({written} with asking code written for the library, each beside a second author's version that agreed on every case)"
+            if written
+            else ""
+        )
+        + ": each copy set named by the fingerprint of its content, every file with the registry's own fingerprint, each trial "
+        "registered before its first run, and its counts bearing out what the pack says."
+    ]

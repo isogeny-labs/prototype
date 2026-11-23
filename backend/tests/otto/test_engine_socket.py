@@ -1,6 +1,7 @@
 """The engine socket since phase 5c: Otto's wrapper sits in front of the rule engine. Everything but a code change is
 passed straight to the rule engine, under the rule engine's own id, so nothing that was graded before moves. These
 tests need no Otto: the wrapper is in the socket whether Otto is installed or not."""
+
 from app.engine import research
 from app.otto.engine import OttoEngine
 
@@ -29,6 +30,6 @@ def test_swapping_a_part_of_the_rule_engine_reaches_the_rule_engine(lab, monkeyp
 def test_swapping_the_code_change_swaps_the_one_the_app_calls(lab, monkeypatch):
     monkeypatch.setattr(lab.engine, "propose_change", lambda request: "swapped")
     assert lab.engine.propose_change({}) == "swapped"
-    assert "propose_change" not in vars(lab.engine.rules)     # the rule engine's own answer is untouched
+    assert "propose_change" not in vars(lab.engine.rules)  # the rule engine's own answer is untouched
     monkeypatch.undo()
     assert lab.engine.propose_change.__func__ is OttoEngine.propose_change

@@ -4,6 +4,7 @@ A distribution's own package version is read as its upstream version: distro bac
 not new features. So Debian's "3.0.17-1~deb12u2" reads as 3.0.17. Anything that is not plainly a released
 version (a pre-release, a commit id, "devel") reads as None: "Couldn't tell the version". Never a guess.
 """
+
 from __future__ import annotations
 
 import re
@@ -27,11 +28,11 @@ def read_version(text: object) -> Version | None:
         v = v[1:]
     elif v.startswith("go"):
         v = v[2:]
-    v = v.split("+", 1)[0]                      # a build number
+    v = v.split("+", 1)[0]  # a build number
     upstream = re.split(r"[-~]", v, maxsplit=1)[0]
-    rest = v[len(upstream):]
+    rest = v[len(upstream) :]
     if _PRE.search(upstream) or (rest and _PRE.match(rest.lstrip("-~"))):
-        return None                             # a pre-release is not the released version
+        return None  # a pre-release is not the released version
     m = _PLAIN.match(upstream)
     if not m:
         return None

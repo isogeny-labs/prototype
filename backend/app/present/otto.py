@@ -6,6 +6,7 @@ label and its one plain sentence are passed in and repeated). An advisory's own 
 Otto's ledger entries are listed as what they are (a lock, a bound run); the ledger's own verdict is never shown as
 a result. A trial on public copies is described by its counts, never by a word of praise.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -17,29 +18,68 @@ from app.present import source as present_source
 from app.present import times
 from app.present.results import DISCLAIMER
 
-TEST_LABELS = {"ready": ("Test ready", "pass"), "not_offered": ("Not offered", "warn"), "none": ("No test yet", "neutral")}
+TEST_LABELS = {
+    "ready": ("Test ready", "pass"),
+    "not_offered": ("Not offered", "warn"),
+    "none": ("No test yet", "neutral"),
+}
 FIX_LABEL = "From Otto"
 # A quote is not always from the advisory page itself: where the advisory does not put the weakness into words, the
 # reading quotes the publisher's own source file. The caption beside each quote names where it was read.
 PUBLISHER_TAG = "quoted from the named source, not a result"
-NOT_INSTALLED_TAIL = " Advisory checks can't be added or run, because their runs could not be recorded. Everything else works as before."
+NOT_INSTALLED_TAIL = (
+    " Advisory checks can't be added or run, because their runs could not be recorded. Everything else works as before."
+)
 # What kind of entry a ledger line is, in plain words. Otto's own record names stay in the ledger: one of them is
 # "verdict", which is a check of a record and must never read as the result of a test.
-LEDGER_WORDS = {"question": "Asked", "objective": "Opened", "claim": "Recorded", "verdict": "Record checked", "hypothesis": "Registered",
-                "run": "Trial run", "decision": "Judged", "audit": "Replayed", "fact": "Noted", "correction": "Note"}
+LEDGER_WORDS = {
+    "question": "Asked",
+    "objective": "Opened",
+    "claim": "Recorded",
+    "verdict": "Record checked",
+    "hypothesis": "Registered",
+    "run": "Trial run",
+    "decision": "Judged",
+    "audit": "Replayed",
+    "fact": "Noted",
+    "correction": "Note",
+}
 
 
 def _entries(ledger: list[dict]) -> list[dict]:
-    return [{"seq": e["seq"], "kind": LEDGER_WORDS.get(str(e["kind"]), "Entry"), "id": e["id"][7:19], "at": e["at"], "what": e["what"]}
-            for e in ledger]
-STEP_WORDS = {"read_advisory": "Read the advisory", "design_test": "Design a test", "propose_fix": "Propose the fix",
-              "write_fix": "Write a change for your own code", "write_wrapper": "Write the code that asks the library"}
+    return [
+        {
+            "seq": e["seq"],
+            "kind": LEDGER_WORDS.get(str(e["kind"]), "Entry"),
+            "id": e["id"][7:19],
+            "at": e["at"],
+            "what": e["what"],
+        }
+        for e in ledger
+    ]
+
+
+STEP_WORDS = {
+    "read_advisory": "Read the advisory",
+    "design_test": "Design a test",
+    "propose_fix": "Propose the fix",
+    "write_fix": "Write a change for your own code",
+    "write_wrapper": "Write the code that asks the library",
+}
 # What a reading recorded about the weakness, in plain words (a reading's notes can refer to "the kind").
-KIND_WORDS = {"accepts_bad_signature": "accepts a signature it must reject", "rejects_good_signature": "rejects a signature it must accept",
-              "stops_with_error": "stops with an error"}
-AREA_WORDS = {"ecdsa_signature_check": "when checking ECDSA signatures", "eddsa_signature_check": "when checking EdDSA signatures"}
-SENT_LINE = ("What is sent to Claude when this is on: the advisory text and, for a fix to your own code, the source file of the failing "
-             "program and the cases it got wrong. Nothing else leaves this computer.")
+KIND_WORDS = {
+    "accepts_bad_signature": "accepts a signature it must reject",
+    "rejects_good_signature": "rejects a signature it must accept",
+    "stops_with_error": "stops with an error",
+}
+AREA_WORDS = {
+    "ecdsa_signature_check": "when checking ECDSA signatures",
+    "eddsa_signature_check": "when checking EdDSA signatures",
+}
+SENT_LINE = (
+    "What is sent to Claude when this is on: the advisory text and, for a fix to your own code, the source file of the failing "
+    "program and the cases it got wrong. Nothing else leaves this computer."
+)
 
 
 def day(stamp: str | None) -> str:
@@ -61,13 +101,24 @@ def _count(n: int, one: str, many: str | None = None) -> str:
 
 # ---------------------------------------------------------------- Settings: Test packs, the status lines, Live Otto
 
+
 def pack_card(pack, installed_at: str | None = None) -> dict:
     advisories, tests = len(pack.pack["advisories"]), len(pack.pack["tests"])
-    return {"version": pack.version, "built_at": pack.pack["built_at"], "built": day(pack.pack["built_at"]),
-            "signer": pack.signer, "made_here": pack.made_here, "advisories": advisories, "tests": tests,
-            "line": (f"Pack {pack.version}, built {day(pack.pack['built_at'])}: {_count(advisories, 'advisory', 'advisories')}, {_count(tests, 'test')}."
-                     + (" Made on this computer." if pack.made_here else "")),
-            "fingerprint": pack.fingerprint, "installed_at": installed_at}
+    return {
+        "version": pack.version,
+        "built_at": pack.pack["built_at"],
+        "built": day(pack.pack["built_at"]),
+        "signer": pack.signer,
+        "made_here": pack.made_here,
+        "advisories": advisories,
+        "tests": tests,
+        "line": (
+            f"Pack {pack.version}, built {day(pack.pack['built_at'])}: {_count(advisories, 'advisory', 'advisories')}, {_count(tests, 'test')}."
+            + (" Made on this computer." if pack.made_here else "")
+        ),
+        "fingerprint": pack.fingerprint,
+        "installed_at": installed_at,
+    }
 
 
 def pack_adds(pack) -> list[str]:
@@ -81,84 +132,155 @@ def pack_adds(pack) -> list[str]:
 
 
 NAME_MAX = 60
-NAME_NOTE = ("Decisions on proposals are recorded under this name, with the time. This app has one login and does not check who is at the "
-             "keyboard. Left empty, a decision is recorded as “You”. A decision already recorded keeps the name it was made under.")
+NAME_NOTE = (
+    "Decisions on proposals are recorded under this name, with the time. This app has one login and does not check who is at the "
+    "keyboard. Left empty, a decision is recorded as “You”. A decision already recorded keeps the name it was made under."
+)
 
 
 def name_view(typed: str | None) -> dict:
     """Who a decision is recorded as: the name a person typed once (Settings, or the Otto panel's first Confirm), or "You"."""
-    return {"title": "Who decides", "label": "Your name", "value": typed or "", "recorded_as": typed or "You", "typed": bool(typed),
-            "line": f"Recorded as {typed or 'You'}, with the time.", "save": "Save", "note": NAME_NOTE, "max": NAME_MAX,
-            "ask_label": "Your name (asked once; kept in Settings)"}
+    return {
+        "title": "Who decides",
+        "label": "Your name",
+        "value": typed or "",
+        "recorded_as": typed or "You",
+        "typed": bool(typed),
+        "line": f"Recorded as {typed or 'You'}, with the time.",
+        "save": "Save",
+        "note": NAME_NOTE,
+        "max": NAME_MAX,
+        "ask_label": "Your name (asked once; kept in Settings)",
+    }
 
 
-def settings_view(*, installed: list, update, refused: list[dict], scan_line: str | None, harness_status: dict, live_on: bool,
-                  limit_nano: int, key_present: bool, answers_line: str, unreadable: list[str] | None = None, name: str | None = None) -> dict:
+def settings_view(
+    *,
+    installed: list,
+    update,
+    refused: list[dict],
+    scan_line: str | None,
+    harness_status: dict,
+    live_on: bool,
+    limit_nano: int,
+    key_present: bool,
+    answers_line: str,
+    unreadable: list[str] | None = None,
+    name: str | None = None,
+) -> dict:
     cards = [pack_card(pack, at) for at, pack in installed]
     unreadable = list(unreadable or [])
     newest = cards[-1] if cards else None
     box = None
     if update is not None:
         adds = pack_adds(update)
-        box = {"version": update.version, "button": "Install update",
-               "line": f"Test pack {update.version} is in the updates folder.",
-               "dialog": {"title": f"Install test pack {update.version}?",
-                          "lines": [pack_card(update)["line"], f"Signed by: {update.signer}.",
-                                    "It adds:"] + adds +
-                                   ["Nothing in a pack runs. Installing adds no check to any assessment. Its checks are proposed on the Advisories page, and you accept or reject each one.",
-                                    "Packs install in order and are never removed."],
-                          "confirm": "Install", "cancel": "Cancel"}}
+        box = {
+            "version": update.version,
+            "button": "Install update",
+            "line": f"Test pack {update.version} is in the updates folder.",
+            "dialog": {
+                "title": f"Install test pack {update.version}?",
+                "lines": [pack_card(update)["line"], f"Signed by: {update.signer}.", "It adds:"]
+                + adds
+                + [
+                    "Nothing in a pack runs. Installing adds no check to any assessment. Its checks are proposed on the Advisories page, and you accept or reject each one.",
+                    "Packs install in order and are never removed.",
+                ],
+                "confirm": "Install",
+                "cancel": "Cancel",
+            },
+        }
     live_ready = live_on and key_present
     if not key_present:
-        status = ("Live Otto is off: no API key is set on this computer. Only the answers recorded during the build are used."
-                  if not live_on else
-                  "Live Otto is switched on, but no API key is set on this computer, so only the answers recorded during the build are used.")
+        status = (
+            "Live Otto is off: no API key is set on this computer. Only the answers recorded during the build are used."
+            if not live_on
+            else "Live Otto is switched on, but no API key is set on this computer, so only the answers recorded during the build are used."
+        )
     elif live_on:
-        status = "Live Otto is on: when an answer is needed, Claude is asked through your key, within the spending limit."
+        status = (
+            "Live Otto is on: when an answer is needed, Claude is asked through your key, within the spending limit."
+        )
     else:
         status = "Live Otto is off: only the answers recorded during the build are used."
     return {
         "packs": {
             "title": "Test packs",
-            "intro": ("A test pack is a signed update, like an antivirus update: published advisories, a test for each one that has one, a "
-                      "proposed fix, and how each did when it was tried on public copies. Nothing in a pack runs."),
+            "intro": (
+                "A test pack is a signed update, like an antivirus update: published advisories, a test for each one that has one, a "
+                "proposed fix, and how each did when it was tried on public copies. Nothing in a pack runs."
+            ),
             "installed": cards,
-            "installed_line": (f"Installed: pack {newest['version']}, built {newest['built']}, signed by {newest['signer']}." if newest
-                               else "No test pack is installed yet." if not unreadable
-                               else "No installed test pack can be read by this version of the app."),
+            "installed_line": (
+                f"Installed: pack {newest['version']}, built {newest['built']}, signed by {newest['signer']}."
+                if newest
+                else "No test pack is installed yet."
+                if not unreadable
+                else "No installed test pack can be read by this version of the app."
+            ),
             # A pack that was installed by an earlier build of the app, in a form that has changed since. It is said
             # plainly, never passed over: packs install in order, so nothing can be installed after it here.
-            "unreadable_line": ((f"Test pack {', '.join(unreadable)}, installed here earlier, can't be read by this version of the app: "
-                                 "it was made by an earlier build. Its advisories are not shown, and no other pack can be installed "
-                                 "in this data folder. To start afresh, stop the app, move the data folder away and start the app "
-                                 "again.") if unreadable else None),
-            "counts_line": (f"{_count(sum(c['advisories'] for c in cards), 'advisory', 'advisories')} and "
-                            f"{_count(sum(c['tests'] for c in cards), 'test')} in {_count(len(cards), 'installed pack')}." if cards else None),
-            "check": {"button": "Check for updates",
-                      "note": "It looks in the updates folder on this computer, never on the internet."},
-            "checked_line": scan_line, "refused": [{"file": r["file"], "reason": r["reason"]} for r in refused],
+            "unreadable_line": (
+                (
+                    f"Test pack {', '.join(unreadable)}, installed here earlier, can't be read by this version of the app: "
+                    "it was made by an earlier build. Its advisories are not shown, and no other pack can be installed "
+                    "in this data folder. To start afresh, stop the app, move the data folder away and start the app "
+                    "again."
+                )
+                if unreadable
+                else None
+            ),
+            "counts_line": (
+                f"{_count(sum(c['advisories'] for c in cards), 'advisory', 'advisories')} and "
+                f"{_count(sum(c['tests'] for c in cards), 'test')} in {_count(len(cards), 'installed pack')}."
+                if cards
+                else None
+            ),
+            "check": {
+                "button": "Check for updates",
+                "note": "It looks in the updates folder on this computer, never on the internet.",
+            },
+            "checked_line": scan_line,
+            "refused": [{"file": r["file"], "reason": r["reason"]} for r in refused],
             "update": box,
             "order_note": "Packs install in order and are never removed.",
         },
-        "harness": {"installed": bool(harness_status["installed"]),
-                    "line": harness_status["sentence"] + ("" if harness_status["installed"] else NOT_INSTALLED_TAIL)},
+        "harness": {
+            "installed": bool(harness_status["installed"]),
+            "line": harness_status["sentence"] + ("" if harness_status["installed"] else NOT_INSTALLED_TAIL),
+        },
         "answers": {"line": answers_line, "live": live_ready},
         "name": name_view(name),
         "live": {
             "title": "Live Otto",
             "key_present": key_present,
-            "key_line": ("An API key is set on this computer." if key_present else
-                         f"No API key is set on this computer. Live Otto reads it from the {model.KEY_ENV} environment variable; "
-                         "the key is never shown, stored or sent anywhere but to Claude."),
-            "switch": {"label": "Use live Claude", "on": live_on, "can_turn_on": key_present,
-                       "blocked_reason": None if key_present else "This can be turned on only when an API key is present."},
-            "limit": {"label": "Spending limit per run (US dollars)", "value": f"{limit_nano / model.NANO:.2f}", "save": "Save",
-                      "note": ("A run is one fix request in the app, or one research command. Each call's cost is added up from the tokens the "
-                               "API reports, and a request that could pass the limit is not sent.")},
+            "key_line": (
+                "An API key is set on this computer."
+                if key_present
+                else f"No API key is set on this computer. Live Otto reads it from the {model.KEY_ENV} environment variable; "
+                "the key is never shown, stored or sent anywhere but to Claude."
+            ),
+            "switch": {
+                "label": "Use live Claude",
+                "on": live_on,
+                "can_turn_on": key_present,
+                "blocked_reason": None if key_present else "This can be turned on only when an API key is present.",
+            },
+            "limit": {
+                "label": "Spending limit per run (US dollars)",
+                "value": f"{limit_nano / model.NANO:.2f}",
+                "save": "Save",
+                "note": (
+                    "A run is one fix request in the app, or one research command. Each call's cost is added up from the tokens the "
+                    "API reports, and a request that could pass the limit is not sent."
+                ),
+            },
             "sent_line": SENT_LINE,
             "status_line": status,
-            "price_line": (f"Prices used to add up the cost: {model.PRICE_SOURCE['title']}, as of {day(model.PRICE_SOURCE['as_of'])}. "
-                           "A price list can go out of date."),
+            "price_line": (
+                f"Prices used to add up the cost: {model.PRICE_SOURCE['title']}, as of {day(model.PRICE_SOURCE['as_of'])}. "
+                "A price list can go out of date."
+            ),
         },
     }
 
@@ -169,9 +291,11 @@ PUBLIC_LABEL, HERE_LABEL = "Proven on public copies", "Proven in this assessment
 NOT_YET_TEXT = "Update the library, then press Retest."
 # What stands behind the second row, said plainly wherever the row is shown in full: a retest reruns the locked tests
 # on a public copy of the updated version. The app has no connector to the system a customer runs (a later phase).
-HERE_NOTE = ("This row is about a public copy, not the system you run. A retest reruns the same locked tests on a public copy of the updated "
-             "version, on this computer. The app has not checked that your own system was updated: in this version it does not connect "
-             "to it.")
+HERE_NOTE = (
+    "This row is about a public copy, not the system you run. A retest reruns the same locked tests on a public copy of the updated "
+    "version, on this computer. The app has not checked that your own system was updated: in this version it does not connect "
+    "to it."
+)
 # Where the retest is started: the row's words are Kevin's ("then press Retest"). Since the 5c fixes the button is on
 # Checks too, in "Retests by version", and the link goes there (Evidence keeps its own).
 RETEST_LINK_LABEL = "Retest new version is on Checks"
@@ -190,15 +314,33 @@ def stamp(value: str | None) -> str:
 
 # Where each row came from (22 November 2026): both are runs on public copies on this computer. A row that reads "Not yet"
 # rests on no run and has no tag.
-ROW_SOURCE_NOTES = {"public": "Otto's registered trial, run on public copies of the affected and the fixed version on this computer.",
-                    "here": "This assessment's own retest, run on a public copy of the updated version on this computer."}
+ROW_SOURCE_NOTES = {
+    "public": "Otto's registered trial, run on public copies of the affected and the fixed version on this computer.",
+    "here": "This assessment's own retest, run on a public copy of the updated version on this computer.",
+}
 
 
-def _row(key: str, label: str, word: str, tone: str, text: str, links: list[dict] | None = None, ledger: dict | None = None,
-         note: str | None = None) -> dict:
-    return {"key": key, "label": label, "badge": {"label": word, "tone": tone}, "text": text, "line": f"{label}: {word}. {text}",
-            "links": list(links or []), "ledger": ledger, "note": note,
-            "source_tag": None if word == "Not yet" else present_source.tag(present_source.LAB, ROW_SOURCE_NOTES[key])}
+def _row(
+    key: str,
+    label: str,
+    word: str,
+    tone: str,
+    text: str,
+    links: list[dict] | None = None,
+    ledger: dict | None = None,
+    note: str | None = None,
+) -> dict:
+    return {
+        "key": key,
+        "label": label,
+        "badge": {"label": word, "tone": tone},
+        "text": text,
+        "line": f"{label}: {word}. {text}",
+        "links": list(links or []),
+        "ledger": ledger,
+        "note": note,
+        "source_tag": None if word == "Not yet" else present_source.tag(present_source.LAB, ROW_SOURCE_NOTES[key]),
+    }
 
 
 def public_copies_row(fix: dict, advisory: dict | None) -> dict:
@@ -207,23 +349,61 @@ def public_copies_row(fix: dict, advisory: dict | None) -> dict:
     the fixed version and every other locked test passed there too). `advisory`: the pack's entry, for the research
     ledger's entries (None where only the fix is at hand)."""
     arms = (fix.get("trial") or {}).get("arms") or {}
-    affected, fixed = str((arms.get("affected") or {}).get("version") or "the affected version"), str(fix.get("version"))
+    affected, fixed = (
+        str((arms.get("affected") or {}).get("version") or "the affected version"),
+        str(fix.get("version")),
+    )
     failing = int((arms.get("fixed") or {}).get("failing") or 0)
-    check_wrong = ((((advisory or {}).get("test") or {}).get("trial") or {}).get("arms") or {}).get("fixed", {}).get("wrong")
+    check_wrong = (
+        ((((advisory or {}).get("test") or {}).get("trial") or {}).get("arms") or {}).get("fixed", {}).get("wrong")
+    )
     ledger = None
     if advisory is not None and advisory.get("ledger"):
-        ledger = {"title": "Otto ledger entries", "count": len(advisory["ledger"]), "entries": _entries(advisory["ledger"]),
-                  "note": ("From Otto's research ledger, a hash chain kept with the Otto harness: the test and the fix were registered, "
-                           "tried and judged before the pack was signed.")}
-    links = [{"label": "See the trial on Advisories", "link": {"page": "advisories", "item": str(advisory["id"])}}] if advisory is not None else []
+        ledger = {
+            "title": "Otto ledger entries",
+            "count": len(advisory["ledger"]),
+            "entries": _entries(advisory["ledger"]),
+            "note": (
+                "From Otto's research ledger, a hash chain kept with the Otto harness: the test and the fix were registered, "
+                "tried and judged before the pack was signed."
+            ),
+        }
+    links = (
+        [{"label": "See the trial on Advisories", "link": {"page": "advisories", "item": str(advisory["id"])}}]
+        if advisory is not None
+        else []
+    )
     if fix.get("state") == "proven":
-        return _row("public", PUBLIC_LABEL, "Passed", "pass", f"{affected} fails the advisory check; {fixed} passes.", links, ledger)
+        return _row(
+            "public",
+            PUBLIC_LABEL,
+            "Passed",
+            "pass",
+            f"{affected} fails the advisory check; {fixed} passes.",
+            links,
+            ledger,
+        )
     if check_wrong in (0, None) and failing >= 1:
         more = "another locked test still fails" if failing == 1 else f"{failing} other locked tests still fail"
-        return _row("public", PUBLIC_LABEL, "Not proven", "warn",
-                    f"{affected} fails the advisory check and {fixed} passes it, but {more} on {fixed}.", links, ledger)
+        return _row(
+            "public",
+            PUBLIC_LABEL,
+            "Not proven",
+            "warn",
+            f"{affected} fails the advisory check and {fixed} passes it, but {more} on {fixed}.",
+            links,
+            ledger,
+        )
     # anything else: the pack's own sentence, never one of this app's that the pack might not bear out
-    return _row("public", PUBLIC_LABEL, "Not proven", "warn", str(fix.get("reason") or "The pack does not say why."), links, ledger)
+    return _row(
+        "public",
+        PUBLIC_LABEL,
+        "Not proven",
+        "warn",
+        str(fix.get("reason") or "The pack does not say why."),
+        links,
+        ledger,
+    )
 
 
 def your_system_row(fix: dict, here: dict | None) -> dict:
@@ -234,35 +414,78 @@ def your_system_row(fix: dict, here: dict | None) -> dict:
     name = f"{fix.get('library')} {fix.get('version')}"
     if here.get("state") == "not_yet":
         # nothing of a retest on the fixed version has a result yet (one may be running: the row still reads "Not yet")
-        retest = ([{"label": RETEST_LINK_LABEL, "link": {"page": "checks", "item": None, "group": "encryption"}}]
-                  if here.get("item_id") is not None and not here.get("live") else [])
-        return _row("here", HERE_LABEL, "Not yet", "neutral",
-                    f"A retest on {name} is running. Nothing is proven until it has finished." if here.get("live") else NOT_YET_TEXT,
-                    retest, note=HERE_NOTE)
+        retest = (
+            [{"label": RETEST_LINK_LABEL, "link": {"page": "checks", "item": None, "group": "encryption"}}]
+            if here.get("item_id") is not None and not here.get("live")
+            else []
+        )
+        return _row(
+            "here",
+            HERE_LABEL,
+            "Not yet",
+            "neutral",
+            f"A retest on {name} is running. Nothing is proven until it has finished."
+            if here.get("live")
+            else NOT_YET_TEXT,
+            retest,
+            note=HERE_NOTE,
+        )
     links = [{"label": "See the retest's result", "link": {"page": "evidence", "item": f"test-{here.get('item_id')}"}}]
     when = stamp(here.get("finished_at"))
     if here.get("state") in ("running", "unfinished"):
         # some of the library's pass-or-fail tests have no result in that retest: half a retest proves nothing
         done, tests = int(here.get("done") or 0), int(here.get("tests") or 0)
         so_far = f"{done} of {tests} pass-or-fail tests have a result"
-        return _row("here", HERE_LABEL, "Not yet", "neutral",
-                    (f"A retest on {name} is running: {so_far} so far. Nothing is proven until it has finished."
-                     if here.get("state") == "running" else
-                     f"The retest on {name} did not finish: {so_far}. Press Retest again."), links, note=HERE_NOTE)
+        return _row(
+            "here",
+            HERE_LABEL,
+            "Not yet",
+            "neutral",
+            (
+                f"A retest on {name} is running: {so_far} so far. Nothing is proven until it has finished."
+                if here.get("state") == "running"
+                else f"The retest on {name} did not finish: {so_far}. Press Retest again."
+            ),
+            links,
+            note=HERE_NOTE,
+        )
     if here.get("state") == "passed":
-        return _row("here", HERE_LABEL, "Passed", "pass",
-                    f"On {when} the retest on {name} passed: the advisory check and every other locked pass-or-fail test.", links, note=HERE_NOTE)
+        return _row(
+            "here",
+            HERE_LABEL,
+            "Passed",
+            "pass",
+            f"On {when} the retest on {name} passed: the advisory check and every other locked pass-or-fail test.",
+            links,
+            note=HERE_NOTE,
+        )
     if (here.get("check") or {}).get("code") == "passed":
         failing = int(here.get("failing") or 0)
         # "still fails" only where every one of them read Failed; a test that could not run did not pass either
         failed = all(o.get("code") == "failed" for o in here.get("others") or [] if o.get("code") != "passed")
-        more = (("another locked test still fails" if failing == 1 else f"{failing} other locked tests still fail") if failed else
-                ("another locked test did not pass" if failing == 1 else f"{failing} other locked tests did not pass"))
-        return _row("here", HERE_LABEL, "Not proven", "warn",
-                    f"On {when} the retest on {name} ran: the advisory check passed, but {more} on {fix.get('version')}.", links, note=HERE_NOTE)
-    return _row("here", HERE_LABEL, "Not proven", "warn",
-                f"On {when} the retest on {name} ran, and the advisory check did not pass ({(here.get('check') or {}).get('label')}).", links,
-                note=HERE_NOTE)
+        more = (
+            ("another locked test still fails" if failing == 1 else f"{failing} other locked tests still fail")
+            if failed
+            else ("another locked test did not pass" if failing == 1 else f"{failing} other locked tests did not pass")
+        )
+        return _row(
+            "here",
+            HERE_LABEL,
+            "Not proven",
+            "warn",
+            f"On {when} the retest on {name} ran: the advisory check passed, but {more} on {fix.get('version')}.",
+            links,
+            note=HERE_NOTE,
+        )
+    return _row(
+        "here",
+        HERE_LABEL,
+        "Not proven",
+        "warn",
+        f"On {when} the retest on {name} ran, and the advisory check did not pass ({(here.get('check') or {}).get('label')}).",
+        links,
+        note=HERE_NOTE,
+    )
 
 
 # ---------------------------------------------------------------- Otto's proposals: a person decides
@@ -300,19 +523,34 @@ def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
     last = decisions[-1] if decisions else None
     if state == "accepted":
         word, tone = ACCEPTED_WORDS[kind], "pass"
-        decided = (f"{DECISION_WORDS['accept']} by {last['by']} on {stamp(last['at'])}." if last
-                   else "Added before decisions were recorded.")
+        decided = (
+            f"{DECISION_WORDS['accept']} by {last['by']} on {stamp(last['at'])}."
+            if last
+            else "Added before decisions were recorded."
+        )
     elif state == "rejected":
         word, tone = not_added(last["reason"] if last else None), "neutral"
-        decided = ((f"{DECISION_WORDS['reject']} by {last['by']} on {stamp(last['at'])}."
-                    + (f" Reason: {last['reason']}" if last.get("reason") else " No reason was given.")) if last else "")
+        decided = (
+            (
+                f"{DECISION_WORDS['reject']} by {last['by']} on {stamp(last['at'])}."
+                + (f" Reason: {last['reason']}" if last.get("reason") else " No reason was given.")
+            )
+            if last
+            else ""
+        )
     else:
         word, tone = "Proposed", "warn"
-        decided = (f"{DECISION_WORDS[last['decision']]} by {last['by']} on {stamp(last['at'])}. It is open for a decision again."
-                   if last else "Nobody has decided this yet.")
+        decided = (
+            f"{DECISION_WORDS[last['decision']]} by {last['by']} on {stamp(last['at'])}. It is open for a decision again."
+            if last
+            else "Nobody has decided this yet."
+        )
     labels = {"accept": "Accept", "reject": "Reject", "undo": "Undo", "reconsider": "Reconsider"}
-    buttons = [{"key": key, "label": labels[key], "can": p["actions"][key] is None, "blocked_reason": p["actions"][key]}
-               for key in ("accept", "reject", "undo", "reconsider") if key in p["actions"]]
+    buttons = [
+        {"key": key, "label": labels[key], "can": p["actions"][key] is None, "blocked_reason": p["actions"][key]}
+        for key in ("accept", "reject", "undo", "reconsider")
+        if key in p["actions"]
+    ]
     notes = []
     if "accept" in p["actions"]:
         notes.append(ACCEPT_NOTES[kind])
@@ -320,30 +558,86 @@ def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
         notes.append(UNDO_NOTES[kind])
     if not p.get("current", True):
         notes.append(NO_LONGER_PROPOSED)
-    history = [{"number": d["number"], "word": DECISION_WORDS[d["decision"]], "by": d["by"], "at": d["at"], "at_text": stamp(d["at"]),
-                "reason": d.get("reason"), "ledger_entry": (d.get("ledger_entry") or "")[7:19] or None,
-                "line": (f"{d['number']}. {DECISION_WORDS[d['decision']]} by {d['by']} on {stamp(d['at'])}"
-                         + (f": {d['reason']}" if d.get("reason") else "") + ".")}
-               for d in decisions]
-    return {"id": p["id"], "kind": kind, "kind_label": KIND_WORDS_PROPOSAL[kind], "label": PROPOSAL_LABEL, "title": p["title"], "why": p["why"],
-            "why_label": "Why it applies" if kind == "check" else "Why it is proposed", "lines": p["lines"],
-            "status": {"key": state, "word": word, "tone": tone}, "decided_line": decided, "effect": _effect(p),
-            "buttons": buttons, "note": " ".join(notes) or None,
-            "reject_dialog": ({"title": "Reject this proposal?", "line": "It is not deleted: it stays on the record as “Not added”, "
-                                                                             "with your reason, and can be taken up again later.",
-                               "reason_label": "Reason (optional, one short line)", "max": 300, "confirm": "Reject", "cancel": "Cancel"}
-                              if "reject" in p["actions"] else None),
-            "history": {"title": "Decisions on this proposal", "count": len(history), "rows": history, "footnote": ONE_LOGIN,
-                        "ledger": ({"title": "Otto ledger entries for these decisions", "count": len(ledger), "entries": _entries(ledger),
-                                    "note": ("Each decision is written to this assessment's Otto ledger with who and when. The ledger "
-                                             "holds no result.")} if ledger else None)},
-            "link": p["link"], "proposed_at": p.get("proposed_at"),
-            # Sandbox research (a prototype): how a test tried on sandbox copies was proven, folded under the card.
-            "proof": p.get("proof")}
+    history = [
+        {
+            "number": d["number"],
+            "word": DECISION_WORDS[d["decision"]],
+            "by": d["by"],
+            "at": d["at"],
+            "at_text": stamp(d["at"]),
+            "reason": d.get("reason"),
+            "ledger_entry": (d.get("ledger_entry") or "")[7:19] or None,
+            "line": (
+                f"{d['number']}. {DECISION_WORDS[d['decision']]} by {d['by']} on {stamp(d['at'])}"
+                + (f": {d['reason']}" if d.get("reason") else "")
+                + "."
+            ),
+        }
+        for d in decisions
+    ]
+    return {
+        "id": p["id"],
+        "kind": kind,
+        "kind_label": KIND_WORDS_PROPOSAL[kind],
+        "label": PROPOSAL_LABEL,
+        "title": p["title"],
+        "why": p["why"],
+        "why_label": "Why it applies" if kind == "check" else "Why it is proposed",
+        "lines": p["lines"],
+        "status": {"key": state, "word": word, "tone": tone},
+        "decided_line": decided,
+        "effect": _effect(p),
+        "buttons": buttons,
+        "note": " ".join(notes) or None,
+        "reject_dialog": (
+            {
+                "title": "Reject this proposal?",
+                "line": "It is not deleted: it stays on the record as “Not added”, "
+                "with your reason, and can be taken up again later.",
+                "reason_label": "Reason (optional, one short line)",
+                "max": 300,
+                "confirm": "Reject",
+                "cancel": "Cancel",
+            }
+            if "reject" in p["actions"]
+            else None
+        ),
+        "history": {
+            "title": "Decisions on this proposal",
+            "count": len(history),
+            "rows": history,
+            "footnote": ONE_LOGIN,
+            "ledger": (
+                {
+                    "title": "Otto ledger entries for these decisions",
+                    "count": len(ledger),
+                    "entries": _entries(ledger),
+                    "note": (
+                        "Each decision is written to this assessment's Otto ledger with who and when. The ledger "
+                        "holds no result."
+                    ),
+                }
+                if ledger
+                else None
+            ),
+        },
+        "link": p["link"],
+        "proposed_at": p.get("proposed_at"),
+        # Sandbox research (a prototype): how a test tried on sandbox copies was proven, folded under the card.
+        "proof": p.get("proof"),
+    }
 
 
-def result_block(*, advisory_id: str, plain_name: str | None, pack_version: str, design_sha256: str, trial: list[str],
-                 ledger: list[dict], proposal: dict | None) -> dict:
+def result_block(
+    *,
+    advisory_id: str,
+    plain_name: str | None,
+    pack_version: str,
+    design_sha256: str,
+    trial: list[str],
+    ledger: list[dict],
+    proposal: dict | None,
+) -> dict:
     """Evidence, on a result of an advisory check: what stands behind the check. Which advisory and which signed pack
     it came from, the test's design by its fingerprint, how the test did when it was tried on public copies, every
     decision on Otto's proposal with who and when, and the Otto ledger entries of the check and of those decisions.
@@ -353,19 +647,37 @@ def result_block(*, advisory_id: str, plain_name: str | None, pack_version: str,
     rows = list(history.get("rows") or [])
     decided = (proposal or {}).get("decided_line") or "Added before decisions were recorded."
     name = f"{plain_name} ({advisory_id})" if plain_name else advisory_id
-    return {"label": PROPOSAL_LABEL, "title": "Where this check came from",
-            "line": f"This check was proposed from the advisory “{name}”, in test pack {pack_version}. {decided}",
-            "advisory": {"label": "Open the advisory", "link": {"page": "advisories", "item": advisory_id}},
-            "design": {"title": "The test's design",
-                       "lines": [f"Design fingerprint (SHA-256): {design_sha256}",
-                                 "Its question, its control that must fail and its pass rule are in the test details, locked before the run."]},
-            "trial": {"title": "How the test did when it was tried on public copies", "lines": trial} if trial else None,
-            "decisions": {"title": "Decisions on this proposal", "count": len(rows), "rows": rows, "footnote": ONE_LOGIN,
-                          "empty": None if rows else "No decision is on record: this check was added before decisions were recorded."},
-            "ledger": {"title": "Otto ledger entries for this check and its decisions", "count": len(ledger), "entries": _entries(ledger),
-                       "note": ("The lock entry was written before the check could run; each reviewed run and each decision added an "
-                                "entry. The ledger holds no result.")},
-            "note": "This says where the check came from and who decided to add it. The result comes only from the test."}
+    return {
+        "label": PROPOSAL_LABEL,
+        "title": "Where this check came from",
+        "line": f"This check was proposed from the advisory “{name}”, in test pack {pack_version}. {decided}",
+        "advisory": {"label": "Open the advisory", "link": {"page": "advisories", "item": advisory_id}},
+        "design": {
+            "title": "The test's design",
+            "lines": [
+                f"Design fingerprint (SHA-256): {design_sha256}",
+                "Its question, its control that must fail and its pass rule are in the test details, locked before the run.",
+            ],
+        },
+        "trial": {"title": "How the test did when it was tried on public copies", "lines": trial} if trial else None,
+        "decisions": {
+            "title": "Decisions on this proposal",
+            "count": len(rows),
+            "rows": rows,
+            "footnote": ONE_LOGIN,
+            "empty": None if rows else "No decision is on record: this check was added before decisions were recorded.",
+        },
+        "ledger": {
+            "title": "Otto ledger entries for this check and its decisions",
+            "count": len(ledger),
+            "entries": _entries(ledger),
+            "note": (
+                "The lock entry was written before the check could run; each reviewed run and each decision added an "
+                "entry. The ledger holds no result."
+            ),
+        },
+        "note": "This says where the check came from and who decided to add it. The result comes only from the test.",
+    }
 
 
 def project_block(rows: list[dict], pack: dict | None) -> dict:
@@ -381,38 +693,67 @@ def project_block(rows: list[dict], pack: dict | None) -> dict:
             b = s["brought"]
             brought = sum(b.values())
             if brought:
-                parts = [f"{b['proposed']} waiting" if b["proposed"] else "", f"{b['accepted']} added" if b["accepted"] else "",
-                         f"{b['rejected']} not added" if b["rejected"] else ""]
-                since_lines.append(f"It brought {_count(brought, 'proposed check')} for this assessment: " + ", ".join(x for x in parts if x) + ".")
+                parts = [
+                    f"{b['proposed']} waiting" if b["proposed"] else "",
+                    f"{b['accepted']} added" if b["accepted"] else "",
+                    f"{b['rejected']} not added" if b["rejected"] else "",
+                ]
+                since_lines.append(
+                    f"It brought {_count(brought, 'proposed check')} for this assessment: "
+                    + ", ".join(x for x in parts if x)
+                    + "."
+                )
             else:
                 since_lines.append("It brought no check that fits this assessment's file.")
             u = s.get("updates") or {}
             if sum(u.values()):
-                parts = [f"{u['proposed']} waiting" if u.get("proposed") else "", f"{u['accepted']} accepted" if u.get("accepted") else "",
-                         f"{u['rejected']} not added" if u.get("rejected") else ""]
-                since_lines.append(f"It also brought {_count(sum(u.values()), 'proposed dependency update')} for libraries its advisories name: "
-                                   + ", ".join(x for x in parts if x) + ".")
+                parts = [
+                    f"{u['proposed']} waiting" if u.get("proposed") else "",
+                    f"{u['accepted']} accepted" if u.get("accepted") else "",
+                    f"{u['rejected']} not added" if u.get("rejected") else "",
+                ]
+                since_lines.append(
+                    f"It also brought {_count(sum(u.values()), 'proposed dependency update')} for libraries its advisories name: "
+                    + ", ".join(x for x in parts if x)
+                    + "."
+                )
             if s["decisions"]:
                 since_lines.append(f"{_count(s['decisions'], 'decision')} recorded since.")
             if s["results"]:
                 tally: dict[str, int] = {}
                 for label in s["results"]:
                     tally[label] = tally.get(label, 0) + 1
-                since_lines.append("Advisory checks run since: " + ", ".join(f"{n} {label}" for label, n in tally.items()) + ".")
+                since_lines.append(
+                    "Advisory checks run since: " + ", ".join(f"{n} {label}" for label, n in tally.items()) + "."
+                )
         elif row.get("why"):
             since_lines.append(row["why"])
-        out.append({"assessment_id": a.id, "title": a.name or f"Assessment {a.number}", "waiting": total,
-                    # (said by kind, because the lines under it speak of the newest pack's checks and updates only)
-                    "waiting_text": (f"{_count(total, 'proposal')} waiting for a decision: {waiting_by_kind(row['waiting'])}" if total
-                                     else "Nothing waiting"),
-                    "link": {"page": "overview", "item": None, "group": None, "assessment_id": a.id},
-                    "since": since_lines})
-    return {"title": "Otto in this project",
-            "note": "Each proposal is decided by a person. The counts below repeat what each assessment's own pages say.",
-            "pack_line": (f"Newest test pack: {pack['version']}, installed on {stamp(pack['installed_at'])}." if pack
-                          else "No test pack is installed yet, so nothing is proposed."),
-            "since_title": f"What changed since pack {pack['version']}" if pack else None,
-            "rows": out}
+        out.append(
+            {
+                "assessment_id": a.id,
+                "title": a.name or f"Assessment {a.number}",
+                "waiting": total,
+                # (said by kind, because the lines under it speak of the newest pack's checks and updates only)
+                "waiting_text": (
+                    f"{_count(total, 'proposal')} waiting for a decision: {waiting_by_kind(row['waiting'])}"
+                    if total
+                    else "Nothing waiting"
+                ),
+                "link": {"page": "overview", "item": None, "group": None, "assessment_id": a.id},
+                "since": since_lines,
+            }
+        )
+    return {
+        "title": "Otto in this project",
+        "note": "Each proposal is decided by a person. The counts below repeat what each assessment's own pages say.",
+        "pack_line": (
+            f"Newest test pack: {pack['version']}, installed on {stamp(pack['installed_at'])}."
+            if pack
+            else "No test pack is installed yet, so nothing is proposed."
+        ),
+        "since_title": f"What changed since pack {pack['version']}" if pack else None,
+        "rows": out,
+    }
 
 
 def found_line(*, packs: int, ready: int, programs: list[str]) -> dict:
@@ -420,20 +761,39 @@ def found_line(*, packs: int, ready: int, programs: list[str]) -> dict:
     A count and a link; nothing is added or run by bringing a file in."""
     count = ready * len(programs)
     if not packs:
-        return {"count": 0, "label": PROPOSAL_LABEL,
-                "text": "Nothing is proposed for this file yet: no test pack is installed.",
-                "note": "Test packs are installed in Settings. Nothing runs on import.",
-                "link": {"page": "settings", "item": None, "section": "test-packs"}, "link_label": "Open Settings"}
+        return {
+            "count": 0,
+            "label": PROPOSAL_LABEL,
+            "text": "Nothing is proposed for this file yet: no test pack is installed.",
+            "note": "Test packs are installed in Settings. Nothing runs on import.",
+            "link": {"page": "settings", "item": None, "section": "test-packs"},
+            "link_label": "Open Settings",
+        }
     if not count:
-        why = ("no signing program in this file checks ECDSA P-256 signatures" if not programs
-               else "no advisory in the installed test packs has a test yet")
-        return {"count": 0, "label": PROPOSAL_LABEL, "text": f"No check may apply to this file: {why}.",
-                "note": "Nothing runs on import.", "link": {"page": "advisories", "item": None}, "link_label": "Open Advisories"}
-    return {"count": count, "label": PROPOSAL_LABEL,
-            "text": (f"{count} {'check' if count == 1 else 'checks'} may apply: {ready} published "
-                     f"{'weakness' if ready == 1 else 'weaknesses'} with a test, for {', '.join(programs)}."),
-            "note": "Nothing runs on import. You accept or reject each proposed check on Advisories.",
-            "link": {"page": "advisories", "item": None}, "link_label": "Open Advisories"}
+        why = (
+            "no signing program in this file checks ECDSA P-256 signatures"
+            if not programs
+            else "no advisory in the installed test packs has a test yet"
+        )
+        return {
+            "count": 0,
+            "label": PROPOSAL_LABEL,
+            "text": f"No check may apply to this file: {why}.",
+            "note": "Nothing runs on import.",
+            "link": {"page": "advisories", "item": None},
+            "link_label": "Open Advisories",
+        }
+    return {
+        "count": count,
+        "label": PROPOSAL_LABEL,
+        "text": (
+            f"{count} {'check' if count == 1 else 'checks'} may apply: {ready} published "
+            f"{'weakness' if ready == 1 else 'weaknesses'} with a test, for {', '.join(programs)}."
+        ),
+        "note": "Nothing runs on import. You accept or reject each proposed check on Advisories.",
+        "link": {"page": "advisories", "item": None},
+        "link_label": "Open Advisories",
+    }
 
 
 def _effect(p: dict) -> str | None:
@@ -445,18 +805,28 @@ def _effect(p: dict) -> str | None:
     if kind == "check":
         return "It is in the test plan, on Checks." + ("" if facts.get("runs") else " It has not run yet.")
     if kind == "fix" and facts.get("code"):
-        return ("The code is connected: the change is on its branch and takes the proof, review and merge path below." if facts.get("connected")
-                else "Next: Connect demo code. The change goes on a branch, and the proof reruns every locked test on it.")
+        return (
+            "The code is connected: the change is on its branch and takes the proof, review and merge path below."
+            if facts.get("connected")
+            else "Next: Connect demo code. The change goes on a branch, and the proof reruns every locked test on it."
+        )
     if kind == "fix":
-        return ("A retest has run on the updated version: the two proof rows say what it showed." if facts.get("retested")
-                else "A retest on the updated version is running." if facts.get("live")
-                else "Next: whoever owns the software updates it; then press Retest.")
+        return (
+            "A retest has run on the updated version: the two proof rows say what it showed."
+            if facts.get("retested")
+            else "A retest on the updated version is running."
+            if facts.get("live")
+            else "Next: whoever owns the software updates it; then press Retest."
+        )
     if kind == "plan":
         done = facts.get("done")
         if done:
             check = f"the check for {about['advisory']}" if about.get("advisory") else "its advisory check"
-            return (f"Done: {check} passed on {about.get('program', 'the program').split(' ')[0]} "
-                    f"{done.get('version') or ''}".rstrip() + (f", on {stamp(done.get('at'))}." if done.get("at") else "."))
+            return (
+                f"Done: {check} passed on {about.get('program', 'the program').split(' ')[0]} "
+                f"{done.get('version') or ''}".rstrip()
+                + (f", on {stamp(done.get('at'))}." if done.get("at") else ".")
+            )
         return "On the plan: something to fix first, on the Signatures track."
     library = " ".join(str(x) for x in (about.get("library"), about.get("version")) if x)
     if library and about.get("fixed"):
@@ -464,12 +834,17 @@ def _effect(p: dict) -> str | None:
     return f"Marked “update first”: to {about.get('fixed')}." if about.get("fixed") else "Marked “update first”."
 
 
-MEASURED_WORDS = {"affected": ("measured affected", "fail"), "not_affected": ("measured not affected", "pass"),
-                  "not_checked": ("not yet checked", "neutral")}
+MEASURED_WORDS = {
+    "affected": ("measured affected", "fail"),
+    "not_affected": ("measured not affected", "pass"),
+    "not_checked": ("not yet checked", "neutral"),
+}
 NOT_CHECKED_WHY = {
     "no_test": "This advisory has no test yet, so nothing can be measured.",
-    "not_in_file": ("No check has run on {lib} here. An advisory check runs on the signing programs your scanner file names, and this "
-                    "library is in the dependency list only."),
+    "not_in_file": (
+        "No check has run on {lib} here. An advisory check runs on the signing programs your scanner file names, and this "
+        "library is in the dependency list only."
+    ),
     "not_added": "A check for it is proposed on Advisories. It is not in the test plan.",
     "not_run": "Its check is in the test plan and has not run yet.",
     "couldnt": "Its check could not run, or its run could not be trusted. Checks has the reason.",
@@ -486,16 +861,24 @@ def named_line(n: dict, fix_link: dict | None) -> dict:
     if m["state"] == "affected":
         detail = f"The advisory check failed on {lib} in this assessment."
     elif m["state"] == "not_affected":
-        detail = (f"The advisory check passed on {lib} in this assessment: the published cases chosen for this advisory got the right "
-                  "answer.")
+        detail = (
+            f"The advisory check passed on {lib} in this assessment: the published cases chosen for this advisory got the right "
+            "answer."
+        )
     else:
         detail = NOT_CHECKED_WHY[m.get("why") or "not_in_file"].format(lib=lib)
-    return {"id": n["advisory"], "name": n["plain_name"], "line": f"Named by advisory {n['advisory']}: {word}",
-            "state": {"key": m["state"], "label": word, "tone": tone}, "detail": detail,
-            "fixed_line": f"Its publisher names {n['fixed']} as the fixed version; your list has {n['version']}.",
-            "advisory_link": {"page": "advisories", "item": n["advisory"]},
-            "evidence_link": {"page": "evidence", "item": f"test-{m['item_id']}"} if m.get("run_id") else None,
-            "fix_link": fix_link, "fix_label": "See the proposed fix" if fix_link else None}
+    return {
+        "id": n["advisory"],
+        "name": n["plain_name"],
+        "line": f"Named by advisory {n['advisory']}: {word}",
+        "state": {"key": m["state"], "label": word, "tone": tone},
+        "detail": detail,
+        "fixed_line": f"Its publisher names {n['fixed']} as the fixed version; your list has {n['version']}.",
+        "advisory_link": {"page": "advisories", "item": n["advisory"]},
+        "evidence_link": {"page": "evidence", "item": f"test-{m['item_id']}"} if m.get("run_id") else None,
+        "fix_link": fix_link,
+        "fix_label": "See the proposed fix" if fix_link else None,
+    }
 
 
 def dependency_status(views: list[dict]) -> dict | None:
@@ -503,7 +886,11 @@ def dependency_status(views: list[dict]) -> dict | None:
     accepted = [v for v in views if v["status"]["key"] == "accepted"]
     if not accepted:
         return None
-    return {"label": "Update first", "tone": "warn", "lines": [v["effect"] + " " + (v["decided_line"] or "") for v in accepted]}
+    return {
+        "label": "Update first",
+        "tone": "warn",
+        "lines": [v["effect"] + " " + (v["decided_line"] or "") for v in accepted],
+    }
 
 
 def plan_block(views: list[dict]) -> dict | None:
@@ -511,10 +898,14 @@ def plan_block(views: list[dict]) -> dict | None:
     listed as something to fix first; it changes no status, no recommendation and no measured fact."""
     if not views:
         return None
-    return {"title": "From Otto: proposed changes to this system's plan",
-            "note": ("These are proposed from results. Accept adds one to the plan as something to fix first. Reject keeps the plan as "
-                     "it was, with your reason. Neither changes a status or a measurement."),
-            "proposals": views}
+    return {
+        "title": "From Otto: proposed changes to this system's plan",
+        "note": (
+            "These are proposed from results. Accept adds one to the plan as something to fix first. Reject keeps the plan as "
+            "it was, with your reason. Neither changes a status or a measurement."
+        ),
+        "proposals": views,
+    }
 
 
 def fixes_plan_line(proposals: list[dict]) -> str | None:
@@ -527,14 +918,20 @@ def fixes_plan_line(proposals: list[dict]) -> str | None:
     can_decide = any((p.get("actions") or {}).get("accept", "off") is None for p in open_)
     parts = []
     if waiting and can_decide:
-        parts.append(f"{_count(waiting, 'change')} to the migration plan {'is' if waiting == 1 else 'are'} proposed from a result. You accept "
-                     f"or reject {'it' if waiting == 1 else 'each one'} on Migration, under Systems.")
+        parts.append(
+            f"{_count(waiting, 'change')} to the migration plan {'is' if waiting == 1 else 'are'} proposed from a result. You accept "
+            f"or reject {'it' if waiting == 1 else 'each one'} on Migration, under Systems."
+        )
     elif waiting:
-        parts.append(f"{_count(waiting, 'change')} to the migration plan, proposed from a result, "
-                     f"{'has' if waiting == 1 else 'have'} no decision: {'it is' if waiting == 1 else 'they are'} on Migration, under Systems.")
+        parts.append(
+            f"{_count(waiting, 'change')} to the migration plan, proposed from a result, "
+            f"{'has' if waiting == 1 else 'have'} no decision: {'it is' if waiting == 1 else 'they are'} on Migration, under Systems."
+        )
     if accepted:
-        parts.append(f"{_count(accepted, 'proposed change')} to the plan {'is' if accepted == 1 else 'are'} accepted: "
-                     f"{'it is' if accepted == 1 else 'they are'} on Migration, under Systems.")
+        parts.append(
+            f"{_count(accepted, 'proposed change')} to the plan {'is' if accepted == 1 else 'are'} accepted: "
+            f"{'it is' if accepted == 1 else 'they are'} on Migration, under Systems."
+        )
     return " ".join(parts) or None
 
 
@@ -553,33 +950,64 @@ def roadmap_mark(views: list[dict]) -> dict | None:
     return {"label": PROPOSAL_LABEL, "text": text, "tone": "warn" if waiting else "neutral", "waiting": waiting}
 
 
-WAITING_WORDS = {"check": ("proposed check", "proposed checks", "advisories", "Advisories"),
-                 "fix": ("proposed fix", "proposed fixes", "fixes", "Fixes"),
-                 "plan": ("proposed change to the migration plan", "proposed changes to the migration plan", "migration/systems", "Migration"),
-                 "dependency": ("proposed dependency update", "proposed dependency updates", "migration/dependencies", "Dependencies")}
+WAITING_WORDS = {
+    "check": ("proposed check", "proposed checks", "advisories", "Advisories"),
+    "fix": ("proposed fix", "proposed fixes", "fixes", "Fixes"),
+    "plan": (
+        "proposed change to the migration plan",
+        "proposed changes to the migration plan",
+        "migration/systems",
+        "Migration",
+    ),
+    "dependency": (
+        "proposed dependency update",
+        "proposed dependency updates",
+        "migration/dependencies",
+        "Dependencies",
+    ),
+}
 
 
 def waiting_by_kind(counts: dict[str, int]) -> str:
-    """"1 proposed check, 2 proposed fixes": what waits, by kind, in the order every page uses."""
-    return ", ".join(f"{counts[kind]} {one if counts[kind] == 1 else many}" for kind, (one, many, _, _) in WAITING_WORDS.items()
-                     if counts.get(kind))
+    """ "1 proposed check, 2 proposed fixes": what waits, by kind, in the order every page uses."""
+    return ", ".join(
+        f"{counts[kind]} {one if counts[kind] == 1 else many}"
+        for kind, (one, many, _, _) in WAITING_WORDS.items()
+        if counts.get(kind)
+    )
 
 
 def waiting_view(counts: dict[str, int]) -> dict:
     """The Overview's "Waiting for you" line: how many of Otto's proposals nobody has decided yet, each kind linking to
     the page it lives on. It counts; it decides nothing."""
     words = WAITING_WORDS
-    items = [{"kind": kind, "count": counts.get(kind, 0),
-              "text": f"{counts[kind]} {one if counts[kind] == 1 else many}", "link": {"page": page, "item": None}, "page_label": label}
-             for kind, (one, many, page, label) in words.items() if counts.get(kind)]
+    items = [
+        {
+            "kind": kind,
+            "count": counts.get(kind, 0),
+            "text": f"{counts[kind]} {one if counts[kind] == 1 else many}",
+            "link": {"page": page, "item": None},
+            "page_label": label,
+        }
+        for kind, (one, many, page, label) in words.items()
+        if counts.get(kind)
+    ]
     total = sum(int(counts.get(kind) or 0) for kind in words)
-    return {"title": "Waiting for you", "total": total, "items": items,
-            "line": (f"{total} {'proposal' if total == 1 else 'proposals'} from Otto {'waits' if total == 1 else 'wait'} for your decision."
-                     if total else "Nothing from Otto is waiting for a decision."),
-            "note": "Each proposal is decided by a person. Nothing is added, run or applied by itself."}
+    return {
+        "title": "Waiting for you",
+        "total": total,
+        "items": items,
+        "line": (
+            f"{total} {'proposal' if total == 1 else 'proposals'} from Otto {'waits' if total == 1 else 'wait'} for your decision."
+            if total
+            else "Nothing from Otto is waiting for a decision."
+        ),
+        "note": "Each proposal is decided by a person. Nothing is added, run or applied by itself.",
+    }
 
 
 # ---------------------------------------------------------------- the Advisories page
+
 
 def _trial_lines(advisory: dict) -> list[str]:
     """How a test did when it was tried on public copies: counts only."""
@@ -589,8 +1017,10 @@ def _trial_lines(advisory: dict) -> list[str]:
     arms, package = trial["arms"], advisory["package"]["name"]
     a, f, c = arms["affected"], arms["fixed"], arms["accept-all"]
     lines = []
+
     def counted(arm: dict) -> str:
         return f"{arm['wrong']} of {arm['total']} {_plural(arm['total'], 'case')} wrong"
+
     if "total" in a:
         lines.append(f"{package} {a.get('version')} (affected): {counted(a)}.")
     if "total" in f:
@@ -598,9 +1028,14 @@ def _trial_lines(advisory: dict) -> list[str]:
     if "total" in c:
         lines.append(f"The control that must fail (a program that accepts every signature): {counted(c)}.")
     # The replay is a second, separate step of the same build on the same computer: said as that, not as an outside check.
-    lines.append(f"Otto's harness judged the trial against thresholds fixed before the first run: {trial['outcome'].replace('_', ' ')}."
-                 + (" It was then run again as a separate replay step of the same build, on the same computer, and gave the same numbers."
-                    if trial["replayed"] else " It was not replayed."))
+    lines.append(
+        f"Otto's harness judged the trial against thresholds fixed before the first run: {trial['outcome'].replace('_', ' ')}."
+        + (
+            " It was then run again as a separate replay step of the same build, on the same computer, and gave the same numbers."
+            if trial["replayed"]
+            else " It was not replayed."
+        )
+    )
     return lines
 
 
@@ -613,12 +1048,17 @@ def _fix_block(advisory: dict, fix_view: dict | None, own_programs: list[str]) -
         label = FIX_LABEL
         # What the test pack carries for the library the advisory is about, with the first proof row in the words every
         # page uses. It is a proposal (with Accept and Reject) only where it applies to this assessment: said below.
-        lines = [f"The test pack carries a fix for {fix['library']}, the library this advisory is about: update it to {fix['version']} or later.",
-                 fix["summary"], public_copies_row(fix, advisory)["line"]]
+        lines = [
+            f"The test pack carries a fix for {fix['library']}, the library this advisory is about: update it to {fix['version']} or later.",
+            fix["summary"],
+            public_copies_row(fix, advisory)["line"],
+        ]
         if fix_view is None:
-            lines.append(f"In an assessment it is a proposal, with Accept and Reject, only where it applies: on Fixes when this advisory's "
-                         f"check has failed on {fix['library']} itself, and on Dependencies when the dependency list names an affected "
-                         f"version of {fix['library']}.")
+            lines.append(
+                f"In an assessment it is a proposal, with Accept and Reject, only where it applies: on Fixes when this advisory's "
+                f"check has failed on {fix['library']} itself, and on Dependencies when the dependency list names an affected "
+                f"version of {fix['library']}."
+            )
     elif advisory["reading"] and advisory["reading"].get("fixed"):
         fixed = advisory["reading"]["fixed"]
         lines = [f"The publisher names {fixed['version']} as the fixed version.", fix["reason"]]
@@ -629,30 +1069,47 @@ def _fix_block(advisory: dict, fix_view: dict | None, own_programs: list[str]) -
         quote = _quoted(advisory, advisory["reading"]["fixed"]["quote"])
     link = None
     if fix_view is not None:
-        link = {"label": "View in Fixes", "link": {"page": "fixes", "item": fix_view["id"]},
-                "line": f"In this assessment: {fix_view['title']} ({fix_view['status']['word']})."}
+        link = {
+            "label": "View in Fixes",
+            "link": {"page": "fixes", "item": fix_view["id"]},
+            "line": f"In this assessment: {fix_view['title']} ({fix_view['status']['word']}).",
+        }
     elif own_programs and advisory["test"]["state"] == "ready":
-        lines.append(f"For your own code ({', '.join(own_programs)}): if this advisory's check fails here, Fixes shows what can be offered. "
-                     "A written change is offered only when it can be proven on this computer. Where it can't be, the fix template is "
-                     "offered if it answers the failure; if not, Fixes lists the failure with a plain suggestion and offers no code change.")
+        lines.append(
+            f"For your own code ({', '.join(own_programs)}): if this advisory's check fails here, Fixes shows what can be offered. "
+            "A written change is offered only when it can be proven on this computer. Where it can't be, the fix template is "
+            "offered if it answers the failure; if not, Fixes lists the failure with a plain suggestion and offers no code change."
+        )
     return {"title": "Fix", "label": label, "state": fix["state"], "lines": lines, "quote": quote, "here": link}
 
 
 def _quoted(advisory: dict, quote: dict) -> dict:
     source = next((s for s in advisory["sources"] if s["label"] == quote["source"]), advisory["sources"][0])
     # the link goes to the address the quoted text was read from on that day, so "read on" is true of what it opens
-    return {"text": quote["text"], "source": source["title"], "publisher": source["publisher"],
-            "href": present_advisory.safe_href(source["read_from"]), "read_on": day(source["fetched"]), "tag": PUBLISHER_TAG}
+    return {
+        "text": quote["text"],
+        "source": source["title"],
+        "publisher": source["publisher"],
+        "href": present_advisory.safe_href(source["read_from"]),
+        "read_on": day(source["fetched"]),
+        "tag": PUBLISHER_TAG,
+    }
 
 
 def _steps(advisory: dict) -> list[dict]:
     out = []
     for step in advisory["steps"]:
         where = step["how"] if step["source"] == "recorded" else f"Live: Claude ({step['model']})"
-        out.append({"step": STEP_WORDS.get(step["step"], step["step"]), "source": step["source"],
-                    "line": f"{STEP_WORDS.get(step['step'], step['step'])}: {where}, {day(step['at'])}."
-                            + ("" if step["outcome"] == "used" else f" The answer was not used: {step['refusal']}"),
-                    "prompt_sha256": step["prompt_sha256"], "answer_sha256": step["answer_sha256"]})
+        out.append(
+            {
+                "step": STEP_WORDS.get(step["step"], step["step"]),
+                "source": step["source"],
+                "line": f"{STEP_WORDS.get(step['step'], step['step'])}: {where}, {day(step['at'])}."
+                + ("" if step["outcome"] == "used" else f" The answer was not used: {step['refusal']}"),
+                "prompt_sha256": step["prompt_sha256"],
+                "answer_sha256": step["answer_sha256"],
+            }
+        )
     return out
 
 
@@ -666,11 +1123,17 @@ def _notes(advisory: dict) -> dict | None:
     area = AREA_WORDS.get(str(reading["area"]), "outside signature checking")
     read = next((s for s in advisory["steps"] if s["step"] == "read_advisory" and s["outcome"] == "used"), None)
     where = (read["how"] if read["source"] == "recorded" else f"Live: Claude ({read['model']})") if read else None
-    return {"title": "Otto's notes on reading it",
-            "kind_line": f"Kind of weakness, as recorded: the affected software {kind}, {area}.",
-            "text": reading["notes"] or None,
-            "caption": ("Claude's words from reading the advisory" + (f" ({where})" if where else "") + ". S1, S2 and so on are the "
-                        "sources listed above. Information, not a result.")}
+    return {
+        "title": "Otto's notes on reading it",
+        "kind_line": f"Kind of weakness, as recorded: the affected software {kind}, {area}.",
+        "text": reading["notes"] or None,
+        "caption": (
+            "Claude's words from reading the advisory"
+            + (f" ({where})" if where else "")
+            + ". S1, S2 and so on are the "
+            "sources listed above. Information, not a result."
+        ),
+    }
 
 
 def _proposal_cell(views: list[dict]) -> dict:
@@ -686,13 +1149,25 @@ def _proposal_cell(views: list[dict]) -> dict:
     lead = next(key for key in ("proposed", "accepted", "rejected") if counts[key])
     label = {"proposed": "Proposed", "accepted": "Added", "rejected": "Not added"}[lead]
     same = counts[lead] == len(views)
-    return {"key": lead if same else "mixed", "label": label if same else "Mixed", "tone": "warn" if counts["proposed"] else "neutral",
-            "text": ", ".join(f"{counts[key]} {words[key]}" for key in ("proposed", "accepted", "rejected") if counts[key]),
-            "keys": [key for key in ("proposed", "accepted", "rejected") if counts[key]]}
+    return {
+        "key": lead if same else "mixed",
+        "label": label if same else "Mixed",
+        "tone": "warn" if counts["proposed"] else "neutral",
+        "text": ", ".join(f"{counts[key]} {words[key]}" for key in ("proposed", "accepted", "rejected") if counts[key]),
+        "keys": [key for key in ("proposed", "accepted", "rejected") if counts[key]],
+    }
 
 
-def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed: bool, harness_status: dict, answers_line: str,
-                    assessment_id: int | None) -> dict:
+def advisories_view(
+    *,
+    rows: list[dict],
+    packs: list,
+    fitting: list[str],
+    closed: bool,
+    harness_status: dict,
+    answers_line: str,
+    assessment_id: int | None,
+) -> dict:
     out = []
     waiting = 0
     for row in rows:
@@ -704,7 +1179,11 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
         here = []
         for entry in row["here"]:
             result = entry["result"]
-            proposal = proposal_view(entry["proposal"], entry.get("decision_ledger")) if entry.get("proposal") is not None else None
+            proposal = (
+                proposal_view(entry["proposal"], entry.get("decision_ledger"))
+                if entry.get("proposal") is not None
+                else None
+            )
             if proposal is not None and proposal["status"]["key"] == "proposed":
                 waiting += 1
             if entry["item_id"] is None:
@@ -713,40 +1192,78 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
                 status = "Not run yet"
             else:
                 status = None
-            first = entry.get("first")       # the first run's result, when the one shown is a retest's
+            first = entry.get("first")  # the first run's result, when the one shown is a retest's
             ran_on = None
             if result is not None and first is not None:
-                ran_on = (f"This is the retest, on {result.get('component') or 'the retested version'}. The first run, on "
-                          f"{first.get('component') or entry['program']}, read {first['label']}.")
-            here.append({"program": entry["program"], "status": status, "proposal": proposal,
-                         "result": ({"label": result["label"], "tone": result["tone"], "plain": result["plain"],
-                                     "component": result.get("component"), "finished_at": result.get("finished_at"),
-                                     "ran_on": ran_on, "sandbox_copy": bool(result.get("sandbox_copy")),
-                                     # where it came from (22 November 2026): an advisory check runs a copy of the program here
-                                     "source_tag": present_source.of_test("advisory_cases", result),
-                                     "short": (f"Retest on {result.get('component')}. First run on {first.get('component') or entry['program']}: "
-                                               f"{first['label']}." if ran_on and result.get("component") else None)} if result else None),
-                         "checks_link": {"page": "checks", "item": f"test-{entry['item_id']}"} if entry["item_id"] is not None else None,
-                         "evidence_link": {"page": "evidence", "item": f"test-{entry['item_id']}"} if result else None,
-                         "ledger": {"title": "Otto ledger entries for this check", "count": len(entry["ledger"]),
-                                    "entries": _entries(entry["ledger"]),
-                                    "note": ("The ledger shows that each run belongs to the test locked before it. It holds no result.")}
-                         if entry["ledger"] else None})
+                ran_on = (
+                    f"This is the retest, on {result.get('component') or 'the retested version'}. The first run, on "
+                    f"{first.get('component') or entry['program']}, read {first['label']}."
+                )
+            here.append(
+                {
+                    "program": entry["program"],
+                    "status": status,
+                    "proposal": proposal,
+                    "result": (
+                        {
+                            "label": result["label"],
+                            "tone": result["tone"],
+                            "plain": result["plain"],
+                            "component": result.get("component"),
+                            "finished_at": result.get("finished_at"),
+                            "ran_on": ran_on,
+                            "sandbox_copy": bool(result.get("sandbox_copy")),
+                            # where it came from (22 November 2026): an advisory check runs a copy of the program here
+                            "source_tag": present_source.of_test("advisory_cases", result),
+                            "short": (
+                                f"Retest on {result.get('component')}. First run on {first.get('component') or entry['program']}: "
+                                f"{first['label']}."
+                                if ran_on and result.get("component")
+                                else None
+                            ),
+                        }
+                        if result
+                        else None
+                    ),
+                    "checks_link": {"page": "checks", "item": f"test-{entry['item_id']}"}
+                    if entry["item_id"] is not None
+                    else None,
+                    "evidence_link": {"page": "evidence", "item": f"test-{entry['item_id']}"} if result else None,
+                    "ledger": {
+                        "title": "Otto ledger entries for this check",
+                        "count": len(entry["ledger"]),
+                        "entries": _entries(entry["ledger"]),
+                        "note": (
+                            "The ledger shows that each run belongs to the test locked before it. It holds no result."
+                        ),
+                    }
+                    if entry["ledger"]
+                    else None,
+                }
+            )
         results = [h["result"] for h in here if h["result"]]
         # The latest result of its check here, in the reviewer's words. With more than one program, the one that says most.
-        shown = next((r for r in results if r["tone"] == "fail"), None) or next((r for r in results if r["tone"] != "pass"), None) \
+        shown = (
+            next((r for r in results if r["tone"] == "fail"), None)
+            or next((r for r in results if r["tone"] != "pass"), None)
             or (results[0] if results else None)
+        )
         if shown is not None:
             # for the Result filter: Failed, Passed, or the one option for every result that is neither
             same, ran = sum(1 for r in results if r["label"] == shown["label"]), len(results)
             if len(here) == 1:
-                counted = shown.get("short")          # one program: after a retest, which version this result is of
+                counted = shown.get("short")  # one program: after a retest, which version this result is of
             elif ran == len(here):
                 counted = f"{same} of {ran} programs"
-            else:       # some programs have no result yet: the count is of the ones that ran, and says how many have not
+            else:  # some programs have no result yet: the count is of the ones that ran, and says how many have not
                 counted = f"{same} of {ran} run so far; {len(here) - ran} with no result yet"
-            result_cell = {"key": shown["tone"] if shown["tone"] in ("pass", "fail") else "warn", "label": shown["label"], "tone": shown["tone"],
-                           "text": counted, "source_tag": shown.get("source_tag")}
+            result_cell = {
+                "key": shown["tone"] if shown["tone"] in ("pass", "fail") else "warn",
+                "label": shown["label"],
+                "tone": shown["tone"],
+                "text": counted,
+                "source_tag": shown.get("source_tag"),
+            }
         elif state != "ready":
             result_cell = {"key": "none", "label": "No check", "tone": "neutral", "text": None}
         elif not here:
@@ -757,14 +1274,16 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
             result_cell = {"key": "not_added", "label": "Not in the test plan", "tone": "neutral", "text": None}
         for h in here:
             if h["result"]:
-                h["result"].pop("short", None)       # (the table cell's words for it; the panel has the whole line)
+                h["result"].pop("short", None)  # (the table cell's words for it; the panel has the whole line)
         proposal_cell = _proposal_cell([h["proposal"] for h in here if h["proposal"] is not None])
-        fits = ([h["program"] for h in here] if state == "ready" else [])
+        fits = [h["program"] for h in here] if state == "ready" else []
         test_block, no_test = None, None
         if design is not None:
             cases = design["cases"]
             total = len(cases["ids"])
-            parts = f"{cases['must_reject']} that must be rejected" + (f" and {cases['must_accept']} that must be accepted" if cases["must_accept"] else "")
+            parts = f"{cases['must_reject']} that must be rejected" + (
+                f" and {cases['must_accept']} that must be accepted" if cases["must_accept"] else ""
+            )
             test_block = {
                 "title": "The test",
                 "question": design["question"].replace("{program}", "the program"),
@@ -775,58 +1294,124 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
                 "trial": {"title": "How it did when tried on public copies", "lines": _trial_lines(advisory)},
                 # Sandbox research (a prototype): the whole proof of a test tried on sandbox copies, as one piece.
                 "proof": present_proof.block(advisory),
-                "ledger": {"title": "Otto ledger entries", "count": len(advisory["ledger"]),
-                           "entries": _entries(advisory["ledger"]),
-                           "note": ("From Otto's research ledger, a hash chain kept with the Otto harness: the test was registered, tried and "
-                                    "judged before the pack was signed.")}}
+                "ledger": {
+                    "title": "Otto ledger entries",
+                    "count": len(advisory["ledger"]),
+                    "entries": _entries(advisory["ledger"]),
+                    "note": (
+                        "From Otto's research ledger, a hash chain kept with the Otto harness: the test was registered, tried and "
+                        "judged before the pack was signed."
+                    ),
+                },
+            }
         else:
-            no_test = {"label": label, "reason": advisory["test"]["reason"], "proof": present_proof.block(advisory),
-                       "trial": ({"title": "How its design did when tried on public copies", "lines": _trial_lines(advisory)}
-                                 if advisory["test"]["trial"] else None),
-                       "ledger": ({"title": "Otto ledger entries", "count": len(advisory["ledger"]),
-                                   "entries": _entries(advisory["ledger"]),
-                                   "note": "From Otto's research ledger, a hash chain kept with the Otto harness."} if advisory["ledger"] else None)}
+            no_test = {
+                "label": label,
+                "reason": advisory["test"]["reason"],
+                "proof": present_proof.block(advisory),
+                "trial": (
+                    {"title": "How its design did when tried on public copies", "lines": _trial_lines(advisory)}
+                    if advisory["test"]["trial"]
+                    else None
+                ),
+                "ledger": (
+                    {
+                        "title": "Otto ledger entries",
+                        "count": len(advisory["ledger"]),
+                        "entries": _entries(advisory["ledger"]),
+                        "note": "From Otto's research ledger, a hash chain kept with the Otto harness.",
+                    }
+                    if advisory["ledger"]
+                    else None
+                ),
+            }
         own = [entry["program"] for entry in row["here"] if entry["own_code"] and entry["item_id"] is not None]
-        out.append({
-            "id": advisory["id"], "name": name, "published": advisory["published"], "published_text": day(advisory["published"]),
-            # The 5c fixes: the tag "New" beside the name, for an advisory that first arrived with the newest installed pack.
-            "new": ({"label": "New", "title": f"Arrived with test pack {row['arrived']}"} if row.get("new") and row.get("arrived") else None),
-            "package": f"{advisory['package']['name']} ({advisory['package']['ecosystem']})", "pack": pack.version,
-            "fits": fits, "fits_text": (", ".join(fits) if fits else ("No signing program in this assessment" if state == "ready" else "")),
-            "test": {"key": state, "label": label, "tone": tone, "reason": advisory["test"]["reason"]},
-            "proposal": proposal_cell,
-            "result": result_cell,
-            "search": " ".join([advisory["id"], name, advisory["package"]["name"], *advisory["aliases"], *fits]).lower(),
-            "panel": {
-                "sentence": reading["weakness"] if reading else advisory["reading_refused"],
-                "publisher": _quoted(advisory, reading["weakness_quote"]) if reading else None,
-                "affected": ({"line": f"Affected versions, in the publisher's terms: {reading['affected']['versions']}",
-                              "quote": _quoted(advisory, reading["affected"]["quote"])} if reading else None),
-                "notes": _notes(advisory),
-                "also_known_as": advisory["aliases"],
-                "sources": [{"label": s["label"], "title": s["title"], "publisher": s["publisher"],
-                             "href": present_advisory.safe_href(s["read_from"]), "read_on": day(s["fetched"])} for s in advisory["sources"]],
-                "test": test_block, "no_test": no_test,
-                "here": {"title": "Otto's proposed check, in this assessment", "rows": here,
-                         "note": ("You decide for each program by itself. Accepting adds the check to the test plan and runs "
-                                  "nothing.") if here else None,
-                         "empty": (None if here else
-                                   "This advisory has no test, so there is nothing to run here." if state != "ready" else
-                                   "No signing program in this assessment's file checks ECDSA P-256 signatures, so the test fits nothing here.")},
-                "fix": _fix_block(advisory, row["fix"], own),
-                "claude": {"title": "What Claude was asked", "steps": _steps(advisory),
-                           "note": "Every prompt and answer is in Otto's research ledger, with its SHA-256. What Claude writes is data: a "
-                                   "quote must stand in the publisher's text, a design can only pick published cases, and a fix is offered "
-                                   "only after its proof."},
-                "related_key": f"advisory:{advisory['id']}",
-            },
-        })
+        out.append(
+            {
+                "id": advisory["id"],
+                "name": name,
+                "published": advisory["published"],
+                "published_text": day(advisory["published"]),
+                # The 5c fixes: the tag "New" beside the name, for an advisory that first arrived with the newest installed pack.
+                "new": (
+                    {"label": "New", "title": f"Arrived with test pack {row['arrived']}"}
+                    if row.get("new") and row.get("arrived")
+                    else None
+                ),
+                "package": f"{advisory['package']['name']} ({advisory['package']['ecosystem']})",
+                "pack": pack.version,
+                "fits": fits,
+                "fits_text": (
+                    ", ".join(fits) if fits else ("No signing program in this assessment" if state == "ready" else "")
+                ),
+                "test": {"key": state, "label": label, "tone": tone, "reason": advisory["test"]["reason"]},
+                "proposal": proposal_cell,
+                "result": result_cell,
+                "search": " ".join(
+                    [advisory["id"], name, advisory["package"]["name"], *advisory["aliases"], *fits]
+                ).lower(),
+                "panel": {
+                    "sentence": reading["weakness"] if reading else advisory["reading_refused"],
+                    "publisher": _quoted(advisory, reading["weakness_quote"]) if reading else None,
+                    "affected": (
+                        {
+                            "line": f"Affected versions, in the publisher's terms: {reading['affected']['versions']}",
+                            "quote": _quoted(advisory, reading["affected"]["quote"]),
+                        }
+                        if reading
+                        else None
+                    ),
+                    "notes": _notes(advisory),
+                    "also_known_as": advisory["aliases"],
+                    "sources": [
+                        {
+                            "label": s["label"],
+                            "title": s["title"],
+                            "publisher": s["publisher"],
+                            "href": present_advisory.safe_href(s["read_from"]),
+                            "read_on": day(s["fetched"]),
+                        }
+                        for s in advisory["sources"]
+                    ],
+                    "test": test_block,
+                    "no_test": no_test,
+                    "here": {
+                        "title": "Otto's proposed check, in this assessment",
+                        "rows": here,
+                        "note": (
+                            "You decide for each program by itself. Accepting adds the check to the test plan and runs "
+                            "nothing."
+                        )
+                        if here
+                        else None,
+                        "empty": (
+                            None
+                            if here
+                            else "This advisory has no test, so there is nothing to run here."
+                            if state != "ready"
+                            else "No signing program in this assessment's file checks ECDSA P-256 signatures, so the test fits nothing here."
+                        ),
+                    },
+                    "fix": _fix_block(advisory, row["fix"], own),
+                    "claude": {
+                        "title": "What Claude was asked",
+                        "steps": _steps(advisory),
+                        "note": "Every prompt and answer is in Otto's research ledger, with its SHA-256. What Claude writes is data: a "
+                        "quote must stand in the publisher's text, a design can only pick published cases, and a fix is offered "
+                        "only after its proof.",
+                    },
+                    "related_key": f"advisory:{advisory['id']}",
+                },
+            }
+        )
     installed = bool(harness_status["installed"])
     if closed:
         blocked = "This assessment is closed, so nothing more can be decided in it."
     elif not installed:
-        blocked = ("Otto is not installed on this computer, so nothing can be decided: a decision is recorded in Otto's "
-                   "ledger.")      # the reason is in the Otto line
+        blocked = (
+            "Otto is not installed on this computer, so nothing can be decided: a decision is recorded in Otto's "
+            "ledger."
+        )  # the reason is in the Otto line
     elif not packs:
         blocked = "No test pack is installed. Install one in Settings, under Test packs."
     elif not fitting:
@@ -836,31 +1421,70 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
     versions = ", ".join(p.version for p in packs)
     return {
         "title": "Advisories",
-        "subline": ("Every published advisory in the installed test packs. Where one has a test that fits a signing program of this "
-                    "assessment, its check is proposed: you accept or reject it. A result shown here is the reviewer's, in its words."),
+        "subline": (
+            "Every published advisory in the installed test packs. Where one has a test that fits a signing program of this "
+            "assessment, its check is proposed: you accept or reject it. A result shown here is the reviewer's, in its words."
+        ),
         "standing_line": DISCLAIMER,
-        "packs_line": ((f"Test packs installed when this assessment was closed: {versions}." if closed else f"Test packs installed: {versions}.")
-                       if packs else "No test pack is installed yet. Settings, Test packs, Check for updates."),
+        "packs_line": (
+            (
+                f"Test packs installed when this assessment was closed: {versions}."
+                if closed
+                else f"Test packs installed: {versions}."
+            )
+            if packs
+            else "No test pack is installed yet. Settings, Test packs, Check for updates."
+        ),
         "packs_link": {"page": "settings", "item": None, "section": "test-packs"},
         "answers_line": answers_line,
-        "otto": {"installed": installed, "line": harness_status["sentence"] + ("" if installed else NOT_INSTALLED_TAIL)},
+        "otto": {
+            "installed": installed,
+            "line": harness_status["sentence"] + ("" if installed else NOT_INSTALLED_TAIL),
+        },
         # Otto proposes; a person decides. There is no button that decides several at once.
-        "waiting": {"count": waiting, "blocked_reason": blocked,
-                    "line": ((f"{waiting} proposed {'check waits' if waiting == 1 else 'checks wait'} for your decision. Open an advisory "
-                              "to accept or reject its check.") if waiting and blocked is None else
-                             # (nothing can be decided: the count is said without asking for a decision, and the reason follows it)
-                             (f"{waiting} proposed {'check has' if waiting == 1 else 'checks have'} no decision.") if waiting else
-                             "No proposed check is waiting for a decision." if blocked is None else blocked),
-                    "note": "You decide each one by itself. Accepting adds a check to the test plan. It runs nothing."},
-        "filters": {"test": [{"key": "all", "label": "Any test"}] + [{"key": k, "label": v[0]} for k, v in TEST_LABELS.items()],
-                    "decision": [{"key": "all", "label": "Any decision"}, {"key": "proposed", "label": "Proposed"},
-                                 {"key": "accepted", "label": "Added"}, {"key": "rejected", "label": "Not added"}],
-                    "result": [{"key": "all", "label": "Any result"}, {"key": "fail", "label": "Failed"}, {"key": "pass", "label": "Passed"},
-                               {"key": "warn", "label": "Couldn't run or trust"}, {"key": "not_run", "label": "Not run yet"},
-                               {"key": "not_added", "label": "Not in the test plan"}, {"key": "none", "label": "No check"}]},
+        "waiting": {
+            "count": waiting,
+            "blocked_reason": blocked,
+            "line": (
+                (
+                    f"{waiting} proposed {'check waits' if waiting == 1 else 'checks wait'} for your decision. Open an advisory "
+                    "to accept or reject its check."
+                )
+                if waiting and blocked is None
+                # (nothing can be decided: the count is said without asking for a decision, and the reason follows it)
+                else (f"{waiting} proposed {'check has' if waiting == 1 else 'checks have'} no decision.")
+                if waiting
+                else "No proposed check is waiting for a decision."
+                if blocked is None
+                else blocked
+            ),
+            "note": "You decide each one by itself. Accepting adds a check to the test plan. It runs nothing.",
+        },
+        "filters": {
+            "test": [{"key": "all", "label": "Any test"}] + [{"key": k, "label": v[0]} for k, v in TEST_LABELS.items()],
+            "decision": [
+                {"key": "all", "label": "Any decision"},
+                {"key": "proposed", "label": "Proposed"},
+                {"key": "accepted", "label": "Added"},
+                {"key": "rejected", "label": "Not added"},
+            ],
+            "result": [
+                {"key": "all", "label": "Any result"},
+                {"key": "fail", "label": "Failed"},
+                {"key": "pass", "label": "Passed"},
+                {"key": "warn", "label": "Couldn't run or trust"},
+                {"key": "not_run", "label": "Not run yet"},
+                {"key": "not_added", "label": "Not in the test plan"},
+                {"key": "none", "label": "No check"},
+            ],
+        },
         "columns": ["Advisory", "Published", "Fits", "Test", "Proposal", "Result here"],
         "rows": out,
-        "empty": None if out else ("No test pack is installed yet. In Settings, under Test packs, Check for updates looks in the updates "
-                                   "folder on this computer."),
+        "empty": None
+        if out
+        else (
+            "No test pack is installed yet. In Settings, under Test packs, Check for updates looks in the updates "
+            "folder on this computer."
+        ),
         "assessment_id": assessment_id,
     }

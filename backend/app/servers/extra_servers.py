@@ -10,6 +10,7 @@ servers; the test key never leaves memory except for the instant it is loaded):
 They start only when the multi-target demo file is imported (and again, if the app was restarted, when that
 import is verified or tested), never when the app starts. A port another program already uses is reported in
 plain words and the app carries on."""
+
 from __future__ import annotations
 
 import errno
@@ -31,8 +32,11 @@ ROLES = ("tls13_only", "accepts_retired", "weak_certificate")
 
 def _context(role: str) -> ssl.SSLContext:
     from app.run.execute.controls import WEAK_RSA_BITS, _context_with_test_certificate
+
     if role == "weak_certificate":
-        ctx = _context_with_test_certificate(rsa.generate_private_key(65537, WEAK_RSA_BITS), "demo-weak-certificate", True)
+        ctx = _context_with_test_certificate(
+            rsa.generate_private_key(65537, WEAK_RSA_BITS), "demo-weak-certificate", True
+        )
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         return ctx
     old = role == "accepts_retired"
@@ -67,8 +71,12 @@ def is_multi_target_file(data: bytes, demo_port: int, ports: tuple[int, ...]) ->
 def claims_match(claims: list[tuple[str, str, str]], demo_port: int, ports: tuple[int, ...]) -> bool:
     """Do these stored claims (location, kind, claimed value) come from the multi-target demo file?"""
     from app.importer.reader import parse_file
+
     try:
-        expected = [(c.location, c.kind, c.claimed_value) for c in parse_file(MULTI_TARGET_FILE.name, file_for(demo_port, ports)).claims]
+        expected = [
+            (c.location, c.kind, c.claimed_value)
+            for c in parse_file(MULTI_TARGET_FILE.name, file_for(demo_port, ports)).claims
+        ]
     except Exception:
         return False
     return claims == expected
@@ -89,7 +97,9 @@ class ExtraServers:
     def __init__(self, ports: tuple[int, ...] = DEFAULT_PORTS):
         self.ports = tuple(ports)
         self._servers: dict[int, TlsServer] = {}
-        self.fingerprints: dict[int, str] = {}  # so a check can tell our own test server from another program on the port
+        self.fingerprints: dict[
+            int, str
+        ] = {}  # so a check can tell our own test server from another program on the port
         self.problems: dict[int, str] = {}
         self._lock = threading.Lock()
 
@@ -110,14 +120,20 @@ class ExtraServers:
                     self.problems.pop(port, None)
                 except OSError as exc:
                     if exc.errno == errno.EADDRINUSE:
-                        self.problems[port] = (f"Port {port} on this computer is already used by another program, so the demo test "
-                                               f"server for {DEMO_HOSTNAME}:{port} could not start. Its claims will show Couldn't check.")
+                        self.problems[port] = (
+                            f"Port {port} on this computer is already used by another program, so the demo test "
+                            f"server for {DEMO_HOSTNAME}:{port} could not start. Its claims will show Couldn't check."
+                        )
                     else:
-                        self.problems[port] = (f"The demo test server for {DEMO_HOSTNAME}:{port} could not start "
-                                               f"({exc.strerror or exc.__class__.__name__}). Its claims will show Couldn't check.")
+                        self.problems[port] = (
+                            f"The demo test server for {DEMO_HOSTNAME}:{port} could not start "
+                            f"({exc.strerror or exc.__class__.__name__}). Its claims will show Couldn't check."
+                        )
                 except (ValueError, ssl.SSLError) as exc:
-                    self.problems[port] = (f"The demo test server for {DEMO_HOSTNAME}:{port} could not be set up "
-                                           f"({exc.__class__.__name__}). Its claims will show Couldn't check.")
+                    self.problems[port] = (
+                        f"The demo test server for {DEMO_HOSTNAME}:{port} could not be set up "
+                        f"({exc.__class__.__name__}). Its claims will show Couldn't check."
+                    )
             return [self.problems[p] for p in self.ports if p in self.problems]
 
     @property

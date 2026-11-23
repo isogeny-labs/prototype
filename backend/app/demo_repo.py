@@ -10,6 +10,7 @@ id. After a change to the registered 1.4.2 file, make it again:
 
 The component's file is copied as data: nothing is run here, and the git program is not needed.
 """
+
 from __future__ import annotations
 
 import os
@@ -23,10 +24,10 @@ from app.config import DEMO_DIR
 from app.fixes.gitrepo import GitRepo, GitRepoError, Person
 
 REPOS_DIR = DEMO_DIR / "repos"
-NAME, VERSION = "acme-sign", "1.4.2"   # the registered demo component the repository starts from
+NAME, VERSION = "acme-sign", "1.4.2"  # the registered demo component the repository starts from
 BRANCH = "main"
 AUTHOR = Person("Acme Pay demo", "demo@example.invalid")
-WHEN = 1794300000                      # a fixed time (10 November 2026, UTC), so the commit id never changes
+WHEN = 1794300000  # a fixed time (10 November 2026, UTC), so the commit id never changes
 
 
 def bundled(name: object) -> Path | None:
@@ -41,7 +42,9 @@ def make(folder: Path) -> str:
     if source is None or not source.is_file():
         raise GitRepoError(f"The demo component {NAME} {VERSION} is missing, so the demo repository was not made.")
     repo = GitRepo.create(folder, BRANCH)
-    return repo.commit(BRANCH, {source.name: source.read_bytes()}, f"{NAME} {VERSION} (demo software)", AUTHOR, WHEN, None)
+    return repo.commit(
+        BRANCH, {source.name: source.read_bytes()}, f"{NAME} {VERSION} (demo software)", AUTHOR, WHEN, None
+    )
 
 
 def main(say=print) -> int:

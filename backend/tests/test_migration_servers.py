@@ -1,4 +1,5 @@
 """Phase 4a: the five local test servers of the migration demo file."""
+
 import hashlib
 import socket
 import ssl
@@ -102,9 +103,12 @@ def test_five_servers_behave_as_specified(started):
     assert version == "TLSv1.2" and cipher in migration_servers.LEGACY_CIPHERS.split(":")
     assert fingerprint == servers.fingerprints[legacy]
     assert pqtls.handshake(LOCAL, legacy, None, "X25519MLKEM768:X25519:P-256").alert == 70
-    old = pqtls.handshake(LOCAL, legacy, None, "X25519MLKEM768:X25519:P-256", min_version="TLS 1.2", max_version="TLS 1.2")
+    old = pqtls.handshake(
+        LOCAL, legacy, None, "X25519MLKEM768:X25519:P-256", min_version="TLS 1.2", max_version="TLS 1.2"
+    )
     assert (old.outcome, old.tls_version, old.group) == ("completed", "TLS 1.2", "P-256")
     from app.checks.tlsprobe import describe_certificate
+
     assert describe_certificate(old.certificate_der)["key_type"] == "RSA"
     assert describe_certificate(old.certificate_der)["key_size"] == 2048
 
@@ -141,8 +145,10 @@ def test_a_taken_port_is_one_plain_sentence():
         servers = MigrationServers(ports)
         try:
             problems = servers.start()
-            assert problems == [f"Port {ports[2]} on this computer is already used by another program, so the demo "
-                                f"test server for localhost:{ports[2]} could not start. Its row will show Couldn't check."]
+            assert problems == [
+                f"Port {ports[2]} on this computer is already used by another program, so the demo "
+                f"test server for localhost:{ports[2]} could not start. Its row will show Couldn't check."
+            ]
             assert servers.running == sorted(p for p in ports if p != ports[2])
             assert ports[2] not in servers.fingerprints
         finally:
@@ -165,7 +171,9 @@ def test_without_post_quantum_tls_the_classical_servers_still_run(monkeypatch):
         assert problems == [
             f"The demo test server for localhost:{port} could not start: this computer's copy of the cryptography "
             f"library can't run post-quantum TLS (The copy of OpenSSL inside the cryptography library could not be "
-            f"loaded). Its row will show Couldn't check." for port in (ports[0], ports[4])]
+            f"loaded). Its row will show Couldn't check."
+            for port in (ports[0], ports[4])
+        ]
         for port in ports[1:4]:
             assert python_client(port)[2] == servers.fingerprints[port]
     finally:
@@ -212,6 +220,7 @@ def _fake_parse(filename, data):
 
 def test_claims_match(monkeypatch):
     from app.importer import reader
+
     monkeypatch.setattr(reader, "parse_file", _fake_parse)
     ports = spare_ports()
     claims = [(c.location, c.kind, c.claimed_value) for c in _fake_parse("x", migration_servers.file_for(ports)).claims]

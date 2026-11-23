@@ -12,6 +12,7 @@ SOURCE`; tests, the walks, a demo with no internet). Its layout:
     npm/<name>.json             the package's document          (registry.npmjs.org/<name>)
     files/<file name>           the files themselves
 """
+
 from __future__ import annotations
 
 import base64
@@ -54,10 +55,10 @@ class RegistryError(Exception):
 class File:
     filename: str
     url: str
-    kind: str                       # "wheel" | "sdist" | "tgz"
+    kind: str  # "wheel" | "sdist" | "tgz"
     size: int | None
-    sha256: str | None = None       # PyPI's own value for the file
-    sha512_base64: str | None = None    # npm's own value (its "integrity")
+    sha256: str | None = None  # PyPI's own value for the file
+    sha512_base64: str | None = None  # npm's own value (its "integrity")
 
     def holds(self, data: bytes) -> bool:
         """Do these bytes have the fingerprint the registry itself gives for the file?"""
@@ -74,14 +75,14 @@ class File:
 
 @dataclass
 class Release:
-    registry: str                   # "pypi" | "npm"
+    registry: str  # "pypi" | "npm"
     package: str
     version: str
-    published: str | None           # the day the registry says it was published (YYYY-MM-DD)
+    published: str | None  # the day the registry says it was published (YYYY-MM-DD)
     file: File
-    needs: list[tuple[str, str]] = field(default_factory=list)      # (a helper library's name, what versions of it fit)
-    unreadable_needs: list[str] = field(default_factory=list)       # what it says it needs that this reader could not read
-    others: list[File] = field(default_factory=list)                # the release's other files a copy could be made from
+    needs: list[tuple[str, str]] = field(default_factory=list)  # (a helper library's name, what versions of it fit)
+    unreadable_needs: list[str] = field(default_factory=list)  # what it says it needs that this reader could not read
+    others: list[File] = field(default_factory=list)  # the release's other files a copy could be made from
 
 
 def check_name(registry: str, package: object) -> str:
@@ -105,14 +106,16 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     """The request goes to the address built here, on a listed host, and nowhere else: a redirect is not followed. It
     then comes back as the HTTP status it is, which the reader reports as a stop."""
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):      # noqa: ARG002, D102
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ARG002, D102
         return None
 
 
 def _http(url: str, timeout: float, limit: int) -> bytes:
-    request = urllib.request.Request(url, headers={"Accept": "application/json, */*", "User-Agent": "evidence-lab-sandbox"})
+    request = urllib.request.Request(
+        url, headers={"Accept": "application/json, */*", "User-Agent": "evidence-lab-sandbox"}
+    )
     opener = urllib.request.build_opener(_NoRedirect)
-    with opener.open(request, timeout=timeout) as answer:                # (a fixed https address built here, on a listed host)
+    with opener.open(request, timeout=timeout) as answer:  # (a fixed https address built here, on a listed host)
         return answer.read(limit + 1)
 
 
@@ -129,24 +132,36 @@ class LiveRegistry:
     def _get(self, registry: str, url: str, limit: int, what: str) -> bytes:
         host = url.split("/", 3)[2] if url.startswith("https://") else ""
         if host not in HOSTS[registry]:
-            raise RegistryError(f"{what} is at an address that is not one of the registry's own hosts, so it was not fetched.")
+            raise RegistryError(
+                f"{what} is at an address that is not one of the registry's own hosts, so it was not fetched."
+            )
         try:
             data = (self._transport or _http)(url, TIMEOUT_SECONDS, limit)
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 raise RegistryError(f"{WORDS[registry]} has no {what}.") from None
-            raise RegistryError(f"{WORDS[registry]} answered with an error (HTTP {int(exc.code)}) for {what}.", later=True) from None
+            raise RegistryError(
+                f"{WORDS[registry]} answered with an error (HTTP {int(exc.code)}) for {what}.", later=True
+            ) from None
         except OSError as exc:
-            raise RegistryError(f"{WORDS[registry]} could not be reached ({exc.__class__.__name__}). Nothing was fetched.", later=True) from None
-        except Exception as exc:      # never the error's own words: they can hold an address or a header
-            raise RegistryError(f"The request to {WORDS[registry]} did not come back whole ({exc.__class__.__name__}).", later=True) from None
+            raise RegistryError(
+                f"{WORDS[registry]} could not be reached ({exc.__class__.__name__}). Nothing was fetched.", later=True
+            ) from None
+        except Exception as exc:  # never the error's own words: they can hold an address or a header
+            raise RegistryError(
+                f"The request to {WORDS[registry]} did not come back whole ({exc.__class__.__name__}).", later=True
+            ) from None
         if len(data) > limit:
             raise RegistryError(f"{what} is larger than this version takes.")
         return data
 
     def project(self, registry: str, package: str) -> bytes:
         package = check_name(registry, package)
-        url = f"https://pypi.org/pypi/{package}/json" if registry == "pypi" else f"https://registry.npmjs.org/{package.replace('/', '%2F')}"
+        url = (
+            f"https://pypi.org/pypi/{package}/json"
+            if registry == "pypi"
+            else f"https://registry.npmjs.org/{package.replace('/', '%2F')}"
+        )
         return self._get(registry, url, MAX_DOCUMENT_BYTES, f"package named {package}")
 
     def release(self, registry: str, package: str, version: str) -> bytes | None:
@@ -154,7 +169,12 @@ class LiveRegistry:
         if registry != "pypi":
             return None
         package, version = check_name(registry, package), check_version(version)
-        return self._get(registry, f"https://pypi.org/pypi/{package}/{version}/json", MAX_DOCUMENT_BYTES, f"version {version} of {package}")
+        return self._get(
+            registry,
+            f"https://pypi.org/pypi/{package}/{version}/json",
+            MAX_DOCUMENT_BYTES,
+            f"version {version} of {package}",
+        )
 
     def file(self, registry: str, wanted: File) -> bytes:
         return self._get(registry, wanted.url, MAX_FILE_BYTES, f"file {wanted.filename}")
@@ -179,13 +199,17 @@ class RecordedRegistry:
 
     def project(self, registry: str, package: str) -> bytes:
         package = check_name(registry, package)
-        return self._read(f"{registry}/{package.replace('/', '__')}.json", MAX_DOCUMENT_BYTES, f"package named {package}", registry)
+        return self._read(
+            f"{registry}/{package.replace('/', '__')}.json", MAX_DOCUMENT_BYTES, f"package named {package}", registry
+        )
 
     def release(self, registry: str, package: str, version: str) -> bytes | None:
         if registry != "pypi":
             return None
         package, version = check_name(registry, package), check_version(version)
-        return self._read(f"pypi/{package}/{version}.json", MAX_DOCUMENT_BYTES, f"version {version} of {package}", registry)
+        return self._read(
+            f"pypi/{package}/{version}.json", MAX_DOCUMENT_BYTES, f"version {version} of {package}", registry
+        )
 
     def file(self, registry: str, wanted: File) -> bytes:
         if not _FILE.match(wanted.filename):
@@ -198,6 +222,7 @@ def source_for(folder: Path | None):
 
 
 # ---------------------------------------------------------------- reading an answer (it is data: exact shape or refused)
+
 
 def _load(raw: bytes, registry: str) -> dict:
     try:
@@ -224,8 +249,14 @@ def read_versions(registry: str, raw: bytes) -> list[dict]:
             raise RegistryError("The answer of PyPI is not in the shape it documents.", later=True)
         for version, files in list(releases.items())[:MAX_VERSIONS]:
             if not isinstance(version, str) or not _VERSION.match(version) or not isinstance(files, list) or not files:
-                continue                                    # (a version with no file was never published as one)
-            days = sorted(d for d in (_day(f.get("upload_time_iso_8601") or f.get("upload_time")) for f in files if isinstance(f, dict)) if d)
+                continue  # (a version with no file was never published as one)
+            days = sorted(
+                d
+                for d in (
+                    _day(f.get("upload_time_iso_8601") or f.get("upload_time")) for f in files if isinstance(f, dict)
+                )
+                if d
+            )
             out.append({"version": version, "published": days[0] if days else None})
     else:
         versions, times = data.get("versions"), data.get("time")
@@ -233,7 +264,9 @@ def read_versions(registry: str, raw: bytes) -> list[dict]:
             raise RegistryError("The answer of npm is not in the shape it documents.", later=True)
         for version in list(versions)[:MAX_VERSIONS]:
             if isinstance(version, str) and _VERSION.match(version):
-                out.append({"version": version, "published": _day(times.get(version)) if isinstance(times, dict) else None})
+                out.append(
+                    {"version": version, "published": _day(times.get(version)) if isinstance(times, dict) else None}
+                )
     return out
 
 
@@ -246,7 +279,13 @@ def _pypi_files(files: object) -> list[File]:
             continue
         name, url, digests = f.get("filename"), f.get("url"), f.get("digests")
         sha = digests.get("sha256") if isinstance(digests, dict) else None
-        if not (isinstance(name, str) and _FILE.match(name) and isinstance(url, str) and isinstance(sha, str) and _HEX64.match(sha)):
+        if not (
+            isinstance(name, str)
+            and _FILE.match(name)
+            and isinstance(url, str)
+            and isinstance(sha, str)
+            and _HEX64.match(sha)
+        ):
             continue
         size = f.get("size") if isinstance(f.get("size"), int) and not isinstance(f.get("size"), bool) else None
         if f.get("packagetype") == "bdist_wheel" and name.endswith("-none-any.whl"):
@@ -270,9 +309,9 @@ def _pypi_needs(requires: object) -> tuple[list[tuple[str, str]], list[str]]:
         name, in_brackets, plain, marker = m.groups()
         marker = (marker or "").strip()
         if "extra" in marker:
-            continue                                        # only wanted for an optional extra: not needed to run the library
+            continue  # only wanted for an optional extra: not needed to run the library
         if marker:
-            unreadable.append(str(line)[:80])               # (a condition on the computer or the Python version: not guessed)
+            unreadable.append(str(line)[:80])  # (a condition on the computer or the Python version: not guessed)
             continue
         needs.append((name, (in_brackets if in_brackets is not None else plain or "").strip()))
     return needs, unreadable
@@ -286,7 +325,9 @@ def read_release(registry: str, package: str, version: str, project_raw: bytes, 
         files = (project.get("releases") or {}).get(version) if isinstance(project.get("releases"), dict) else None
         usable = _pypi_files(files)
         if not usable:
-            raise RegistryError(f"PyPI lists no plain-Python file for {package} {version} (a wheel for every computer, or its source package).")
+            raise RegistryError(
+                f"PyPI lists no plain-Python file for {package} {version} (a wheel for every computer, or its source package)."
+            )
         chosen = usable[0]
         release = _load(release_raw, registry) if release_raw is not None else {}
         info = release.get("info")
@@ -299,18 +340,29 @@ def read_release(registry: str, package: str, version: str, project_raw: bytes, 
         raise RegistryError(f"npm lists no version {version} of {package}.")
     dist = entry["dist"]
     url, integrity = dist.get("tarball"), dist.get("integrity")
-    if not (isinstance(url, str) and isinstance(integrity, str) and integrity.startswith("sha512-") and len(integrity) < 200):
+    if not (
+        isinstance(url, str) and isinstance(integrity, str) and integrity.startswith("sha512-") and len(integrity) < 200
+    ):
         raise RegistryError(f"npm gives no SHA-512 fingerprint for {package} {version}, so its file can't be checked.")
     name = url.rsplit("/", 1)[-1]
     if not _FILE.match(name):
         raise RegistryError(f"The file of {package} {version} has a name this version does not take.")
     # (whatever install scripts the entry names are never run here, and are not even read: the files are unpacked as data)
     needs, unreadable = [], []
-    for helper, wanted in (entry.get("dependencies") or {}).items() if isinstance(entry.get("dependencies"), dict) else []:
+    for helper, wanted in (
+        (entry.get("dependencies") or {}).items() if isinstance(entry.get("dependencies"), dict) else []
+    ):
         if isinstance(helper, str) and _NAME.match(helper) and isinstance(wanted, str) and len(wanted) <= 200:
             needs.append((helper, wanted))
         else:
             unreadable.append(str(helper)[:80])
     times = project.get("time")
-    return Release(registry, package, version, _day(times.get(version) if isinstance(times, dict) else None), File(name, url, "tgz", None, sha512_base64=integrity[len("sha512-"):]),
-                   needs, unreadable)
+    return Release(
+        registry,
+        package,
+        version,
+        _day(times.get(version) if isinstance(times, dict) else None),
+        File(name, url, "tgz", None, sha512_base64=integrity[len("sha512-") :]),
+        needs,
+        unreadable,
+    )

@@ -1,5 +1,6 @@
 """Phase 5c: Otto's routes. Settings (Test packs, Live Otto) belong to the installation; the Advisories page and the
 decisions on Otto's proposals belong to one assessment (the closed guard refuses a decision on a closed one)."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends
@@ -14,26 +15,30 @@ class PackInstallBody(BaseModel):
 
 
 class LiveOttoBody(BaseModel):
-    on: StrictBool | None = None                                   # turn Use live Claude on or off
-    limit: StrictStr | None = Field(default=None, max_length=12)   # the spending limit per run, in US dollars
+    on: StrictBool | None = None  # turn Use live Claude on or off
+    limit: StrictStr | None = Field(default=None, max_length=12)  # the spending limit per run, in US dollars
 
 
 class SandboxBody(BaseModel):
-    on: StrictBool | None = None                                       # turn Sandbox research on or off
-    by_itself: StrictBool | None = None                                # the tick "Design and prove tests by itself"
-    run_limit: StrictStr | None = Field(default=None, max_length=12)   # the most for one research run, in US dollars
-    day_limit: StrictStr | None = Field(default=None, max_length=12)   # the most for a day, in US dollars
+    on: StrictBool | None = None  # turn Sandbox research on or off
+    by_itself: StrictBool | None = None  # the tick "Design and prove tests by itself"
+    run_limit: StrictStr | None = Field(default=None, max_length=12)  # the most for one research run, in US dollars
+    day_limit: StrictStr | None = Field(default=None, max_length=12)  # the most for a day, in US dollars
 
 
 class NameBody(BaseModel):
-    name: StrictStr = Field(max_length=400)                        # a person's name for their decisions (held to 60 after cleaning)
+    name: StrictStr = Field(max_length=400)  # a person's name for their decisions (held to 60 after cleaning)
 
 
 class DecisionBody(BaseModel):
-    reason: StrictStr | None = Field(default=None, max_length=2000)     # a reject's optional short reason (held to 300 after cleaning)
+    reason: StrictStr | None = Field(
+        default=None, max_length=2000
+    )  # a reject's optional short reason (held to 300 after cleaning)
 
 
-NO_REASON = Body(default_factory=DecisionBody)      # a decision may come with no body at all: only a rejection has anything to say
+NO_REASON = Body(
+    default_factory=DecisionBody
+)  # a decision may come with no body at all: only a rejection has anything to say
 
 
 def routes(lab, require_login) -> APIRouter:
@@ -86,7 +91,11 @@ def routes(lab, require_login) -> APIRouter:
     def proposals(plan_id: int):
         return lab.otto_proposals_view(plan_id)
 
-    @router.post("/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}", dependencies=login, responses=shows(models.OttoProposal))
+    @router.post(
+        "/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}",
+        dependencies=login,
+        responses=shows(models.OttoProposal),
+    )
     def decide(plan_id: int, proposal_id: str, decision: str, body: DecisionBody = NO_REASON):
         """Accept, reject (with an optional short reason), undo or reconsider one of Otto's proposals. It runs nothing."""
         return lab.otto_decide_view(plan_id, proposal_id[:200], decision[:20], body.reason)

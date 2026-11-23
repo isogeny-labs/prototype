@@ -20,9 +20,14 @@ pytest_plugins = ("api_shapes",)
 
 # ---------------------------------------------------------------- the two sets: fast (everyday) and full
 
+
 def pytest_addoption(parser):
-    parser.addoption("--full", action="store_true", default=False,
-                     help="run every test, the slow ones too (Docker, real libraries, timing, long flows)")
+    parser.addoption(
+        "--full",
+        action="store_true",
+        default=False,
+        help="run every test, the slow ones too (Docker, real libraries, timing, long flows)",
+    )
 
 
 # Files whose tests read one long demo walk (run all, proof, retest, speed rounds ...) built once for the file. The
@@ -34,8 +39,8 @@ SLOW_SHARED_WALKS = {
     "test_changes.py": "fix_flow",
     "test_fixes_api.py": "app_client",
     "test_multi_target.py": "flow",
-    "test_ledger.py": "measured",     # phase 5b: the Acme Pay demo verified and measured for Migration, built for that file
-    "test_otto_fix.py": "failed",     # phase 5c: the Acme Pay demo with a test pack installed and every test run, built for each test
+    "test_ledger.py": "measured",  # phase 5b: the Acme Pay demo verified and measured for Migration, built for that file
+    "test_otto_fix.py": "failed",  # phase 5c: the Acme Pay demo with a test pack installed and every test run, built for each test
     # phase 5c, second part: the Acme Pay demo measured, a pack installed, its check run and the evidence downloaded, built
     # once for that file. The walk is short, but some thirty tests read it (the tamper cases of the verify command), and
     # with them the fast set had reached five minutes on a slow day.
@@ -87,7 +92,11 @@ def pytest_collection_modifyitems(config, items):
     checks can't fetch a private repository without a secret). Never a silent pass."""
     for item in items:
         fixtures = getattr(item, "fixturenames", ())
-        if "docker_ready" in fixtures or SLOW_SHARED_WALKS.get(item.path.name) in fixtures or SLOW_SESSION_WALKS.intersection(fixtures):
+        if (
+            "docker_ready" in fixtures
+            or SLOW_SHARED_WALKS.get(item.path.name) in fixtures
+            or SLOW_SESSION_WALKS.intersection(fixtures)
+        ):
             item.add_marker(pytest.mark.slow)
     if not (config.getoption("--full") or config.getoption("markexpr")):
         slow = [item for item in items if item.get_closest_marker("slow")]
@@ -96,6 +105,7 @@ def pytest_collection_modifyitems(config, items):
             items[:] = [item for item in items if not item.get_closest_marker("slow")]
             config._slow_left_out = len(slow)
     from app.otto import harness
+
     otto = harness.status()
     if not otto.installed:
         needing = [item for item in items if item.get_closest_marker("needs_otto")]
@@ -110,18 +120,22 @@ def pytest_terminal_summary(terminalreporter, config):
         terminalreporter.write_line(f"Otto is not installed here ({reason}): {skipped} tests skipped.")
     left_out = getattr(config, "_slow_left_out", 0)
     if left_out:
-        terminalreporter.write_line(f"{left_out} slow tests were left out (Docker, real libraries, timing, long "
-                                    "flows). Run them with: pytest -q tests --full")
+        terminalreporter.write_line(
+            f"{left_out} slow tests were left out (Docker, real libraries, timing, long "
+            "flows). Run them with: pytest -q tests --full"
+        )
 
 
 def api_routes(app) -> list:
     """Every route of the app, in registration order, including those the step modules add with include_router."""
+
     def flat(routes):
         for r in routes:
             if type(r).__name__ == "_IncludedRouter":
                 yield from flat(r.original_router.routes)
             else:
                 yield r
+
     return list(flat(app.routes))
 
 
@@ -155,6 +169,7 @@ def no_call_to_claude(monkeypatch):
 
     def refuse(body, headers, timeout):
         raise ReachedClaude("a test tried to reach the Claude API; give the client a stand-in transport")
+
     monkeypatch.setattr(model, "_http_transport", refuse)
 
 
@@ -169,7 +184,10 @@ def no_read_of_the_advisory_source(monkeypatch):
     from app.otto import lookup
 
     def refuse(body, timeout):
-        raise ReachedTheNetwork("a test tried to read advisories from the network; use a recorded source or a stand-in transport")
+        raise ReachedTheNetwork(
+            "a test tried to read advisories from the network; use a recorded source or a stand-in transport"
+        )
+
     monkeypatch.setattr(lookup, "_http_transport", refuse)
 
 
@@ -184,6 +202,7 @@ def no_login_at_github(monkeypatch):
 
     def refuse():
         raise ReachedGitHub("a test tried to reach GitHub; give the login a stand-in transport")
+
     monkeypatch.setattr(github_login, "_http_client", refuse)
 
 
@@ -240,10 +259,13 @@ def no_read_of_a_package_registry(monkeypatch):
     from app.sandbox import registries
 
     def refuse(url, timeout, limit):
-        raise ReachedTheNetwork("a test tried to read a package registry; use a recorded registry or a stand-in transport")
+        raise ReachedTheNetwork(
+            "a test tried to read a package registry; use a recorded registry or a stand-in transport"
+        )
+
     # (the reader's own function, for the one test that is about it: that test puts a stand-in where the function
     #  would open a connection, so it reaches nothing either)
-    refuse.the_readers_own = getattr(registries._http, "the_readers_own", registries._http)        # type: ignore[attr-defined]
+    refuse.the_readers_own = getattr(registries._http, "the_readers_own", registries._http)  # type: ignore[attr-defined]
     monkeypatch.setattr(registries, "_http", refuse)
 
 
@@ -251,17 +273,22 @@ def no_read_of_a_package_registry(monkeypatch):
 def settings(tmp_path):
     # Tests run in demo mode unless they ask for the docker_ready fixture; the speed test uses fewer pairs
     # (25 short rounds of 4: enough for the slowed control to stand clear of the noise on a busy machine).
-    return Settings(data_dir=tmp_path / "data", demo_tls_port=free_port(), force_mode="demo", speed_rounds=25, speed_repeats=4)
+    return Settings(
+        data_dir=tmp_path / "data", demo_tls_port=free_port(), force_mode="demo", speed_rounds=25, speed_repeats=4
+    )
 
 
-DOCKER_SKIP = ("Skipped: Docker is not running or the test images are not prepared "
-               "(run: cd backend && .venv/bin/python -m app.prepare).")
+DOCKER_SKIP = (
+    "Skipped: Docker is not running or the test images are not prepared "
+    "(run: cd backend && .venv/bin/python -m app.prepare)."
+)
 
 
 @pytest.fixture(scope="session")
 def docker_ready(tmp_path_factory):
     """The isolated mode, for tests that need real containers. Skips with a clear message when it is not available."""
     from app.run import runner
+
     mode = runner.detect_mode(Settings(data_dir=tmp_path_factory.mktemp("isolated-data"), demo_tls_port=1))
     if mode.name != "isolated" or not mode.components_image:
         pytest.skip(DOCKER_SKIP)
@@ -344,8 +371,12 @@ def csv_bytes(*rows: str) -> bytes:
 
 
 def upload(client, name: str, data: bytes):
-    return client.post("/api/import/file", params={"filename": name}, content=data,
-                       headers={"Content-Type": "application/octet-stream"})
+    return client.post(
+        "/api/import/file",
+        params={"filename": name},
+        content=data,
+        headers={"Content-Type": "application/octet-stream"},
+    )
 
 
 # ------------------------------------------------------------------ phase 2: tests and Evidence Lab
@@ -363,7 +394,10 @@ def result_of(view: dict, kind: str, which: str = "result") -> dict:
 def make_lab(tmp_path, **overrides):
     """A started Lab in demo mode with its own data folder and demo server. The caller stops it."""
     from app.lab.hub import Lab
-    values = dict(data_dir=tmp_path / "data", demo_tls_port=free_port(), force_mode="demo", speed_rounds=25, speed_repeats=4)
+
+    values = dict(
+        data_dir=tmp_path / "data", demo_tls_port=free_port(), force_mode="demo", speed_rounds=25, speed_repeats=4
+    )
     values.update(overrides)
     lab = Lab(Settings(**values))
     lab.start()
@@ -397,7 +431,9 @@ def play_back_speed(lab) -> None:
 
     def run_job(job, *, time_limit=120.0, on_line=None, family=None):
         subjects = job.get("subjects") or []
-        if job.get("op") != "bench_rounds" or len(subjects) < 2:  # only the speed test times two or three programs side by side
+        if (
+            job.get("op") != "bench_rounds" or len(subjects) < 2
+        ):  # only the speed test times two or three programs side by side
             return real(job, time_limit=time_limit, on_line=on_line, family=family)
         rng = random.Random(7)
         # A test may set this on the lab to play back a real slowdown: in a comparison of old, new and the slowed
@@ -412,14 +448,21 @@ def play_back_speed(lab) -> None:
 
         lines = [{"keygen": job["keygen_with"], "rc": 0, "public_key_bytes": 65}]
         for number in range(job["rounds"]):
-            for subject in (subjects if number % 2 == 0 else list(reversed(subjects))):  # the order the harness goes in
-                out = {"sign_ms": timings(7.0, subject), "verify_ms": timings(13.0, subject), "signature_bytes": 71,
-                       "public_key_bytes": 65, "all_verified": True}
+            for subject in subjects if number % 2 == 0 else list(reversed(subjects)):  # the order the harness goes in
+                out = {
+                    "sign_ms": timings(7.0, subject),
+                    "verify_ms": timings(13.0, subject),
+                    "signature_bytes": 71,
+                    "public_key_bytes": 65,
+                    "all_verified": True,
+                }
                 lines.append({"round": number, "subject": subject, "rc": 0, "out": out, "error": None})
         for line in lines:
             if on_line is not None:
                 on_line(line)
-        return runner.BatchResult(True, lines, None, lab.mode.name, "played back for a test: no program was timed", runner._now(), 0, "")
+        return runner.BatchResult(
+            True, lines, None, lab.mode.name, "played back for a test: no program was timed", runner._now(), 0, ""
+        )
 
     run_job.plays_back_speed = True
     lab.component_runner.run_job = run_job
@@ -488,6 +531,7 @@ def _assistant_walk_made(tmp_path_factory):
     was refused its packs: found on 19 November 2026 by the first whole run of the fast set with Otto.)"""
     from app.otto import model, packs
     from tests.assistant import assistant_walk as made
+
     walk, lab, patches = made.make_walk(tmp_path_factory)
     held = {"keys": packs.TRUSTED_KEYS_FILE, "recorded": model.OttoModel.__dict__["recorded"]}
     patches.undo()
@@ -504,6 +548,7 @@ def assistant_walk(_assistant_walk_made, monkeypatch):
     ledger. A few seconds, once, for the tests that read it. The walk's own patches are put back for the one test
     that reads it (its Lab is asked again by some), and taken off when that test ends."""
     from app.otto import model, packs
+
     walk, held = _assistant_walk_made
     monkeypatch.delenv(model.KEY_ENV, raising=False)
     monkeypatch.setattr(packs, "TRUSTED_KEYS_FILE", held["keys"])

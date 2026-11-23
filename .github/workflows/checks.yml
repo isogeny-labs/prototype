@@ -88,41 +88,6 @@ jobs:
         with:
           lfs: false
           persist-credentials: false
-          # A pull request is checked out as its merge commit: its first parent is the base the change is compared with.
-          fetch-depth: 2
-
-      - name: Work out what the change is compared with
-        id: base
-        env:
-          EVENT: ${{ github.event_name }}
-          BEFORE: ${{ github.event.before }}
-          BRANCH: ${{ github.ref_name }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          if [ "$EVENT" = "pull_request" ]; then
-            base=$(git rev-parse HEAD^1)
-          elif [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
-            # A push to the default branch: what this push added.
-            if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
-                 && git fetch --quiet --depth=1 origin "$BEFORE"; then
-              base=$BEFORE
-            else
-              base=$(git rev-parse HEAD^1)
-            fi
-          else
-            # A push to another branch: what the branch changed since it left the default branch. (Comparing with
-            # the commit before the push would count the default branch's own files after a merge of it.)
-            git fetch --quiet --depth=50 origin "$DEFAULT_BRANCH"
-            default=$(git rev-parse FETCH_HEAD)
-            for _ in 1 2 3 4 5 6 7 8; do
-              git merge-base HEAD "$default" > /dev/null 2>&1 && break
-              git fetch --quiet --deepen=100 origin "$BRANCH" "$DEFAULT_BRANCH"
-            done
-            base=$(git merge-base HEAD "$default" 2>/dev/null || echo "$default")
-          fi
-          echo "Compared with $base"
-          echo "sha=$base" >> "$GITHUB_OUTPUT"
-
       - name: Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -155,9 +120,15 @@ jobs:
         working-directory: lint
         run: npm run lint -- frontend e2e lint
 
-      # Files the change adds must be formatted; files it edits get a warning only (tools/ci_style.py says why).
-      - name: "Code style of the changed files (ruff format, Prettier)"
-        run: python3 tools/ci_style.py "${{ steps.base.outputs.sha }}"
+      # Every file is formatted (the code was reformatted once on 22 November 2026; .git-blame-ignore-revs names it).
+      # The files named by fingerprint are left as they are (backend/ruff.toml, [format]).
+      - name: "Backend: code style (ruff format)"
+        working-directory: backend
+        run: .venv/bin/ruff format --check
+
+      - name: "Frontend and end-to-end tests: code style (Prettier)"
+        working-directory: lint
+        run: npm run style
 
       - name: "GitHub workflow files: lint (actionlint)"
         run: |
