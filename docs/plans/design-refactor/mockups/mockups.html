@@ -240,7 +240,7 @@ details.proof[open]>summary .act .show,details.proof:not([open])>summary .act .h
 .grid tr:last-child td{border-bottom:0}
 .grid td.num{font-weight:600;color:var(--slate-50);white-space:nowrap}
 .box{border:1px solid var(--slate-800);border-radius:10px;overflow:hidden}
-.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:6px 14px;font-size:13px}
+.kv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:6px 14px;font-size:13px}
 .kv dt{color:var(--slate-500);font-size:12px;padding-top:1px}
 .kv dd{color:var(--slate-200);min-width:0;overflow-wrap:anywhere}
 pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate-900);border-radius:8px;padding:11px 13px;font-size:12px;line-height:1.6;color:var(--slate-200);white-space:pre-wrap;overflow-wrap:anywhere}
@@ -261,7 +261,7 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
 .tile{border:1px solid var(--slate-800);border-radius:10px;padding:10px 12px;background:var(--slate-950)}
 .tile .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate-500);font-weight:600}
-.tile .who{font-size:12.5px;color:var(--slate-300);margin-top:1px}
+.tile .who{font-size:12.5px;color:var(--slate-300);min-height:38px}
 .tile .v{font-size:16px;font-weight:600;color:var(--slate-50);margin-top:6px}
 .tile .must{font-size:12px;color:var(--slate-400);margin-top:2px}
 .subhead{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;font-weight:600;color:var(--slate-100)}
@@ -333,7 +333,7 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
   <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></symbol>
   <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.4M8 5.2v.2"/></symbol>
   <symbol id="i-grip" viewBox="0 0 16 16"><path d="M6 4v.01M10 4v.01M6 8v.01M10 8v.01M6 12v.01M10 12v.01" stroke-width="2.2"/></symbol>
-  <symbol id="i-tick" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></symbol>
+  <symbol id="i-ring" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.6"/></symbol>
 </svg>
 
 <div class="mockbar" id="mockbar">
@@ -510,7 +510,7 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
   </div>
   <div data-slot="tabs" data-active="encryption"></div>
   <div class="band">
-    <div class="q"><h2>Is the cryptography built right?</h2><p>Run finished 18 November 2026, 7:16 am EST.</p></div>
+    <div class="q"><h2>Is the cryptography built right?</h2><p>Open 0 · In progress 0 · Done 6 · run finished 18 November 2026, 7:16 am EST</p></div>
     <dl class="stat"><dt>With a result</dt><dd>6</dd><small>of 6 in the plan</small></dl>
     <dl class="stat"><dt>Failed</dt><dd>4</dd></dl>
     <dl class="stat"><dt>Passed</dt><dd>1</dd></dl>
@@ -605,7 +605,7 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
           <p class="lead">acme-sign 1.4.2 got 3 of the 77 published cases for advisory CVE-2022-21449 wrong: it accepted 3 signatures that must be rejected. One wrong answer is enough to fail.</p>
           <ul class="facts">
             <li><svg class="ic"><use href="#i-flask"/></svg><span>Run on a copy of acme-sign 1.4.2 on this computer, in demo mode. Your live system was not touched.</span></li>
-            <li><svg class="ic"><use href="#i-tick"/></svg><span>Control: a deliberately broken signer failed this test, as expected.</span></li>
+            <li><svg class="ic"><use href="#i-ring"/></svg><span>Control: a deliberately broken signer failed this test, as expected.</span></li>
           </ul>
           <div class="next"><span class="say"><b>Fix available,</b> code not connected</span><button class="btn sm primary">View in Fixes <svg class="ic sm"><use href="#i-arrow"/></svg></button><span class="end"><button class="btn sm">Mark reviewed</button><button class="btn sm">Dig deeper</button></span></div>
         </div>
@@ -618,13 +618,16 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
 
         <details class="proof" data-proof>
           <summary><span class="badge"><svg class="ic"><use href="#i-layers"/></svg></span>
-            <span><span class="t">Cryptanalysis proof</span><br><span class="d">The 3 wrong cases, the control, the locked test, the run record and the check's origin.</span></span>
+            <span><span class="t">Cryptanalysis proof</span><br><span class="d">What happened in technical words, the control, the locked test, the run record and the advisory.</span></span>
             <span class="act"><span class="show">Show</span><span class="hide">Hide</span></span><svg class="ic chev"><use href="#i-chev"/></svg></summary>
           <div class="pbodyx">
-            <div class="jump"><a href="#"><b>1</b>The wrong cases</a><a href="#"><b>2</b>The control</a><a href="#"><b>3</b>The locked test</a><a href="#"><b>4</b>Run record</a><a href="#"><b>5</b>Where this check came from</a></div>
+            <div class="jump"><a href="#"><b>1</b>What happened</a><a href="#"><b>2</b>The control</a><a href="#"><b>3</b>The locked test</a><a href="#"><b>4</b>Run record</a><a href="#"><b>5</b>The advisory</a><a href="#"><b>6</b>Where this check came from</a></div>
 
             <section class="psec">
-              <h4><span class="n">1</span>The 3 cases it got wrong <span class="mini">measured</span></h4>
+              <h4><span class="n">1</span>What happened</h4>
+              <p><span class="eyebrow" style="margin:0 6px 0 0;display:inline">Technical summary</span>3 of 77 advisory cases wrong. First: case 168, r=0 and s=0 (a signature made of zeros) was accepted.</p>
+              <p>acme-sign 1.4.2 was shown the 77 published signatures that match advisory CVE-2022-21449 (Missing ECDSA signature range check) and asked "is this one genuine?". It gave the wrong answer 3 times.</p>
+              <div class="subhead" style="margin:12px 0 8px">The 3 cases it got wrong <span class="mini">measured</span></div>
               <div class="box"><table class="grid">
                 <thead><tr><th>Official case</th><th>What the case is</th><th>Right answer</th><th>acme-sign 1.4.2 said</th></tr></thead>
                 <tbody>
@@ -632,8 +635,6 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
                   <tr><td class="mono">171</td><td>r=0 and s=n (zero, written a second way)</td><td>reject</td><td class="num">accepted</td></tr>
                   <tr><td class="mono">364</td><td>s larger than n (a value outside the allowed range)</td><td>reject</td><td class="num">accepted</td></tr>
                 </tbody></table></div>
-              <p style="margin-top:10px">The rule these cases test: a signature's two numbers must both lie in the allowed range, <span class="mono">1 ≤ r ≤ n − 1</span> and <span class="mono">1 ≤ s ≤ n − 1</span>, where n is the size of the P-256 group. The other 74 cases got the right answer.</p>
-              <p class="quote" style="margin-top:10px"><span class="mono">if (rb.signum() == 0 || sb.signum() == 0</span><br><span class="xs muted"><span class="mini">quoted from the named source, not a result</span> The publisher's own fix: <a href="#">JDK 17.0.3 source (fixed), tag jdk-17.0.3+7: ECDSAOperations.java, start of verifySignedDigest</a></span></p>
             </section>
 
             <section class="psec">
@@ -647,10 +648,11 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
               <dl class="kv">
                 <dt>Question</dt><dd>Does acme-sign refuse an ECDSA P-256 signature when one of its two numbers (r or s) is zero or outside the allowed range?</dd>
                 <dt>Method</dt><dd>Run the verify command once per case and compare its answer with the published one.</dd>
-                <dt>Inputs</dt><dd>77 cases from Wycheproof <span class="mono">testvectors_v1/ecdsa_secp256r1_sha256_test.json</span>, pinned to commit dab4ea2: 77 that must be rejected. Chosen for advisory CVE-2022-21449 by test pack 2026.11.1.</dd>
+                <dt>Inputs</dt><dd>77 cases from Wycheproof <span class="mono">testvectors_v1/ecdsa_secp256r1_sha256_test.json</span>, pinned to commit dab4ea2: 77 that must be rejected. Chosen for advisory CVE-2022-21449 by test pack 2026.11.1 (design fingerprint cc402d529b08), and tried on public copies before the pack was signed.</dd>
+                <dt>Control</dt><dd>The same cases run against a deliberately broken signer, which must get every invalid case wrong.</dd>
                 <dt>Pass/fail rule</dt><dd>Passed only if all 77 answers are right. Any wrong answer means Failed.</dd>
                 <dt>Locked</dt><dd>18 November 2026, 7:15 am EST, before the run started</dd>
-                <dt>Fingerprint</dt><dd class="mono xs">efbc8a02ef1c034f2427b3993050e41320497bbe7bb3be168a14907111551172</dd>
+                <dt>Fingerprint of these details (SHA-256)</dt><dd class="mono xs">efbc8a02ef1c034f2427b3993050e41320497bbe7bb3be168a14907111551172</dd>
               </dl>
               <p class="note">The details can't change after locking. The run record carries the same fingerprint, so anyone can confirm the test wasn't adjusted to fit the result.</p>
             </section>
@@ -660,25 +662,40 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
               <dl class="kv">
                 <dt>Command</dt><dd class="mono xs">acme-sign verify (once per case, JSON in, JSON out), 77 cases from ecdsa_secp256r1_sha256_test.json</dd>
               </dl>
-<pre class="code">cases run: 77   right: 74   wrong: 3
+<pre class="code">advisory: CVE-2022-21449   test pack: 2026.11.1
+design fingerprint: cc402d529b086619cb4644ba961d89099a4d652bc3a7f9c9ee19852218e8157a
+cases run: 77   right: 74   wrong: 3
 tcId 168  "Signature with special case values r=0 and s=0"  expected: invalid  got: valid  WRONG
 tcId 171  "Signature with special case values r=0 and s=n"  expected: invalid  got: valid  WRONG
 tcId 364  "s is larger than n"  expected: invalid  got: valid  WRONG
 control (broken signer): wrong on 77 of 77 invalid cases
-reference library: 77 of 77 right</pre>
-              <p class="note">Duration 1.2 s <span class="mini">measured</span> · Component acme-sign 1.4.2 <span class="mini">demo</span> · Demo mode, not isolated · Vectors: <a href="#">Project Wycheproof, C2SP/wycheproof commit dab4ea2</a> <span class="mini">reference</span> · Summary written by the app from the stored run. The full raw output is in the downloaded evidence JSON.</p>
+reference library: 77 of 77 right
+harness: python -I demo/components/harness/driver.py    (job on stdin: verify_batch: 77 cases, one verify call per case, on acme-sign-1.4.2, control-accept-all)
+Summary written by the app from the stored run. The full raw output is in the downloaded evidence JSON.</pre>
+              <p class="note">Time: 18 November 2026, 7:16 am EST · Duration: 1.2 s <span class="mini">measured</span> · Component: acme-sign 1.4.2 <span class="mini">demo</span> · Code: the bundled demo version of acme-sign 1.4.2 <span class="mini">demo</span> · Mode: Demo mode, not isolated · Vectors: <a href="#">Project Wycheproof, C2SP/wycheproof commit dab4ea2</a> <span class="mini">reference</span> · Test pack: 2026.11.1 (fingerprint a0be60dc2463…) <span class="mini">reference</span></p>
             </section>
 
             <section class="psec">
-              <h4><span class="n">5</span>Where this check came from <span class="mark">From Otto</span></h4>
+              <h4><span class="n">5</span>The advisory this check is for <span class="mini">quoted from the named source, not a result</span></h4>
+              <p class="quote"><b class="mono">CVE-2022-21449</b> <span class="mono">'if (rb.signum() == 0 || sb.signum() == 0'</span><br><span class="xs"><a href="#">JDK 17.0.3 source (fixed), tag jdk-17.0.3+7: ECDSAOperations.java, start of verifySignedDigest</a></span></p>
+              <p class="note">This check reruns the 77 published test cases that match it, from test pack 2026.11.1. The words above are the publisher's; the result comes only from the test.</p>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">6</span>Where this check came from <span class="mark">From Otto</span></h4>
               <p>Otto proposed this check from the advisory “Missing ECDSA signature range check (CVE-2022-21449)”, in test pack 2026.11.1. Accepted by You on 18 November 2026, 7:15 am EST. <a href="#">Open the advisory</a></p>
-              <div class="box" style="margin-top:10px"><table class="grid">
-                <thead><tr><th>Tried on public copies before the pack was signed</th><th>Count</th></tr></thead>
-                <tbody>
-                  <tr><td>openjdk 17.0.2 (affected)</td><td class="num">10 of 77 cases wrong</td></tr>
-                  <tr><td>openjdk 17.0.3 (the publisher's fixed version)</td><td class="num">0 of 77 cases wrong</td></tr>
-                  <tr><td>The control that must fail (a program that accepts every signature)</td><td class="num">77 of 77 cases wrong</td></tr>
-                </tbody></table></div>
+              <div class="subhead" style="margin-top:12px">The test's design</div>
+              <ul class="bul">
+                <li>Design fingerprint (SHA-256): <span class="mono xs">cc402d529b086619cb4644ba961d89099a4d652bc3a7f9c9ee19852218e8157a</span></li>
+                <li>Its question, its control that must fail and its pass rule are in the test details, locked before the run.</li>
+              </ul>
+              <div class="subhead" style="margin-top:12px">How the test did when it was tried on public copies</div>
+              <ul class="bul">
+                <li>openjdk 17.0.2 (affected): 10 of 77 cases wrong.</li>
+                <li>openjdk 17.0.3 (the publisher's fixed version): 0 of 77 cases wrong.</li>
+                <li>The control that must fail (a program that accepts every signature): 77 of 77 cases wrong.</li>
+                <li>Otto's harness judged the trial against thresholds fixed before the first run: supported. It was then run again as a separate replay step of the same build, on the same computer, and gave the same numbers.</li>
+              </ul>
               <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>Decisions on Otto's proposal <span class="n">(3)</span></div>
               <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>Otto ledger entries for this check and its decisions <span class="n">(10)</span></div>
               <p class="note">This says where the check came from and who decided to add it. The result comes only from the test.</p>
@@ -691,6 +708,7 @@ reference library: 77 of 77 right</pre>
       </div>
     </section>
   </div>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
 </template>
 
 <!-- =============================== A PROPOSED CHECK (Advisories, panel open) =============================== -->
@@ -740,23 +758,24 @@ reference library: 77 of 77 right</pre>
             <dt>Affected</dt><dd>starkbank-ecdsa 2.0.0 in the publisher's text; the source's version list names every release before 2.0.1</dd>
             <dt>Your file lists</dt><dd>starkbank-ecdsa 2.0.0</dd>
           </dl>
-          <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>The publisher's own words <span class="n">(3 quotes)</span> <span class="mini">quoted from the named source, not a result</span></div>
+          <p class="quote" style="margin-top:12px">“The `verify` function in the Stark Bank Python ECDSA library (starkbank-ecdsa) 2.0.0 fails to check that the signature is non-zero, which allows attackers to forge signatures on arbitrary messages.”<br><span class="xs muted"><span class="mini">quoted from the named source, not a result</span> Improper Verification of Cryptographic Signature in starkbank-ecdsa, GitHub Advisory Database, reviewed · Read on 22 November 2026</span></p>
+          <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>The publisher's lines on the versions <span class="n">(2 more quotes)</span> · Sources <span class="n">(1)</span></div>
         </div>
 
         <div class="glance">
           <div class="top"><span class="mark">From Otto</span><span class="chip sm warn"><span class="sym">?</span>Proposed</span><span class="strong" style="margin-left:4px">Proposed check for starkbank-ecdsa 2.0.0</span></div>
           <p class="why-line"><span class="faint">Why it applies:</span> The advisory is about starkbank-ecdsa, and your file lists starkbank-ecdsa 2.0.0. Its publisher names 2.0.1 as the fixed version.</p>
-          <div class="subhead">How this test was proven <span class="mark sandbox">Sandbox copy</span></div>
+          <div class="subhead">How this test was proven <span class="mark sandbox">Sandbox copy</span><span class="chip sm pass"><span class="sym">✓</span>Test ready</span></div>
+          <p class="small" style="margin-top:6px;color:var(--slate-200);max-width:70ch">Test ready: tried on public copies before this pack was signed. starkbank-ecdsa 2.0.0 got 1 of 64 cases wrong, starkbank-ecdsa 2.0.1 got none wrong, and the control that must fail did.</p>
           <div class="tiles">
-            <div class="tile"><div class="k">Affected version</div><div class="who">starkbank-ecdsa 2.0.0</div><div class="v">1 of 64 cases wrong</div><div class="must">Had to happen: at least one case wrong</div></div>
-            <div class="tile"><div class="k">Publisher's fixed version</div><div class="who">starkbank-ecdsa 2.0.1</div><div class="v">All 64 cases right</div><div class="must">Had to happen: as many right as our reference library</div></div>
-            <div class="tile"><div class="k">The control</div><div class="who">a signer that accepts everything</div><div class="v">64 of 64 cases wrong</div><div class="must">Had to happen: wrong on every case that must be refused</div></div>
+            <div class="tile"><div class="who">starkbank-ecdsa 2.0.0 (the version the advisory names as affected)</div><div class="v">1 of 64 cases wrong</div><div class="must">What had to happen: At least one case wrong</div></div>
+            <div class="tile"><div class="who">starkbank-ecdsa 2.0.1 (the publisher's fixed version)</div><div class="v">All 64 cases right</div><div class="must">What had to happen: As many right as our reference library</div></div>
+            <div class="tile"><div class="who">The control, a signer that accepts everything</div><div class="v">64 of 64 cases wrong</div><div class="must">What had to happen: Wrong on every case that must be refused</div></div>
           </div>
           <ul class="facts" style="margin-top:12px">
-            <li><svg class="ic"><use href="#i-flask"/></svg><span>Tried on public copies of starkbank-ecdsa fetched from PyPI, on 64 published cases from Project Wycheproof.</span></li>
             <li><svg class="ic"><use href="#i-info"/></svg><span>What this does not show. It shows which published cases get a wrong answer on these public copies. It does not say how serious the weakness is, and it says nothing about any other system.</span></li>
           </ul>
-          <div class="next"><button class="btn primary">Accept</button><button class="btn">Reject</button><span class="say muted small">Accept adds this check to the test plan. It runs nothing. Nobody has decided this yet.</span></div>
+          <div class="next"><button class="btn primary">Accept</button><button class="btn">Reject</button><span class="say muted small">Accept adds this check to the test plan, exactly as “+ Add test” would. It runs nothing. Nobody has decided this yet.</span></div>
         </div>
 
         <details class="proof" data-proof>
@@ -779,6 +798,7 @@ reference library: 77 of 77 right</pre>
 
             <section class="psec">
               <h4><span class="n">2</span>The trial, part by part</h4>
+              <p style="margin-bottom:10px">Tried on public copies of starkbank-ecdsa fetched from PyPI: starkbank-ecdsa 2.0.0 got 1 of 64 cases wrong, starkbank-ecdsa 2.0.1 got none wrong, and the control that must fail did.</p>
               <div class="box"><table class="grid">
                 <thead><tr><th>Part</th><th>What had to happen</th><th>Count</th></tr></thead>
                 <tbody>
@@ -825,14 +845,15 @@ def check_signature(public_key, message, signature):
             <section class="psec">
               <h4><span class="n">5</span>The public copies</h4>
               <div class="box"><table class="grid">
-                <thead><tr><th>Version</th><th>File, from PyPI</th><th>Published</th><th>SHA-256</th></tr></thead>
+                <thead><tr><th>Version</th><th>What it is</th><th>Published</th><th>SHA-256</th></tr></thead>
                 <tbody>
-                  <tr><td>2.0.0</td><td class="mono xs">starkbank-ecdsa-2.0.0.tar.gz</td><td>8 October 2021</td><td class="mono xs">71dec991bf6f5bf8…</td></tr>
-                  <tr><td>2.0.1</td><td class="mono xs">starkbank-ecdsa-2.0.1.tar.gz</td><td>4 November 2021</td><td class="mono xs">fe7e36b580da097c…</td></tr>
-                  <tr><td>2.0.2</td><td class="mono xs">starkbank-ecdsa-2.0.2.tar.gz</td><td>9 November 2021</td><td class="mono xs">4b60ebc493f024f2…</td></tr>
-                  <tr><td>2.3.1</td><td class="mono xs">starkbank_ecdsa-2.3.1-py3-none-any.whl</td><td>23 April 2026</td><td class="mono xs">c6dcb0caeb5d7d18…</td></tr>
+                  <tr><td>starkbank-ecdsa 2.0.0</td><td>the version the advisory names as affected</td><td>8 October 2021</td><td class="mono xs">71dec991bf6f5bf8…</td></tr>
+                  <tr><td>starkbank-ecdsa 2.0.1</td><td>the publisher's fixed version</td><td>4 November 2021</td><td class="mono xs">fe7e36b580da097c…</td></tr>
+                  <tr><td>starkbank-ecdsa 2.0.2</td><td>a further version after the fix</td><td>9 November 2021</td><td class="mono xs">4b60ebc493f024f2…</td></tr>
+                  <tr><td>starkbank-ecdsa 2.3.1</td><td>a further version after the fix</td><td>23 April 2026</td><td class="mono xs">c6dcb0caeb5d7d18…</td></tr>
                 </tbody></table></div>
-              <p class="note">Read from recorded registry answers on this computer, fetched on 22 November 2026; each fingerprint is the same as the registry's own. Versions 1.1.0 and 1.1.1 were left out before the trial was registered: the asking code does not work on them. Built into one container image with no network. Nothing of a package ran while it was fetched or unpacked; a copy runs only in a locked container on this computer. The first fetch of a version trusts the registry. A later fetch that differs is refused.</p>
+              <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>Each copy's full line: its file, where it was fetched from and when <span class="n">(4)</span></div>
+              <p class="note">starkbank-ecdsa 1.1.1 and 1.1.0 were left out before the trial was registered: the asking code does not work on them (it did not accept fresh signatures that a reference library made). Built into one container image with no network. Nothing of a package ran while it was fetched or unpacked; a copy runs only in a locked container on this computer. The first fetch of a version trusts the registry. A later fetch that differs is refused.</p>
             </section>
 
             <section class="psec">
@@ -848,6 +869,8 @@ def check_signature(public_key, message, signature):
           <div class="top"><span class="eyebrow" style="margin:0">Fix</span><span class="mark">From Otto</span></div>
           <p class="why-line">The test pack carries a fix for starkbank-ecdsa, the library this advisory is about: update it to 2.0.1 or later.</p>
           <p class="small muted" style="margin-top:6px"><b class="strong">Proven on public copies: Not proven.</b> 2.0.0 fails the advisory check and 2.0.1 passes it, but 2 other locked tests still fail on 2.0.1.</p>
+          <p class="small muted" style="margin-top:6px">In an assessment it is a proposal, with Accept and Reject, only where it applies: on Fixes when this advisory's check has failed on starkbank-ecdsa itself, and on Dependencies when the dependency list names an affected version of starkbank-ecdsa.</p>
+          <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>What the update is, and the publisher's line on the fixed version <span class="n">(1 quote)</span></div>
         </div>
 
         <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Otto's notes on reading it <span class="mini">Claude's words</span></div>
@@ -898,37 +921,37 @@ def check_signature(public_key, message, signature):
             <div class="rung"><span class="n">1</span><div class="k">Proven on public copies<small>the test pack's trial</small></div>
               <div class="v"><div class="row"><span class="chip sm pass"><span class="sym">✓</span>Passed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div>6.5.6 fails the advisory check; 6.5.7 passes. <a href="#">See the trial on Advisories</a></div></div>
             <div class="rung"><span class="n">2</span><div class="k">Proven in this assessment<small>this assessment's own retest</small></div>
-              <div class="v"><div class="row"><span class="chip sm neutral"><span class="sym">•</span>Not yet</span></div>Update the library, then press Retest. <a href="#">Retest new version is on Evidence</a></div></div>
+              <div class="v"><div class="row"><span class="chip sm neutral"><span class="sym">•</span>Not yet</span></div>Update the library, then press Retest. <a href="#">Retest new version is on Checks</a><p style="margin-top:6px">This row is about a public copy, not the system you run. A retest reruns the same locked tests on a public copy of the updated version, on this computer. The app has not checked that your own system was updated: in this version it does not connect to it.</p></div></div>
           </div>
 
           <ul class="facts" style="margin-top:12px">
-            <li><svg class="ic"><use href="#i-info"/></svg><span>This is other people's code: the app offers no code change and no pull request for it. Whoever looks after this software updates it, outside this app.</span></li>
+            <li><svg class="ic"><use href="#i-info"/></svg><span>This is other people's code: the app offers no code change and no pull request for it. Whoever owns the software updates it; Retest then proves it here.</span></li>
+            <li><svg class="ic"><use href="#i-ring"/></svg><span><span class="faint">Who approves:</span> Whoever looks after this software, outside this app.</span></li>
           </ul>
           <div class="next"><button class="btn primary">Accept</button><button class="btn">Reject</button><span class="say muted small">Accept records your decision. It runs nothing and changes nothing on any system. Nobody has decided this yet.</span></div>
         </div>
 
         <details class="proof" data-proof>
           <summary><span class="badge"><svg class="ic"><use href="#i-layers"/></svg></span>
-            <span><span class="t">Cryptanalysis proof</span><br><span class="d">What the fixed version changes, the publisher's own line, and what each proof row covers.</span></span>
+            <span><span class="t">Cryptanalysis proof</span><br><span class="d">The suggestion in full, the advisory this check is for, and Otto's ledger entries of the trial.</span></span>
             <span class="act"><span class="show">Show</span><span class="hide">Hide</span></span><svg class="ic chev"><use href="#i-chev"/></svg></summary>
           <div class="pbodyx">
-            <div class="jump"><a href="#"><b>1</b>What the fixed version changes</a><a href="#"><b>2</b>The publisher's own line</a><a href="#"><b>3</b>What each proof row covers</a><a href="#"><b>4</b>Records</a></div>
+            <div class="jump"><a href="#"><b>1</b>The suggestion</a><a href="#"><b>2</b>The advisory this check is for</a><a href="#"><b>3</b>Records</a></div>
             <section class="psec">
-              <h4><span class="n">1</span>What the fixed version changes</h4>
-              <p>Update the elliptic npm package to version 6.5.7, which the advisory record gives as the fixed version: its function that reads DER-encoded ECDSA signatures (<span class="mono">_importDER</span>) returns false when the first byte of r or of s has its top bit set, a check that version 6.5.6 does not have.</p>
+              <h4><span class="n">1</span>The suggestion</h4>
+              <p>Otto proposes: update elliptic to 6.5.7 or later. Update the elliptic npm package to version 6.5.7, which the advisory record gives as the fixed version: its function that reads DER-encoded ECDSA signatures (<span class="mono">_importDER</span>) returns false when the first byte of r or of s has its top bit set, a check that version 6.5.6 does not have.</p>
+              <p>The publisher's own line: ‘"fixed": "6.5.7"’ (GitHub Advisory Database record GHSA-977x-g7h5-7qgw, read on 17 November 2026).</p>
+              <p>Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.</p>
+              <p>Proven in this assessment: Not yet. Update the library, then press Retest.</p>
+              <p>To prove it here: whoever owns the software updates it; then press “Retest new version”, which reruns the same locked tests on the updated version.</p>
             </section>
             <section class="psec">
-              <h4><span class="n">2</span>The publisher's own line</h4>
-              <p class="quote"><span class="mono">"fixed": "6.5.7"</span><br><span class="xs muted"><span class="mini">quoted from the named source, not a result</span> GitHub Advisory Database record GHSA-977x-g7h5-7qgw, read on 17 November 2026</span></p>
-              <p class="quote" style="margin-top:10px">‘In the Elliptic package 6.5.6 for Node.js, ECDSA signature malleability occurs because there is a missing check for whether the leading bit of r and s is zero.’<br><span class="xs muted"><span class="mono">CVE-2024-42460</span> · <a href="#">GitHub Advisory Database record GHSA-977x-g7h5-7qgw</a></span></p>
+              <h4><span class="n">2</span>The advisory this check is for <span class="mini">quoted from the named source, not a result</span></h4>
+              <p class="quote"><b class="mono">CVE-2024-42460</b> ‘In the Elliptic package 6.5.6 for Node.js, ECDSA signature malleability occurs because there is a missing check for whether the leading bit of r and s is zero.’<br><span class="xs"><a href="#">GitHub Advisory Database record GHSA-977x-g7h5-7qgw</a></span></p>
+              <p class="note">This check reruns the 1 published test case that matches it, from test pack 2026.11.2. The words above are the publisher's; the result comes only from the test.</p>
             </section>
             <section class="psec">
-              <h4><span class="n">3</span>What each proof row covers</h4>
-              <p>Row 1 is the test pack's trial on public copies: 6.5.6 fails the advisory check; 6.5.7 passes.</p>
-              <p>Row 2 is about a public copy, not the system you run. A retest reruns the same locked tests on a public copy of the updated version, on this computer. The app has not checked that your own system was updated: in this version it does not connect to it.</p>
-            </section>
-            <section class="psec">
-              <h4><span class="n">4</span>Records</h4>
+              <h4><span class="n">3</span>Records</h4>
               <div class="subfold" style="margin-top:0"><svg class="ic sm"><use href="#i-chev"/></svg>Otto ledger entries <span class="n">(28)</span></div>
             </section>
           </div>
@@ -940,6 +963,7 @@ def check_signature(public_key, message, signature):
       </div>
     </section>
   </div>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
 </template>
 
 <script>

@@ -54,15 +54,15 @@ const COMPARE = [
     "compare-result-proof",
     "docs/screenshots/phase5c/3-00-evidence-result-where-the-check-came-from",
     "04-result-proof-collapsed",
-    "Today: one result, everything open at once",
-    "Proposed: the same result, proof folded",
+    "Today: one result, as it opens",
+    "Proposed: the same result, as it opens",
   ],
   [
     "compare-test-proof",
     "docs/screenshots/sandbox/15-the-proposal-with-its-whole-proof",
-    "06-test-proof-collapsed",
-    "Today: one proposed check with its whole proof",
-    "Proposed: the same proposal, proof folded",
+    "07-test-proof-expanded",
+    "Today: one proposed check, opened to read its proof",
+    "Proposed: the same proposal, opened the same way",
   ],
 ];
 
