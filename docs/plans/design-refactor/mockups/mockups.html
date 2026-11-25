@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evidence Lab: design refactor mockups (throwaway)</title>
+<!--
+  THROWAWAY MOCKUP for docs/plans/design-refactor.md. Not the app, not wired into it, and safe to delete.
+  One file, no build step: open it in a browser. The bar at the top switches the screen, the look and the
+  "Cryptanalysis proof" dropdown. The colours are the app's own (frontend/src/index.css): the same slate, sky,
+  amber, violet and indigo scales, swapped end for end for the light look.
+  Sentences are the app's own wherever the app has one (read from docs/screenshots/). Demo data throughout.
+-->
+<style>
+:root{
+  color-scheme:dark;
+  --slate-50:oklch(98.4% .003 247.858);--slate-100:oklch(96.8% .007 247.896);--slate-200:oklch(92.9% .013 255.508);
+  --slate-300:oklch(86.9% .022 252.894);--slate-400:oklch(70.4% .04 256.788);--slate-500:oklch(55.4% .046 257.417);
+  --slate-600:oklch(44.6% .043 257.281);--slate-700:oklch(37.2% .044 257.287);--slate-800:oklch(27.9% .041 260.031);
+  --slate-900:oklch(20.8% .042 265.755);--slate-950:oklch(12.9% .042 264.695);
+  --sky-100:oklch(95.1% .026 236.824);--sky-200:oklch(90.1% .058 230.902);--sky-300:oklch(82.8% .111 230.318);
+  --sky-400:oklch(74.6% .16 232.661);--sky-500:oklch(68.5% .169 237.323);
+  --amber-100:oklch(96.2% .059 95.617);--amber-200:oklch(92.4% .12 95.746);--amber-400:oklch(82.8% .189 84.429);
+  --amber-500:oklch(76.9% .188 70.08);
+  --violet-200:oklch(89.4% .057 293.283);--violet-400:oklch(70.2% .183 293.541);
+  --indigo-200:oklch(87% .065 274.039);--indigo-300:oklch(78.5% .115 274.713);--indigo-400:oklch(67.3% .182 276.935);
+}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --slate-50:oklch(12.9% .042 264.695);--slate-100:oklch(20.8% .042 265.755);--slate-200:oklch(27.9% .041 260.031);
+  --slate-300:oklch(37.2% .044 257.287);--slate-400:oklch(44.6% .043 257.281);--slate-500:oklch(55.4% .046 257.417);
+  --slate-600:oklch(70.4% .04 256.788);--slate-700:oklch(86.9% .022 252.894);--slate-800:oklch(92.9% .013 255.508);
+  --slate-900:oklch(96.8% .007 247.896);--slate-950:oklch(98.4% .003 247.858);
+  --sky-100:oklch(39.1% .09 240.876);--sky-200:oklch(44.3% .11 240.79);--sky-300:oklch(50% .134 242.749);
+  --sky-400:oklch(58.8% .158 241.966);--sky-500:oklch(68.5% .169 237.323);
+  --amber-100:oklch(41.4% .112 45.904);--amber-200:oklch(47.3% .137 46.201);--amber-400:oklch(66.6% .179 58.318);
+  --amber-500:oklch(76.9% .188 70.08);
+  --violet-200:oklch(43.2% .232 292.759);--violet-400:oklch(54.1% .281 293.009);
+  --indigo-200:oklch(39.8% .195 277.366);--indigo-300:oklch(45.7% .24 277.023);--indigo-400:oklch(51.1% .262 276.966);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--slate-950);color:var(--slate-200);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.mono,code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+a{color:var(--sky-300);text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0}
+ul,ol{padding:0;list-style:none}
+button{font:inherit;color:inherit}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.ic.sm{width:12px;height:12px}
+.muted{color:var(--slate-400)}
+.faint{color:var(--slate-500)}
+.strong{color:var(--slate-50);font-weight:600}
+.small{font-size:13px}
+.xs{font-size:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+
+/* ---- the switcher above the mockup (hidden in the screenshots) ---- */
+.mockbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 16px;background:var(--violet-400);color:#fff;font-size:12.5px}
+.mockbar b{letter-spacing:.04em}
+.mockbar button{border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;border-radius:6px;padding:3px 9px;cursor:pointer}
+.mockbar button[aria-pressed="true"]{background:#fff;color:#3b1d8f;font-weight:600}
+.mockbar .sep{opacity:.5}
+body.shot .mockbar{display:none}
+
+/* ---- shell ---- */
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.sidebar{border-right:1px solid var(--slate-800);padding:14px 12px 20px;display:flex;flex-direction:column;gap:2px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--slate-50);font-size:15px;padding:2px 4px 10px}
+.brand i{display:grid;place-items:center;width:24px;height:24px;border-radius:6px;background:var(--sky-500);color:var(--slate-950);font-style:normal;font-size:11px;font-weight:700}
+.org{font-size:12px;color:var(--slate-400);padding:0 4px 4px}
+.switch{display:flex;align-items:center;gap:8px;border:1px solid var(--slate-800);background:color-mix(in oklab,var(--slate-900) 60%,transparent);border-radius:8px;padding:7px 10px;color:var(--slate-100);font-weight:500}
+.switch .grow{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:var(--slate-300);font-weight:500}
+.nav .ic{color:var(--slate-400)}
+.nav.on{background:var(--slate-800);color:var(--slate-50)}
+.nav.on .ic{color:var(--sky-300)}
+.nav .badge{margin-left:auto;min-width:20px;text-align:center;border-radius:999px;border:1px solid var(--slate-600);padding:0 6px;font-size:11.5px;font-weight:600;color:var(--slate-100);font-variant-numeric:tabular-nums}
+.navsec{display:flex;align-items:center;gap:8px;margin:14px 0 4px;padding:0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate-500);font-weight:600}
+.navsec b{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:999px;border:1px solid var(--slate-700);font-size:10px;color:var(--slate-400);font-weight:600}
+.sidefoot{margin-top:auto;border-top:1px solid var(--slate-800);padding-top:10px}
+.topbar{height:52px;display:flex;align-items:center;gap:12px;padding:0 32px;border-bottom:1px solid var(--slate-800)}
+.crumbs{color:var(--slate-400)}
+.crumbs b{color:var(--slate-50);font-weight:500}
+.crumbs span{margin:0 6px;color:var(--slate-600)}
+.topbar .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.page{padding:28px 32px 56px}
+
+/* ---- chips, tags and marks: three levels, never the same weight ---- */
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid;border-radius:999px;padding:1px 9px;font-weight:600;font-size:13px;white-space:nowrap}
+.chip.sm{font-size:12px;padding:0 7px;gap:4px}
+.chip .sym{font-family:ui-monospace,Menlo,monospace;font-size:.85em}
+.chip.pass{border-color:color-mix(in oklab,var(--sky-400) 50%,transparent);background:color-mix(in oklab,var(--sky-400) 10%,transparent);color:var(--sky-100)}
+.chip.fail{border-color:color-mix(in oklab,var(--amber-400) 60%,transparent);background:color-mix(in oklab,var(--amber-400) 15%,transparent);color:var(--amber-100)}
+.chip.neutral{border-color:var(--slate-600);background:color-mix(in oklab,var(--slate-800) 60%,transparent);color:var(--slate-100)}
+.chip.warn{border-style:dashed;border-color:var(--slate-500);background:var(--slate-900);color:var(--slate-100)}
+.tag{display:inline-flex;align-items:center;gap:5px;border:1px solid;border-radius:999px;padding:3px 8px 3px 6px;font-size:11.5px;font-weight:500;line-height:1;white-space:nowrap}
+.tag.live{border-color:color-mix(in oklab,var(--sky-400) 60%,transparent);background:color-mix(in oklab,var(--sky-400) 10%,transparent);color:var(--sky-200)}
+.tag.lab{border-color:color-mix(in oklab,var(--indigo-400) 60%,transparent);background:color-mix(in oklab,var(--indigo-400) 10%,transparent);color:var(--indigo-200)}
+.tag.file{border-style:dashed;border-color:var(--slate-500);color:var(--slate-300)}
+.tag.published{border-color:var(--slate-500);background:color-mix(in oklab,var(--slate-500) 10%,transparent);color:var(--slate-300)}
+.mark{display:inline-flex;align-items:center;border:1px solid var(--slate-500);background:color-mix(in oklab,var(--slate-700) 40%,transparent);border-radius:4px;padding:1px 6px;font-size:11.5px;font-weight:500;color:var(--slate-100);white-space:nowrap;vertical-align:middle}
+.mark.demo{border-color:color-mix(in oklab,var(--violet-400) 50%,transparent);background:color-mix(in oklab,var(--violet-400) 10%,transparent);color:var(--violet-200)}
+.mark.new{border-color:color-mix(in oklab,var(--sky-400) 55%,transparent);background:transparent;color:var(--sky-200)}
+.mark.sandbox{border-color:color-mix(in oklab,var(--amber-500) 50%,transparent);background:color-mix(in oklab,var(--amber-500) 10%,transparent);color:var(--amber-200)}
+.mark.mock{border-style:dashed;border-color:var(--violet-400);background:transparent;color:var(--violet-200);letter-spacing:.06em;text-transform:uppercase;font-size:10.5px}
+.mini{display:inline-block;border:1px solid var(--slate-700);border-radius:4px;padding:0 5px;font-size:11px;color:var(--slate-400);line-height:1.5;white-space:nowrap}
+
+/* ---- buttons ---- */
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--slate-700);background:var(--slate-900);color:var(--slate-100);border-radius:8px;padding:7px 13px;font-weight:500;white-space:nowrap;cursor:pointer}
+.btn.primary{border-color:transparent;background:var(--sky-500);color:var(--slate-950);font-weight:600}
+:root[data-theme="light"] .btn.primary{color:#fff}
+.btn.sm{padding:4px 9px;font-size:12.5px;border-radius:7px}
+.btn.ghost{background:transparent;border-color:var(--slate-800);color:var(--slate-300)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn.icon{padding:5px}
+
+/* ---- page header, cards, tabs ---- */
+.pagehead{display:flex;align-items:flex-end;gap:24px;padding-bottom:20px;border-bottom:1px solid var(--slate-800);margin-bottom:20px}
+.pagehead h1{font-size:24px;line-height:1.2;color:var(--slate-50);font-weight:600;letter-spacing:-.01em}
+.pagehead h1 .mark{position:relative;top:-3px;margin-left:4px}
+.pagehead p{margin-top:6px;color:var(--slate-400);max-width:68ch}
+.pagehead .actions{margin-left:auto;display:flex;gap:8px;flex:none}
+.tabs{display:inline-flex;gap:2px;border:1px solid var(--slate-800);background:color-mix(in oklab,var(--slate-900) 60%,transparent);border-radius:10px;padding:4px}
+.tab{display:flex;align-items:center;gap:8px;border:0;background:transparent;border-radius:7px;padding:6px 12px;font-weight:500;color:var(--slate-400);white-space:nowrap;cursor:pointer}
+.tab.on{background:var(--slate-800);color:var(--slate-50)}
+.tab .n{font-size:12px;font-variant-numeric:tabular-nums;color:var(--slate-400);border:1px solid var(--slate-700);border-radius:999px;padding:0 6px;line-height:1.5}
+.tab .find{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;color:var(--amber-200)}
+.band{display:flex;align-items:stretch;gap:0;border:1px solid var(--slate-800);border-radius:12px;background:color-mix(in oklab,var(--slate-900) 50%,transparent);margin:14px 0 16px}
+.band .q{flex:1;min-width:0;padding:14px 18px}
+.band .q h2{font-size:15px;color:var(--slate-50);font-weight:600}
+.band .q p{font-size:13px;color:var(--slate-400);margin-top:2px}
+.band .stat{padding:12px 20px;border-left:1px solid var(--slate-800);min-width:104px}
+.band .stat dt{font-size:12px;color:var(--slate-400)}
+.band .stat dd{font-size:22px;line-height:1.2;font-weight:600;color:var(--slate-50);font-variant-numeric:tabular-nums}
+.band .stat small{font-size:11.5px;color:var(--slate-500)}
+.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--slate-700);background:var(--slate-900);border-radius:8px;padding:7px 11px;color:var(--slate-500);width:300px}
+.select{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--slate-700);background:var(--slate-900);border-radius:8px;padding:7px 11px;color:var(--slate-100)}
+.toolbar label{color:var(--slate-400);font-size:13px}
+.toolbar .legend{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--slate-400)}
+.standing{margin-top:14px;font-size:12.5px;color:var(--slate-400)}
+
+/* ---- tables ---- */
+.table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--slate-800);border-radius:12px;overflow:hidden;background:color-mix(in oklab,var(--slate-900) 45%,transparent)}
+.table th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate-400);font-weight:500;text-align:left;padding:10px 16px;border-bottom:1px solid var(--slate-800);white-space:nowrap}
+.table td{padding:13px 16px;border-bottom:1px solid var(--slate-800);vertical-align:top}
+.table tr:last-child td{border-bottom:0}
+.table tr.sel td{background:color-mix(in oklab,var(--sky-400) 8%,transparent)}
+.table tr.sel td:first-child{box-shadow:inset 2px 0 0 var(--sky-400)}
+.table .name{color:var(--slate-50);font-weight:500}
+.table .on{font-size:12.5px;color:var(--slate-400);white-space:nowrap}
+.table .plain{font-size:13px;color:var(--slate-300);margin-top:3px;max-width:58ch}
+.table .when{font-size:12.5px;color:var(--slate-400);white-space:nowrap}
+.table .fix{font-size:13px;color:var(--slate-300)}
+.table tr.sub td{padding:8px 16px;background:color-mix(in oklab,var(--slate-800) 35%,transparent);font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--slate-400);font-weight:600}
+.table tr.sub td .mark{text-transform:none;letter-spacing:0;margin-left:6px}
+.table.ev th:nth-child(1){width:43%}.table.ev th:nth-child(2){width:9%}.table.ev th:nth-child(3){width:13%}.table.ev th:nth-child(4){width:21%}
+.table.compact td{padding:11px 14px}
+.table.compact td:last-child{width:1%;white-space:nowrap}
+.cell-stack{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.grip{color:var(--slate-600);width:14px}
+.why{margin-top:6px;font-size:12.5px;color:var(--slate-400);border-left:2px solid var(--slate-700);padding-left:10px;max-width:60ch}
+.fold{display:flex;align-items:center;gap:10px;border:1px solid var(--slate-800);border-radius:10px;padding:10px 14px;margin-top:10px;color:var(--slate-300);background:color-mix(in oklab,var(--slate-900) 35%,transparent)}
+.fold b{color:var(--slate-100);font-weight:600}
+.fold .n{font-size:12px;border:1px solid var(--slate-700);border-radius:999px;padding:0 7px;color:var(--slate-400)}
+.fold .end{margin-left:auto}
+
+/* ---- the split: compact table and the side panel ---- */
+.split{display:grid;grid-template-columns:minmax(300px,33%) minmax(0,1fr);gap:20px;align-items:start}
+.panel{border:1px solid var(--slate-800);border-radius:14px;background:color-mix(in oklab,var(--slate-900) 40%,transparent);min-width:0}
+.phead{padding:12px 20px 16px;border-bottom:1px solid var(--slate-800)}
+.ptools{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.ptools .where{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate-500);font-weight:600;margin-right:auto}
+.phead h2{font-size:18px;line-height:1.3;color:var(--slate-50);font-weight:600}
+.phead .sub{margin-top:4px;font-size:13px;color:var(--slate-400)}
+.pbody{padding:18px 20px 22px;display:flex;flex-direction:column;gap:16px}
+.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate-500);font-weight:600;margin-bottom:8px}
+
+/* ---- the trail: where this item sits ---- */
+.trail{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;border:1px solid var(--slate-800);border-radius:10px;overflow:hidden}
+.trail li{position:relative;padding:8px 12px 9px 18px;border-left:1px solid var(--slate-800);min-width:0}
+.trail li:first-child{border-left:0;padding-left:12px}
+.trail li:not(:first-child)::before{content:"";position:absolute;left:-5px;top:50%;width:8px;height:8px;border-top:1px solid var(--slate-600);border-right:1px solid var(--slate-600);background:var(--slate-950);transform:translateY(-50%) rotate(45deg)}
+.trail .k{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate-500);font-weight:600}
+.trail .v{display:block;font-size:12.5px;color:var(--slate-200);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trail .s{display:block;font-size:11.5px;color:var(--slate-400)}
+.trail li.here{background:color-mix(in oklab,var(--sky-400) 9%,transparent)}
+.trail li.here .k{color:var(--sky-300)}
+.trail li.here .v{color:var(--slate-50);font-weight:600}
+
+/* ---- layer 1: at a glance ---- */
+.glance{border:1px solid var(--slate-700);border-radius:12px;background:var(--slate-900);padding:16px 18px}
+.glance .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.glance .top .when{margin-left:auto;font-size:12.5px;color:var(--slate-400)}
+.glance .lead{font-size:16px;line-height:1.45;color:var(--slate-50);font-weight:500;margin:12px 0 12px;max-width:64ch}
+.facts{display:grid;gap:6px;font-size:13px;color:var(--slate-300)}
+.facts li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;align-items:start}
+.facts .ic{margin-top:2px;color:var(--slate-400)}
+.next{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--slate-800)}
+.next .say{font-size:13.5px;color:var(--slate-200)}
+.next .say b{color:var(--slate-50)}
+.next .end{margin-left:auto;display:flex;gap:8px}
+.why-line{font-size:14px;color:var(--slate-200);margin-top:10px;max-width:66ch}
+.why-line .faint{font-size:12px}
+
+/* ---- layer 2: what this shows, and what it doesn't ---- */
+.shows{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--slate-800);border-radius:12px}
+.shows>div{padding:12px 16px}
+.shows>div+div{border-left:1px solid var(--slate-800)}
+.shows h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate-400);font-weight:600;margin-bottom:4px}
+.shows p{font-size:13.5px;color:var(--slate-200)}
+.shows .foot{grid-column:1/-1;border-left:0;border-top:1px solid var(--slate-800);font-size:12.5px;color:var(--slate-400);padding:8px 16px}
+
+/* ---- layer 3: the Cryptanalysis proof dropdown ---- */
+details.proof{border:1px solid var(--slate-700);border-radius:12px;background:var(--slate-950)}
+details.proof>summary{list-style:none;display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer}
+details.proof>summary::-webkit-details-marker{display:none}
+details.proof>summary .chev{color:var(--slate-400);transition:transform .15s}
+details.proof[open]>summary .chev{transform:rotate(90deg)}
+details.proof>summary .badge{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--slate-700);background:var(--slate-900);color:var(--slate-300)}
+details.proof>summary .t{font-size:14.5px;font-weight:600;color:var(--slate-50)}
+details.proof>summary .d{font-size:12.5px;color:var(--slate-400)}
+details.proof>summary .act{margin-left:auto;font-size:12.5px;color:var(--sky-300);font-weight:500;white-space:nowrap}
+details.proof[open]>summary .act .show,details.proof:not([open])>summary .act .hide{display:none}
+.pbodyx{border-top:1px solid var(--slate-800);padding:0 18px 6px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;padding:12px 0 2px}
+.jump a{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--slate-800);border-radius:999px;padding:2px 10px 2px 3px;font-size:12px;color:var(--slate-300)}
+.jump a b,.psec h4 .n{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:999px;border:1px solid var(--slate-600);font-size:10.5px;color:var(--slate-300);font-weight:600}
+.psec{padding:16px 0;border-top:1px solid var(--slate-800)}
+.jump+.psec{border-top:0}
+.psec h4{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--slate-50);font-weight:600;margin-bottom:8px}
+.psec p{font-size:13px;color:var(--slate-300);max-width:72ch}
+.psec p+p{margin-top:6px}
+.psec .note{font-size:12px;color:var(--slate-400);margin-top:8px}
+.grid{width:100%;border-collapse:collapse;font-size:13px}
+.grid th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--slate-400);font-weight:500;text-align:left;padding:6px 10px;border-bottom:1px solid var(--slate-800)}
+.grid td{padding:7px 10px;border-bottom:1px solid var(--slate-800);color:var(--slate-200);vertical-align:top}
+.grid tr:last-child td{border-bottom:0}
+.grid td.num{font-weight:600;color:var(--slate-50);white-space:nowrap}
+.box{border:1px solid var(--slate-800);border-radius:10px;overflow:hidden}
+.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:6px 14px;font-size:13px}
+.kv dt{color:var(--slate-500);font-size:12px;padding-top:1px}
+.kv dd{color:var(--slate-200);min-width:0;overflow-wrap:anywhere}
+pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate-900);border-radius:8px;padding:11px 13px;font-size:12px;line-height:1.6;color:var(--slate-200);white-space:pre-wrap;overflow-wrap:anywhere}
+.codehead{display:flex;align-items:center;gap:10px;margin-top:12px}
+.codehead .seg{flex:none}
+.seg{display:inline-flex;border:1px solid var(--slate-700);border-radius:7px;overflow:hidden;font-size:12px}
+.seg span{padding:3px 10px;color:var(--slate-400);white-space:nowrap}
+.seg span.on{background:var(--slate-800);color:var(--slate-50);font-weight:600}
+.quote{border-left:2px solid var(--slate-600);padding:2px 0 2px 12px;font-size:13px;color:var(--slate-200)}
+.bul{display:grid;gap:5px;margin-top:8px;font-size:13px;color:var(--slate-300)}
+.bul li{display:grid;grid-template-columns:12px minmax(0,1fr);gap:6px}
+.bul li::before{content:"";width:4px;height:4px;border-radius:999px;background:var(--slate-500);margin-top:8px}
+.subfold{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--slate-300);margin-top:8px}
+.subfold .ic{color:var(--slate-500)}
+.subfold .n{color:var(--slate-500)}
+
+/* ---- count tiles (how a test was proven, at a glance) ---- */
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+.tile{border:1px solid var(--slate-800);border-radius:10px;padding:10px 12px;background:var(--slate-950)}
+.tile .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate-500);font-weight:600}
+.tile .who{font-size:12.5px;color:var(--slate-300);margin-top:1px}
+.tile .v{font-size:16px;font-weight:600;color:var(--slate-50);margin-top:6px}
+.tile .must{font-size:12px;color:var(--slate-400);margin-top:2px}
+.subhead{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;font-weight:600;color:var(--slate-100)}
+
+/* ---- the two proof rows of a fix ---- */
+.ladder{margin-top:12px;border:1px solid var(--slate-800);border-radius:10px;background:var(--slate-950)}
+.rung{display:grid;grid-template-columns:28px 190px minmax(0,1fr);gap:4px 12px;padding:12px 14px;align-items:start}
+.rung+.rung{border-top:1px solid var(--slate-800)}
+.rung .n{display:grid;place-items:center;width:22px;height:22px;border-radius:999px;border:1px solid var(--slate-600);font-size:11.5px;font-weight:600;color:var(--slate-300)}
+.rung .k{font-size:13.5px;font-weight:600;color:var(--slate-50)}
+.rung .k small{display:block;font-size:12px;font-weight:400;color:var(--slate-400)}
+.rung .v{font-size:13px;color:var(--slate-300)}
+.rung .v .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.lines{display:grid;gap:8px}
+.linefold{display:flex;align-items:center;gap:8px;border-top:1px solid var(--slate-800);padding-top:12px;font-size:13px;color:var(--slate-300)}
+.linefold .ic{color:var(--slate-500)}
+.linefold .n{color:var(--slate-500)}
+.linefold+.linefold{border-top:0;padding-top:0;margin-top:-8px}
+
+/* ---- overview ---- */
+.cols3{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:16px}
+.cols4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:16px}
+.card{border:1px solid var(--slate-800);border-radius:12px;background:color-mix(in oklab,var(--slate-900) 50%,transparent);padding:16px 18px;min-width:0}
+.card h3{font-size:15px;color:var(--slate-50);font-weight:600}
+.card .lede{font-size:14.5px;color:var(--slate-100);margin:6px 0 12px}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.nums div b{display:block;font-size:24px;line-height:1.15;color:var(--slate-50);font-variant-numeric:tabular-nums}
+.nums div span{font-size:12.5px;color:var(--slate-400)}
+.rows{display:grid;gap:7px;margin-top:10px;font-size:13px}
+.rows li{display:flex;align-items:center;gap:8px;color:var(--slate-300)}
+.rows li b{margin-left:auto;color:var(--slate-50);font-variant-numeric:tabular-nums}
+.gcard .q{font-size:12.5px;color:var(--slate-400);min-height:38px;margin-top:2px}
+.gcard .res{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.gcard .foot{margin-top:12px;padding-top:10px;border-top:1px solid var(--slate-800);font-size:12.5px;color:var(--slate-400);display:flex}
+.gcard .foot a{margin-left:auto}
+.strip{display:flex;align-items:center;gap:10px;border:1px solid var(--slate-800);border-radius:10px;padding:9px 14px;font-size:12.5px;color:var(--slate-400);margin-bottom:14px}
+.strip .ic{color:var(--slate-500)}
+.strip b{color:var(--slate-200);font-weight:500}
+.statcards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.statcards .card{padding:12px 16px}
+.statcards dt{font-size:12.5px;color:var(--slate-400)}
+.statcards dd{font-size:24px;line-height:1.2;font-weight:600;color:var(--slate-50)}
+.statcards small{font-size:12px;color:var(--slate-500)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-grid" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></symbol>
+  <symbol id="i-import" viewBox="0 0 16 16"><path d="M8 2v8M5 7l3 3 3-3M2.5 11v2.5h11V11"/></symbol>
+  <symbol id="i-verify" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.5 8.2l1.8 1.8 3.4-3.8"/></symbol>
+  <symbol id="i-horn" viewBox="0 0 16 16"><path d="M2.5 6.5v3h2l4.5 3v-9l-4.5 3z"/><path d="M11.5 6a3 3 0 010 4"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 16 16"><path d="M6 2h4M6.5 2v4L3 12.5A1 1 0 004 14h8a1 1 0 001-1.5L9.5 6V2"/><path d="M5 10h6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3M6 9.5l1.5 1.5L10 8"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 16 16"><path d="M10.5 2.5a3 3 0 00-3 4L2.5 11.5l2 2L9.5 8.5a3 3 0 004-3l-2 2-1.5-1.5z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+  <symbol id="i-route" viewBox="0 0 16 16"><path d="M2 5h9l-2-2M14 11H5l2 2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6L5 5M11 11l1.4 1.4M12.4 3.6L11 5M5 11l-1.4 1.4"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 16 16"><path d="M6 3.5L10.5 8 6 12.5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 16 16"><path d="M3.5 6L8 10.5 12.5 6"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 16 16"><path d="M2.5 3h11v8h-6l-3 2.5V11h-2z"/></symbol>
+  <symbol id="i-live" viewBox="0 0 16 16"><circle cx="8" cy="8" r="1.8"/><path d="M4.3 4.3a5.2 5.2 0 000 7.4M11.7 4.3a5.2 5.2 0 010 7.4"/></symbol>
+  <symbol id="i-file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></symbol>
+  <symbol id="i-quote" viewBox="0 0 16 16"><path d="M3 12V8.5C3 6 4.3 4.5 6.5 4M9.5 12V8.5C9.5 6 10.8 4.5 13 4"/><path d="M3 9h3v3H3zM9.5 9h3v3h-3z"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 16 16"><path d="M8 2l6 3-6 3-6-3z"/><path d="M2 8l6 3 6-3M2 11l6 3 6-3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 16 16"><path d="M6 3H3v10h10v-3M9 3h4v4M13 3L7.5 8.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></symbol>
+  <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.4M8 5.2v.2"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 16 16"><path d="M6 4v.01M10 4v.01M6 8v.01M10 8v.01M6 12v.01M10 12v.01" stroke-width="2.2"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></symbol>
+</svg>
+
+<div class="mockbar" id="mockbar">
+  <b>THROWAWAY MOCKUP</b><span>not the app</span><span class="sep">|</span>
+  <span>Screen:</span>
+  <button data-screen="overview">Overview</button>
+  <button data-screen="checks">Checks</button>
+  <button data-screen="evidence">Evidence</button>
+  <button data-screen="result">A result</button>
+  <button data-screen="advisory">A proposed check</button>
+  <button data-screen="fix">A fix</button>
+  <span class="sep">|</span><span>Cryptanalysis proof:</span>
+  <button data-proof="closed">collapsed</button><button data-proof="open">expanded</button>
+  <span class="sep">|</span><span>Look:</span>
+  <button data-theme-set="dark">Dark</button><button data-theme-set="light">Light</button>
+</div>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div>
+    <header class="topbar">
+      <div class="crumbs" id="crumbs"></div>
+      <div class="right">
+        <span class="mark mock">Mockup</span>
+        <span class="chip sm pass"><span class="sym">✓</span>Open</span>
+        <span class="chip sm neutral" id="mode"><span class="sym">●</span>Demo mode</span>
+        <button class="btn icon ghost" title="Show the Otto panel"><svg class="ic"><use href="#i-chat"/></svg></button>
+      </div>
+    </header>
+    <main class="page" id="page"></main>
+  </div>
+</div>
+
+<!-- =============================== OVERVIEW =============================== -->
+<template id="t-overview">
+  <div class="pagehead">
+    <div>
+      <div class="eyebrow" style="margin-bottom:4px">Otto walk</div>
+      <h1>Assessment 1 <span class="mark demo">Demo data</span></h1>
+      <p><span class="chip sm neutral"><span class="sym">•</span>Full review</span> <span class="chip sm pass"><span class="sym">✓</span>Open</span>&nbsp; Started 18 November 2026, 7:12 am EST · <span class="mono">acme-pay-cbom.json</span></p>
+    </div>
+    <div class="actions"><button class="btn">New assessment</button><button class="btn">Close assessment</button><button class="btn">Rerun as new assessment</button></div>
+  </div>
+
+  <div class="cols3">
+    <section class="card">
+      <div class="eyebrow">Next step</div>
+      <p class="lede">Some failed tests or migration steps have a suggested fix waiting.</p>
+      <button class="btn primary">Open fixes <svg class="ic"><use href="#i-arrow"/></svg></button>
+      <div class="linefold" style="margin-top:14px"><svg class="ic"><use href="#i-info"/></svg>Waiting for you: nothing from Otto is waiting for a decision.</div>
+    </section>
+    <section class="card">
+      <div class="eyebrow">Open findings</div>
+      <div class="nums">
+        <div><b>1</b><span><a href="#">False claims</a></span></div>
+        <div><b>4</b><span><a href="#">Failed tests</a></span></div>
+        <div><b>0</b><span><a href="#">Dependency blockers</a></span></div>
+      </div>
+      <p class="xs muted" style="margin-top:12px">Each count is read the same way its page reads it. Nothing is added up into a score.</p>
+    </section>
+    <section class="card">
+      <div class="eyebrow">What the results rest on</div>
+      <ul class="rows">
+        <li><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span> read from your systems <b>5</b></li>
+        <li><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span> run on a copy here <b>6</b></li>
+        <li><span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span> not checked yet <b>0</b></li>
+        <li><span class="tag published"><svg class="ic sm"><use href="#i-quote"/></svg>Published</span> said by a publisher <b>0</b></li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="cols4">
+    <section class="card gcard">
+      <h3>Verification</h3><p class="q">Is the scanner file true?</p>
+      <div class="res"><span class="chip sm fail"><span class="sym">✕</span>1 False</span><span class="chip sm pass"><span class="sym">✓</span>2 True</span></div>
+      <div class="foot">3 checks done · no fixes<a href="#">Open →</a></div>
+    </section>
+    <section class="card gcard">
+      <h3>Crypto tests</h3><p class="q">Is the cryptography built right?</p>
+      <div class="res"><span class="chip sm fail"><span class="sym">✕</span>4 Failed</span><span class="chip sm pass"><span class="sym">✓</span>1 Passed</span><span class="chip sm neutral"><span class="sym">•</span>1 Measured</span></div>
+      <div class="foot">6 checks done · 3 fixes open<a href="#">Open →</a></div>
+    </section>
+    <section class="card gcard">
+      <h3>Migration</h3><p class="q">Where does each system stand on the move to post-quantum, and what must change?</p>
+      <div class="res"><span class="chip sm neutral"><span class="sym">○</span>2 Classical</span></div>
+      <div class="foot">2 checks done · 2 fixes open<a href="#">Open →</a></div>
+    </section>
+    <section class="card gcard">
+      <h3>Dependencies</h3><p class="q">What can your libraries do?</p>
+      <div class="res"><span class="muted small">No dependency list yet.</span></div>
+      <div class="foot">Add one on Migration plan<a href="#">Open →</a></div>
+    </section>
+  </div>
+
+  <div class="cols3" style="grid-template-columns:1fr 1fr;margin-top:16px">
+    <section class="card">
+      <div class="eyebrow">Brought in</div>
+      <p class="small"><a href="#" class="mono">acme-pay-cbom.json</a>: 3 claims, 1 server and 1 signing program named. Dependency list: none yet.</p>
+    </section>
+    <section class="card">
+      <div class="eyebrow">Evidence</div>
+      <p class="small"><a href="#">11 runs recorded.</a> Not downloaded yet. &nbsp;<a href="#">Download evidence</a></p>
+    </section>
+  </div>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
+</template>
+
+<!-- =============================== CHECKS =============================== -->
+<template id="t-checks">
+  <div class="pagehead">
+    <div><h1>Checks</h1><p>Everything this assessment runs. The test plan starts here; every other check starts on its own page and is listed here with its latest result.</p></div>
+    <div class="actions"><button class="btn">+ Add test</button><button class="btn primary">Run all</button></div>
+  </div>
+  <div data-slot="tabs" data-active="encryption"></div>
+  <div class="band">
+    <div class="q"><h2>Is the cryptography built right?</h2><p>The test plan, its retests and the fix proofs.</p></div>
+    <dl class="stat"><dt>Open</dt><dd>0</dd><small>not run yet</small></dl>
+    <dl class="stat"><dt>In progress</dt><dd>0</dd><small>running now</small></dl>
+    <dl class="stat"><dt>Done</dt><dd>6</dd><small>have a result</small></dl>
+  </div>
+  <div class="toolbar">
+    <div class="search"><svg class="ic"><use href="#i-search"/></svg>Search checks</div>
+    <label>Came from</label><div class="select">Anywhere <svg class="ic sm"><use href="#i-down"/></svg></div>
+    <label>Result</label><div class="select">All results <svg class="ic sm"><use href="#i-down"/></svg></div>
+    <span class="legend">First runs, on the version the file names: acme-sign 1.4.2 <span class="mark demo">Demo data</span></span>
+  </div>
+  <table class="table">
+    <thead><tr><th style="width:36px"></th><th>Test plan · 6 tests</th><th>Runs on</th><th>Latest result</th><th style="width:150px"></th></tr></thead>
+    <tbody>
+      <tr class="sub"><td colspan="5">Standard tests · 5</td></tr>
+      <tr><td><svg class="ic grip"><use href="#i-grip"/></svg></td>
+        <td><div class="name">Old TLS versions</div><div class="plain">Checks whether the server accepts any TLS version older than the file claims (TLS 1.3 only).</div><div class="why">Why it matters: older versions have known weaknesses and are easy to leave switched on.</div></td>
+        <td class="on mono">localhost:8450</td>
+        <td><div class="cell-stack"><span class="chip fail"><span class="sym">✕</span>Failed</span><a href="#" class="xs">See the evidence</a></div></td>
+        <td><button class="btn sm">Run</button> <button class="btn sm icon ghost" title="Remove"><svg class="ic sm"><use href="#i-x"/></svg></button></td></tr>
+      <tr><td><svg class="ic grip"><use href="#i-grip"/></svg></td>
+        <td><div class="name">Certificate strength</div><div class="plain">Checks that the server's certificate uses the algorithm and key size the file claims.</div></td>
+        <td class="on mono">localhost:8450</td>
+        <td><div class="cell-stack"><span class="chip pass"><span class="sym">✓</span>Passed</span><a href="#" class="xs">See the evidence</a></div></td>
+        <td><button class="btn sm">Run</button> <button class="btn sm icon ghost"><svg class="ic sm"><use href="#i-x"/></svg></button></td></tr>
+      <tr><td><svg class="ic grip"><use href="#i-grip"/></svg></td>
+        <td><div class="name">Independent exam (Wycheproof)</div><div class="plain">Puts acme-sign through an outside exam: 484 cases, each with a published right answer.</div></td>
+        <td class="on mono">acme-sign 1.4.2</td>
+        <td><div class="cell-stack"><span class="chip fail"><span class="sym">✕</span>Failed</span><a href="#" class="xs">See the evidence</a></div></td>
+        <td><button class="btn sm">Run</button> <button class="btn sm icon ghost"><svg class="ic sm"><use href="#i-x"/></svg></button></td></tr>
+      <tr><td><svg class="ic grip"><use href="#i-grip"/></svg></td>
+        <td><div class="name">Attacker tricks (our short list)</div><div class="plain">Tries our own short list of 14 forged signatures, plus 2 genuine ones it must accept.</div></td>
+        <td class="on mono">acme-sign 1.4.2</td>
+        <td><div class="cell-stack"><span class="chip fail"><span class="sym">✕</span>Failed</span><a href="#" class="xs">See the evidence</a></div></td>
+        <td><button class="btn sm">Run</button> <button class="btn sm icon ghost"><svg class="ic sm"><use href="#i-x"/></svg></button></td></tr>
+      <tr><td><svg class="ic grip"><use href="#i-grip"/></svg></td>
+        <td><div class="name">Speed and size</div><div class="plain">Times signing and checking, and records key and signature sizes. Numbers only on the first run.</div></td>
+        <td class="on mono">acme-sign 1.4.2</td>
+        <td><div class="cell-stack"><span class="chip neutral"><span class="sym">•</span>Measured</span><a href="#" class="xs">See the evidence</a></div></td>
+        <td><button class="btn sm">Run</button> <button class="btn sm icon ghost"><svg class="ic sm"><use href="#i-x"/></svg></button></td></tr>
+      <tr class="sub"><td colspan="5">Advisory checks · 1 <span class="mark">From Otto</span></td></tr>
+      <tr><td><svg class="ic grip"><use href="#i-grip"/></svg></td>
+        <td><div class="name">Advisory check: Missing ECDSA signature range check <span class="mono muted xs">CVE-2022-21449</span></div><div class="plain">Reruns the 77 published cases chosen for this advisory. <a href="#">Open the advisory</a></div></td>
+        <td class="on mono">acme-sign 1.4.2</td>
+        <td><div class="cell-stack"><span class="chip fail"><span class="sym">✕</span>Failed</span><a href="#" class="xs">See the evidence</a></div></td>
+        <td><button class="btn sm">Run</button> <button class="btn sm icon ghost" disabled title="It has run, so it stays in the plan."><svg class="ic sm"><use href="#i-x"/></svg></button></td></tr>
+    </tbody>
+  </table>
+  <div class="fold"><svg class="ic"><use href="#i-chev"/></svg><b>Retests by version</b><span class="n">0</span><span class="muted small">No retest yet. Retest new version reruns every test in the plan on another version.</span><button class="btn sm end">Retest new version</button></div>
+  <div class="fold"><svg class="ic"><use href="#i-chev"/></svg><b>Fix proofs</b><span class="n">0</span><span class="muted small">No fix proof yet. A proof starts in Fixes, when the code of a fix is connected.</span></div>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
+</template>
+
+<!-- =============================== EVIDENCE (the tab structure) =============================== -->
+<template id="t-evidence">
+  <div class="pagehead">
+    <div><h1>Evidence <span class="mark demo">Demo data</span></h1><p>What every check found, and the record behind it. Results for server <span class="mono">localhost:8450</span> and signing program <span class="mono">acme-sign 1.4.2</span>.</p></div>
+    <div class="actions"><button class="btn">Retest new version</button><button class="btn">Download evidence</button></div>
+  </div>
+  <div data-slot="tabs" data-active="encryption"></div>
+  <div class="band">
+    <div class="q"><h2>Is the cryptography built right?</h2><p>Run finished 18 November 2026, 7:16 am EST.</p></div>
+    <dl class="stat"><dt>With a result</dt><dd>6</dd><small>of 6 in the plan</small></dl>
+    <dl class="stat"><dt>Failed</dt><dd>4</dd></dl>
+    <dl class="stat"><dt>Passed</dt><dd>1</dd></dl>
+    <dl class="stat"><dt>Measured</dt><dd>1</dd></dl>
+    <dl class="stat"><dt>Couldn't run</dt><dd>0</dd></dl>
+  </div>
+  <div class="toolbar">
+    <div class="search"><svg class="ic"><use href="#i-search"/></svg>Search tests and results</div>
+    <label>Result</label><div class="select">All results <svg class="ic sm"><use href="#i-down"/></svg></div>
+    <span class="legend"><svg class="ic"><use href="#i-info"/></svg>Rests on:
+      <span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span>
+      <span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span>
+      <span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span>
+      <span class="tag published"><svg class="ic sm"><use href="#i-quote"/></svg>Published</span></span>
+  </div>
+  <table class="table ev">
+    <thead><tr><th>Test</th><th>Result</th><th>Rests on</th><th>Fix</th><th>Last run</th></tr></thead>
+    <tbody>
+      <tr><td><div class="name">Old TLS versions <span class="on mono">· localhost:8450</span></div><div class="plain">The server accepts TLS 1.2, so 'TLS 1.3 only' is not true.</div></td>
+        <td><span class="chip fail"><span class="sym">✕</span>Failed</span></td>
+        <td><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></td>
+        <td class="fix">Server setting change: try it on a test copy, then apply <a href="#">→</a></td>
+        <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
+      <tr><td><div class="name">Certificate strength <span class="on mono">· localhost:8450</span></div><div class="plain">ECDSA P-256, as claimed. NIST retirement note.</div></td>
+        <td><span class="chip pass"><span class="sym">✓</span>Passed</span></td>
+        <td><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></td>
+        <td class="fix faint" aria-label="No fix listed">·</td>
+        <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
+      <tr><td><div class="name">Independent exam (Wycheproof) <span class="on mono">· acme-sign 1.4.2</span></div><div class="plain">acme-sign 1.4.2 got 3 of the 484 exam cases wrong: it accepted signatures that aren't genuine.</div></td>
+        <td><span class="chip fail"><span class="sym">✕</span>Failed</span></td>
+        <td><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></td>
+        <td class="fix">Fix available, code not connected <a href="#">→</a></td>
+        <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
+      <tr><td><div class="name">Attacker tricks (our short list) <span class="on mono">· acme-sign 1.4.2</span></div><div class="plain">Accepts the signature r=0, s=0. One cause: no range check.</div></td>
+        <td><span class="chip fail"><span class="sym">✕</span>Failed</span></td>
+        <td><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></td>
+        <td class="fix">Fix available, code not connected <a href="#">→</a></td>
+        <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
+      <tr><td><div class="name">Speed and size <span class="on mono">· acme-sign 1.4.2</span></div><div class="plain">Signing and checking were timed. Numbers only: no pass or fail on the first run.</div></td>
+        <td><span class="chip neutral"><span class="sym">•</span>Measured</span></td>
+        <td><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></td>
+        <td class="fix faint" aria-label="No fix listed">·</td>
+        <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
+      <tr><td><div class="name">Advisory check: Missing ECDSA signature range check <span class="mark">From Otto</span></div><div class="on"><span class="mono">CVE-2022-21449 · acme-sign 1.4.2</span></div><div class="plain">acme-sign 1.4.2 got 3 of the 77 published cases for this advisory wrong.</div></td>
+        <td><span class="chip fail"><span class="sym">✕</span>Failed</span></td>
+        <td><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></td>
+        <td class="fix">Fix available, code not connected <a href="#">→</a></td>
+        <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
+    </tbody>
+  </table>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
+</template>
+
+<!-- =============================== A RESULT (Evidence, panel open) =============================== -->
+<template id="t-result">
+  <div class="pagehead">
+    <div><h1>Evidence <span class="mark demo">Demo data</span></h1><p>What every check found, and the record behind it. Results for server <span class="mono">localhost:8450</span> and signing program <span class="mono">acme-sign 1.4.2</span>.</p></div>
+    <div class="actions"><button class="btn">Retest new version</button><button class="btn">Download evidence</button></div>
+  </div>
+  <div data-slot="tabs" data-active="encryption"></div>
+  <div style="height:14px"></div>
+  <div class="split">
+    <table class="table compact">
+      <thead><tr><th>Test</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td><div class="name">Old TLS versions</div><div class="on mono">localhost:8450</div></td><td><div class="cell-stack"><span class="chip sm fail"><span class="sym">✕</span>Failed</span><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></div></td></tr>
+        <tr><td><div class="name">Certificate strength</div><div class="on mono">localhost:8450</div></td><td><div class="cell-stack"><span class="chip sm pass"><span class="sym">✓</span>Passed</span><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></div></td></tr>
+        <tr><td><div class="name">Independent exam (Wycheproof)</div><div class="on mono">acme-sign 1.4.2</div></td><td><div class="cell-stack"><span class="chip sm fail"><span class="sym">✕</span>Failed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
+        <tr><td><div class="name">Attacker tricks (our short list)</div><div class="on mono">acme-sign 1.4.2</div></td><td><div class="cell-stack"><span class="chip sm fail"><span class="sym">✕</span>Failed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
+        <tr><td><div class="name">Speed and size</div><div class="on mono">acme-sign 1.4.2</div></td><td><div class="cell-stack"><span class="chip sm neutral"><span class="sym">•</span>Measured</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
+        <tr class="sel"><td><div class="name">Advisory check: Missing ECDSA signature range check</div><div class="on mono">CVE-2022-21449</div><div class="on mono">acme-sign 1.4.2</div></td><td><div class="cell-stack"><span class="chip sm fail"><span class="sym">✕</span>Failed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
+      </tbody>
+    </table>
+
+    <section class="panel">
+      <div class="phead">
+        <div class="ptools"><span class="where">Result · Crypto tests</span>
+          <button class="btn sm ghost">Open in new tab <svg class="ic sm"><use href="#i-ext"/></svg></button><button class="btn sm ghost">Wider</button><button class="btn sm ghost">Narrower</button><button class="btn sm ghost icon" title="Close details"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
+        <h2>Advisory check: Missing ECDSA signature range check <span class="mark">From Otto</span></h2>
+        <div class="sub"><span class="mono">CVE-2022-21449</span> · on acme-sign 1.4.2</div>
+      </div>
+      <div class="pbody">
+        <ol class="trail" aria-label="Where this sits">
+          <li><span class="k">Claim</span><a class="v" href="#">signing component is acme-sign 1.4.2 implementing ECDSA P-256</a><span class="s">True</span></li>
+          <li><span class="k">Advisory</span><a class="v" href="#">Missing ECDSA signature range check</a><span class="s">Test ready</span></li>
+          <li class="here"><span class="k">Result · you are here</span><span class="v">Failed</span><span class="s">18 Nov 2026, 7:16 am EST</span></li>
+          <li><span class="k">Fix</span><a class="v" href="#">acme-sign: Reject signatures with r or s out of range</a><span class="s">Code not connected</span></li>
+        </ol>
+
+        <div class="glance">
+          <div class="top"><span class="chip fail"><span class="sym">✕</span>Failed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="when">18 November 2026, 7:16 am EST</span></div>
+          <p class="lead">acme-sign 1.4.2 got 3 of the 77 published cases for advisory CVE-2022-21449 wrong: it accepted 3 signatures that must be rejected. One wrong answer is enough to fail.</p>
+          <ul class="facts">
+            <li><svg class="ic"><use href="#i-flask"/></svg><span>Run on a copy of acme-sign 1.4.2 on this computer, in demo mode. Your live system was not touched.</span></li>
+            <li><svg class="ic"><use href="#i-tick"/></svg><span>Control: a deliberately broken signer failed this test, as expected.</span></li>
+          </ul>
+          <div class="next"><span class="say"><b>Fix available,</b> code not connected</span><button class="btn sm primary">View in Fixes <svg class="ic sm"><use href="#i-arrow"/></svg></button><span class="end"><button class="btn sm">Mark reviewed</button><button class="btn sm">Dig deeper</button></span></div>
+        </div>
+
+        <div class="shows">
+          <div><h3>What this shows</h3><p>This version gives the wrong answer on published cases of the kind advisory CVE-2022-21449 describes.</p></div>
+          <div><h3>What it doesn't</h3><p>Whether anyone has used this, or how your systems use this program.</p></div>
+          <div class="foot">The advisory's text is its publisher's. This result comes only from running these cases.</div>
+        </div>
+
+        <details class="proof" data-proof>
+          <summary><span class="badge"><svg class="ic"><use href="#i-layers"/></svg></span>
+            <span><span class="t">Cryptanalysis proof</span><br><span class="d">The 3 wrong cases, the control, the locked test, the run record and the check's origin.</span></span>
+            <span class="act"><span class="show">Show</span><span class="hide">Hide</span></span><svg class="ic chev"><use href="#i-chev"/></svg></summary>
+          <div class="pbodyx">
+            <div class="jump"><a href="#"><b>1</b>The wrong cases</a><a href="#"><b>2</b>The control</a><a href="#"><b>3</b>The locked test</a><a href="#"><b>4</b>Run record</a><a href="#"><b>5</b>Where this check came from</a></div>
+
+            <section class="psec">
+              <h4><span class="n">1</span>The 3 cases it got wrong <span class="mini">measured</span></h4>
+              <div class="box"><table class="grid">
+                <thead><tr><th>Official case</th><th>What the case is</th><th>Right answer</th><th>acme-sign 1.4.2 said</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">168</td><td>r=0 and s=0 (a signature made of zeros)</td><td>reject</td><td class="num">accepted</td></tr>
+                  <tr><td class="mono">171</td><td>r=0 and s=n (zero, written a second way)</td><td>reject</td><td class="num">accepted</td></tr>
+                  <tr><td class="mono">364</td><td>s larger than n (a value outside the allowed range)</td><td>reject</td><td class="num">accepted</td></tr>
+                </tbody></table></div>
+              <p style="margin-top:10px">The rule these cases test: a signature's two numbers must both lie in the allowed range, <span class="mono">1 ≤ r ≤ n − 1</span> and <span class="mono">1 ≤ s ≤ n − 1</span>, where n is the size of the P-256 group. The other 74 cases got the right answer.</p>
+              <p class="quote" style="margin-top:10px"><span class="mono">if (rb.signum() == 0 || sb.signum() == 0</span><br><span class="xs muted"><span class="mini">quoted from the named source, not a result</span> The publisher's own fix: <a href="#">JDK 17.0.3 source (fixed), tag jdk-17.0.3+7: ECDSAOperations.java, start of verifySignedDigest</a></span></p>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">2</span>The control</h4>
+              <p>The deliberately broken signer got all 77 invalid cases wrong, so it failed as expected. That tells us this check can catch a faulty signer, and the result above can be trusted.</p>
+              <p class="note">Reference library, on the same cases: 77 of 77 right.</p>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">3</span>The test, locked before the run</h4>
+              <dl class="kv">
+                <dt>Question</dt><dd>Does acme-sign refuse an ECDSA P-256 signature when one of its two numbers (r or s) is zero or outside the allowed range?</dd>
+                <dt>Method</dt><dd>Run the verify command once per case and compare its answer with the published one.</dd>
+                <dt>Inputs</dt><dd>77 cases from Wycheproof <span class="mono">testvectors_v1/ecdsa_secp256r1_sha256_test.json</span>, pinned to commit dab4ea2: 77 that must be rejected. Chosen for advisory CVE-2022-21449 by test pack 2026.11.1.</dd>
+                <dt>Pass/fail rule</dt><dd>Passed only if all 77 answers are right. Any wrong answer means Failed.</dd>
+                <dt>Locked</dt><dd>18 November 2026, 7:15 am EST, before the run started</dd>
+                <dt>Fingerprint</dt><dd class="mono xs">efbc8a02ef1c034f2427b3993050e41320497bbe7bb3be168a14907111551172</dd>
+              </dl>
+              <p class="note">The details can't change after locking. The run record carries the same fingerprint, so anyone can confirm the test wasn't adjusted to fit the result.</p>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">4</span>Run record</h4>
+              <dl class="kv">
+                <dt>Command</dt><dd class="mono xs">acme-sign verify (once per case, JSON in, JSON out), 77 cases from ecdsa_secp256r1_sha256_test.json</dd>
+              </dl>
+<pre class="code">cases run: 77   right: 74   wrong: 3
+tcId 168  "Signature with special case values r=0 and s=0"  expected: invalid  got: valid  WRONG
+tcId 171  "Signature with special case values r=0 and s=n"  expected: invalid  got: valid  WRONG
+tcId 364  "s is larger than n"  expected: invalid  got: valid  WRONG
+control (broken signer): wrong on 77 of 77 invalid cases
+reference library: 77 of 77 right</pre>
+              <p class="note">Duration 1.2 s <span class="mini">measured</span> · Component acme-sign 1.4.2 <span class="mini">demo</span> · Demo mode, not isolated · Vectors: <a href="#">Project Wycheproof, C2SP/wycheproof commit dab4ea2</a> <span class="mini">reference</span> · Summary written by the app from the stored run. The full raw output is in the downloaded evidence JSON.</p>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">5</span>Where this check came from <span class="mark">From Otto</span></h4>
+              <p>Otto proposed this check from the advisory “Missing ECDSA signature range check (CVE-2022-21449)”, in test pack 2026.11.1. Accepted by You on 18 November 2026, 7:15 am EST. <a href="#">Open the advisory</a></p>
+              <div class="box" style="margin-top:10px"><table class="grid">
+                <thead><tr><th>Tried on public copies before the pack was signed</th><th>Count</th></tr></thead>
+                <tbody>
+                  <tr><td>openjdk 17.0.2 (affected)</td><td class="num">10 of 77 cases wrong</td></tr>
+                  <tr><td>openjdk 17.0.3 (the publisher's fixed version)</td><td class="num">0 of 77 cases wrong</td></tr>
+                  <tr><td>The control that must fail (a program that accepts every signature)</td><td class="num">77 of 77 cases wrong</td></tr>
+                </tbody></table></div>
+              <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>Decisions on Otto's proposal <span class="n">(3)</span></div>
+              <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>Otto ledger entries for this check and its decisions <span class="n">(10)</span></div>
+              <p class="note">This says where the check came from and who decided to add it. The result comes only from the test.</p>
+            </section>
+          </div>
+        </details>
+
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Every run, newest first <span class="n">(1)</span></div>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Related <span class="n">(4)</span> <span class="muted xs">claim, fix, system and track, advisory</span></div>
+      </div>
+    </section>
+  </div>
+</template>
+
+<!-- =============================== A PROPOSED CHECK (Advisories, panel open) =============================== -->
+<template id="t-advisory">
+  <div class="pagehead">
+    <div><h1>Advisories</h1><p>Published weaknesses that fit the libraries and signing programs in this assessment. Where one has a proven test, its check is proposed: you accept or reject it.</p></div>
+    <div class="actions"><button class="btn">Look for new advisories</button><button class="btn" disabled>Design and prove tests</button></div>
+  </div>
+  <dl class="statcards">
+    <div class="card"><dt>Advisories</dt><dd>7</dd><small>in the installed test packs</small></div>
+    <div class="card"><dt>Test ready</dt><dd>4</dd><small>proven on public copies</small></div>
+    <div class="card"><dt>Waiting for your decision</dt><dd>4</dd><small>proposed checks</small></div>
+    <div class="card"><dt>Result here</dt><dd>0</dd><small>no advisory check has run yet</small></div>
+  </dl>
+  <div class="strip"><svg class="ic sm"><use href="#i-chev"/></svg><b>Where this page's facts come from</b> 3 test packs installed · answers recorded during the build · Otto harness 0.1.0 · last look 22 November 2026, 9:53 am EST · what this covers</div>
+  <div class="toolbar">
+    <div class="search"><svg class="ic"><use href="#i-search"/></svg>Search advisories</div>
+    <label>Test</label><div class="select">Any test <svg class="ic sm"><use href="#i-down"/></svg></div>
+    <label>Decision</label><div class="select">Any decision <svg class="ic sm"><use href="#i-down"/></svg></div>
+    <label>Result</label><div class="select">Any result <svg class="ic sm"><use href="#i-down"/></svg></div>
+  </div>
+  <div class="split">
+    <table class="table compact">
+      <thead><tr><th>Advisory</th><th>Your decision</th></tr></thead>
+      <tbody>
+        <tr><td><div class="name">Missing ECDSA signature range check</div><div class="on mono">CVE-2022-21449</div></td><td><span class="chip sm warn"><span class="sym">?</span>Proposed</span></td></tr>
+        <tr><td><div class="name">Badly encoded signature accepted</div><div class="on mono">CVE-2019-14859</div></td><td><span class="chip sm warn"><span class="sym">?</span>Proposed</span></td></tr>
+        <tr><td><div class="name">Malformed signature raises unexpected error</div><div class="on mono">CVE-2019-14853</div></td><td><span class="muted xs">No test yet</span></td></tr>
+        <tr><td><div class="name">Wrongly encoded signature accepted</div><div class="on mono">CVE-2024-42460</div></td><td><span class="chip sm warn"><span class="sym">?</span>Proposed</span></td></tr>
+        <tr><td><div class="name">Loosely encoded signature accepted</div><div class="on mono">CVE-2024-42461</div></td><td><span class="muted xs">No test yet</span></td></tr>
+        <tr><td><div class="name">Wrong-length EdDSA signature accepted</div><div class="on mono">CVE-2024-42459</div></td><td><span class="muted xs">No test yet</span></td></tr>
+        <tr class="sel"><td><div class="name">Zero signature accepted <span class="mark new">New</span></div><div class="on mono">CVE-2021-43572</div></td><td><span class="chip sm warn"><span class="sym">?</span>Proposed</span></td></tr>
+      </tbody>
+    </table>
+
+    <section class="panel">
+      <div class="phead">
+        <div class="ptools"><span class="where">Advisory</span>
+          <button class="btn sm ghost">Open in new tab <svg class="ic sm"><use href="#i-ext"/></svg></button><button class="btn sm ghost">Wider</button><button class="btn sm ghost">Narrower</button><button class="btn sm ghost icon"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
+        <h2>Zero signature accepted <span class="mark new">New</span></h2>
+        <div class="sub"><span class="mono">CVE-2021-43572</span> · published 10 November 2021 · also known as <span class="mono">GHSA-92vm-mxjf-jqf3</span></div>
+      </div>
+      <div class="pbody">
+        <div>
+          <p style="max-width:70ch">When it checks an ECDSA signature, the affected library does not check that the signature's two numbers are not zero. A signature made of zeros is then accepted for any message, so a signature can be made up without the signing key.</p>
+          <dl class="kv" style="margin-top:12px">
+            <dt>Affected</dt><dd>starkbank-ecdsa 2.0.0 in the publisher's text; the source's version list names every release before 2.0.1</dd>
+            <dt>Your file lists</dt><dd>starkbank-ecdsa 2.0.0</dd>
+          </dl>
+          <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>The publisher's own words <span class="n">(3 quotes)</span> <span class="mini">quoted from the named source, not a result</span></div>
+        </div>
+
+        <div class="glance">
+          <div class="top"><span class="mark">From Otto</span><span class="chip sm warn"><span class="sym">?</span>Proposed</span><span class="strong" style="margin-left:4px">Proposed check for starkbank-ecdsa 2.0.0</span></div>
+          <p class="why-line"><span class="faint">Why it applies:</span> The advisory is about starkbank-ecdsa, and your file lists starkbank-ecdsa 2.0.0. Its publisher names 2.0.1 as the fixed version.</p>
+          <div class="subhead">How this test was proven <span class="mark sandbox">Sandbox copy</span></div>
+          <div class="tiles">
+            <div class="tile"><div class="k">Affected version</div><div class="who">starkbank-ecdsa 2.0.0</div><div class="v">1 of 64 cases wrong</div><div class="must">Had to happen: at least one case wrong</div></div>
+            <div class="tile"><div class="k">Publisher's fixed version</div><div class="who">starkbank-ecdsa 2.0.1</div><div class="v">All 64 cases right</div><div class="must">Had to happen: as many right as our reference library</div></div>
+            <div class="tile"><div class="k">The control</div><div class="who">a signer that accepts everything</div><div class="v">64 of 64 cases wrong</div><div class="must">Had to happen: wrong on every case that must be refused</div></div>
+          </div>
+          <ul class="facts" style="margin-top:12px">
+            <li><svg class="ic"><use href="#i-flask"/></svg><span>Tried on public copies of starkbank-ecdsa fetched from PyPI, on 64 published cases from Project Wycheproof.</span></li>
+            <li><svg class="ic"><use href="#i-info"/></svg><span>What this does not show. It shows which published cases get a wrong answer on these public copies. It does not say how serious the weakness is, and it says nothing about any other system.</span></li>
+          </ul>
+          <div class="next"><button class="btn primary">Accept</button><button class="btn">Reject</button><span class="say muted small">Accept adds this check to the test plan. It runs nothing. Nobody has decided this yet.</span></div>
+        </div>
+
+        <details class="proof" data-proof>
+          <summary><span class="badge"><svg class="ic"><use href="#i-layers"/></svg></span>
+            <span><span class="t">Cryptanalysis proof</span><br><span class="d">The test, the trial part by part, what was frozen first, the asking code and the public copies.</span></span>
+            <span class="act"><span class="show">Show</span><span class="hide">Hide</span></span><svg class="ic chev"><use href="#i-chev"/></svg></summary>
+          <div class="pbodyx">
+            <div class="jump"><a href="#"><b>1</b>The test</a><a href="#"><b>2</b>The trial, part by part</a><a href="#"><b>3</b>Frozen before the first run</a><a href="#"><b>4</b>The code that asked the library</a><a href="#"><b>5</b>The public copies</a><a href="#"><b>6</b>Records</a></div>
+
+            <section class="psec">
+              <h4><span class="n">1</span>The test</h4>
+              <dl class="kv">
+                <dt>Question</dt><dd>Does the program refuse an ECDSA signature whose two numbers, r and s, are zero or another value outside the allowed range?</dd>
+                <dt>Cases</dt><dd>64 published cases from Project Wycheproof, pinned by SHA-256: 64 that must be rejected.</dd>
+                <dt>Control</dt><dd>A deliberately broken checker that accepts every signature. It must get every must-reject case wrong, so the selection needs at least one must-reject case.</dd>
+                <dt>Pass/fail rule</dt><dd>Passed only if every answer is right. Any wrong answer means Failed.</dd>
+                <dt>Design fingerprint</dt><dd class="mono xs">8fd946ef2a4d</dd>
+              </dl>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">2</span>The trial, part by part</h4>
+              <div class="box"><table class="grid">
+                <thead><tr><th>Part</th><th>What had to happen</th><th>Count</th></tr></thead>
+                <tbody>
+                  <tr><td>Our reference library, on the same cases</td><td>Every case right (the baseline)</td><td class="num">All 64 cases right</td></tr>
+                  <tr><td>starkbank-ecdsa 2.0.0 (the version the advisory names as affected)</td><td>At least one case wrong</td><td class="num">1 of 64 cases wrong</td></tr>
+                  <tr><td>starkbank-ecdsa 2.0.1 (the publisher's fixed version)</td><td>As many right as our reference library</td><td class="num">All 64 cases right</td></tr>
+                  <tr><td>The control, a signer that accepts everything</td><td>Wrong on every case that must be refused</td><td class="num">64 of 64 cases wrong</td></tr>
+                  <tr><td>starkbank-ecdsa 2.0.2 (a further version after the fix)</td><td>As many right as our reference library</td><td class="num">All 64 cases right</td></tr>
+                  <tr><td>starkbank-ecdsa 2.3.1 (a further version after the fix)</td><td>As many right as our reference library</td><td class="num">All 64 cases right</td></tr>
+                </tbody></table></div>
+              <p class="note">The counts for the library's copies and for our reference library are the separate reviewer's, from its review of a run in a locked container on this computer. The control's count is made by the pinned trial script, from the control's raw answers. The right answers are the publisher's (Project Wycheproof, pinned by SHA-256); they never reach the code that asks the library.</p>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">3</span>Frozen before the first run</h4>
+              <p>Registered in Otto's harness on 22 November 2026, 9:53 am EST, before the first run: the cases, the code, the copies, the images and what had to happen were frozen by fingerprint. A file that changes after that stops the trial. In the research ledger, a hash chain, the registration is entry 13 and the first run is entry 14.</p>
+              <p>Otto's harness judged the trial against those frozen thresholds: supported. One run for each part; nothing was run again to get a better draw.</p>
+              <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>What was frozen, by SHA-256 <span class="n">(9)</span></div>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">4</span>The code that asked the library <span class="mark">Written by Otto</span></h4>
+              <p>11 lines, written for this library during the build and recorded, not written through the API. Its one job is to pass a question to the library's own functions and hand the library's own answer back. It was let through only after a screen by fixed rules (straight-line calls into the library, and nothing else) and the check below. The screen is a filter for mistakes and plain tricks, not a proof, which is why a second version, written apart, had to give the same answer on every case.</p>
+              <ul class="bul">
+                <li>Two versions were written apart. Asked the same cases, they gave the same answer on every case: 64 of 64 on starkbank-ecdsa 2.0.0 and 64 of 64 on starkbank-ecdsa 2.0.1 (counted by the pinned trial script).</li>
+                <li>Before the trial was registered, the code was checked on starkbank-ecdsa 2.0.1 with 24 fresh questions it had never seen: 12 of 12 accepted, 12 of 12 refused.</li>
+                <li>Two dummy pieces of code of ours, one that always says yes and one that always says no, went through the same check on every copy. The check refused both, as it must.</li>
+                <li>While it was a draft, the code ran on the fixed copy only. It never ran on the affected copy and never saw a result of the trial before it was fixed.</li>
+              </ul>
+              <div class="codehead"><span class="seg"><span class="on">Author A</span><span>Author B</span></span><span class="xs muted"><span class="mono">asking_code.py</span> · Recorded during the build, not through the API · SHA-256 <span class="mono">1cf463ed299f</span></span></div>
+<pre class="code">from ellipticcurve.curve import prime256v1
+from ellipticcurve.ecdsa import Ecdsa
+from ellipticcurve.publicKey import PublicKey
+from ellipticcurve.signature import Signature
+
+OWN_REFUSALS = ()
+
+
+def check_signature(public_key, message, signature):
+    key = PublicKey.fromString(public_key[1:].hex(), curve=prime256v1)
+    return Ecdsa.verify(message.decode("utf-8"), Signature.fromDer(signature), key)</pre>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">5</span>The public copies</h4>
+              <div class="box"><table class="grid">
+                <thead><tr><th>Version</th><th>File, from PyPI</th><th>Published</th><th>SHA-256</th></tr></thead>
+                <tbody>
+                  <tr><td>2.0.0</td><td class="mono xs">starkbank-ecdsa-2.0.0.tar.gz</td><td>8 October 2021</td><td class="mono xs">71dec991bf6f5bf8…</td></tr>
+                  <tr><td>2.0.1</td><td class="mono xs">starkbank-ecdsa-2.0.1.tar.gz</td><td>4 November 2021</td><td class="mono xs">fe7e36b580da097c…</td></tr>
+                  <tr><td>2.0.2</td><td class="mono xs">starkbank-ecdsa-2.0.2.tar.gz</td><td>9 November 2021</td><td class="mono xs">4b60ebc493f024f2…</td></tr>
+                  <tr><td>2.3.1</td><td class="mono xs">starkbank_ecdsa-2.3.1-py3-none-any.whl</td><td>23 April 2026</td><td class="mono xs">c6dcb0caeb5d7d18…</td></tr>
+                </tbody></table></div>
+              <p class="note">Read from recorded registry answers on this computer, fetched on 22 November 2026; each fingerprint is the same as the registry's own. Versions 1.1.0 and 1.1.1 were left out before the trial was registered: the asking code does not work on them. Built into one container image with no network. Nothing of a package ran while it was fetched or unpacked; a copy runs only in a locked container on this computer. The first fetch of a version trusts the registry. A later fetch that differs is refused.</p>
+            </section>
+
+            <section class="psec">
+              <h4><span class="n">6</span>Records</h4>
+              <p>Replayed in a separate step by a second author role of the same build, on this computer. Not by an outside party.</p>
+              <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>Otto ledger entries <span class="n">(36)</span></div>
+              <div class="subfold"><svg class="ic sm"><use href="#i-chev"/></svg>What Claude was asked <span class="n">(5 steps, each with the fingerprints of its prompt and its answer)</span></div>
+            </section>
+          </div>
+        </details>
+
+        <div class="glance" style="background:transparent;border-color:var(--slate-800)">
+          <div class="top"><span class="eyebrow" style="margin:0">Fix</span><span class="mark">From Otto</span></div>
+          <p class="why-line">The test pack carries a fix for starkbank-ecdsa, the library this advisory is about: update it to 2.0.1 or later.</p>
+          <p class="small muted" style="margin-top:6px"><b class="strong">Proven on public copies: Not proven.</b> 2.0.0 fails the advisory check and 2.0.1 passes it, but 2 other locked tests still fail on 2.0.1.</p>
+        </div>
+
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Otto's notes on reading it <span class="mini">Claude's words</span></div>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Related <span class="n">(2)</span></div>
+        <p class="standing" style="margin-top:0">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
+      </div>
+    </section>
+  </div>
+</template>
+
+<!-- =============================== A FIX (Fixes, panel open): the two proof rows =============================== -->
+<template id="t-fix">
+  <div class="pagehead">
+    <div><h1>Fixes</h1><p>The fix for each finding. A code change is ready for review only after its proof has passed.</p></div>
+  </div>
+  <div data-slot="tabs" data-active="encryption" data-page="fixes"></div>
+  <div style="height:14px"></div>
+  <div class="split">
+    <table class="table compact">
+      <thead><tr><th>Fix</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><div class="name">Update elliptic to the fixed version (6.5.7)</div><div class="on">3 failed tests on elliptic 6.5.6</div></td><td><span class="chip sm warn"><span class="sym">·</span>Text only</span></td></tr>
+        <tr class="sel"><td><div class="name">Update elliptic to 6.5.7 <span class="mark">From Otto</span></div><div class="on">Advisory check, CVE-2024-42460</div></td><td><div class="cell-stack"><span class="chip sm warn"><span class="sym">?</span>Proposed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
+      </tbody>
+    </table>
+
+    <section class="panel">
+      <div class="phead">
+        <div class="ptools"><span class="where">Fix · Crypto tests</span>
+          <button class="btn sm ghost">Open in new tab <svg class="ic sm"><use href="#i-ext"/></svg></button><button class="btn sm ghost">Wider</button><button class="btn sm ghost">Narrower</button><button class="btn sm ghost icon"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
+        <h2>Update elliptic to 6.5.7 <span class="mark">From Otto</span></h2>
+        <div class="sub">Came from 1 failed test on signing component <span class="mono">elliptic 6.5.6</span>: Advisory check: Wrongly encoded signature accepted (CVE-2024-42460).</div>
+      </div>
+      <div class="pbody">
+        <ol class="trail" aria-label="Where this sits">
+          <li><span class="k">Claim</span><a class="v" href="#">signing component is elliptic 6.5.6 implementing ECDSA P-256</a><span class="s">True</span></li>
+          <li><span class="k">Advisory</span><a class="v" href="#">Wrongly encoded signature accepted</a><span class="s">Test ready</span></li>
+          <li><span class="k">Check</span><a class="v" href="#">Advisory check on elliptic 6.5.6</a><span class="s">Failed</span></li>
+          <li class="here"><span class="k">Fix · you are here</span><span class="v">Update elliptic to 6.5.7</span><span class="s">Proposed</span></li>
+        </ol>
+
+        <div class="glance">
+          <div class="top"><span class="chip warn"><span class="sym">?</span>Proposed</span><span class="chip sm warn"><span class="sym">·</span>Text only</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div>
+          <p class="lead">Otto proposes: update elliptic to 6.5.7 or later.</p>
+          <p class="why-line" style="margin-top:0"><span class="faint">Why Otto proposes it:</span> The advisory check for CVE-2024-42460 (Wrongly encoded signature accepted) failed on elliptic 6.5.6, and its publisher names 6.5.7 as the fixed version.</p>
+
+          <div class="ladder" aria-label="Proof">
+            <div class="rung"><span class="n">1</span><div class="k">Proven on public copies<small>the test pack's trial</small></div>
+              <div class="v"><div class="row"><span class="chip sm pass"><span class="sym">✓</span>Passed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div>6.5.6 fails the advisory check; 6.5.7 passes. <a href="#">See the trial on Advisories</a></div></div>
+            <div class="rung"><span class="n">2</span><div class="k">Proven in this assessment<small>this assessment's own retest</small></div>
+              <div class="v"><div class="row"><span class="chip sm neutral"><span class="sym">•</span>Not yet</span></div>Update the library, then press Retest. <a href="#">Retest new version is on Evidence</a></div></div>
+          </div>
+
+          <ul class="facts" style="margin-top:12px">
+            <li><svg class="ic"><use href="#i-info"/></svg><span>This is other people's code: the app offers no code change and no pull request for it. Whoever looks after this software updates it, outside this app.</span></li>
+          </ul>
+          <div class="next"><button class="btn primary">Accept</button><button class="btn">Reject</button><span class="say muted small">Accept records your decision. It runs nothing and changes nothing on any system. Nobody has decided this yet.</span></div>
+        </div>
+
+        <details class="proof" data-proof>
+          <summary><span class="badge"><svg class="ic"><use href="#i-layers"/></svg></span>
+            <span><span class="t">Cryptanalysis proof</span><br><span class="d">What the fixed version changes, the publisher's own line, and what each proof row covers.</span></span>
+            <span class="act"><span class="show">Show</span><span class="hide">Hide</span></span><svg class="ic chev"><use href="#i-chev"/></svg></summary>
+          <div class="pbodyx">
+            <div class="jump"><a href="#"><b>1</b>What the fixed version changes</a><a href="#"><b>2</b>The publisher's own line</a><a href="#"><b>3</b>What each proof row covers</a><a href="#"><b>4</b>Records</a></div>
+            <section class="psec">
+              <h4><span class="n">1</span>What the fixed version changes</h4>
+              <p>Update the elliptic npm package to version 6.5.7, which the advisory record gives as the fixed version: its function that reads DER-encoded ECDSA signatures (<span class="mono">_importDER</span>) returns false when the first byte of r or of s has its top bit set, a check that version 6.5.6 does not have.</p>
+            </section>
+            <section class="psec">
+              <h4><span class="n">2</span>The publisher's own line</h4>
+              <p class="quote"><span class="mono">"fixed": "6.5.7"</span><br><span class="xs muted"><span class="mini">quoted from the named source, not a result</span> GitHub Advisory Database record GHSA-977x-g7h5-7qgw, read on 17 November 2026</span></p>
+              <p class="quote" style="margin-top:10px">‘In the Elliptic package 6.5.6 for Node.js, ECDSA signature malleability occurs because there is a missing check for whether the leading bit of r and s is zero.’<br><span class="xs muted"><span class="mono">CVE-2024-42460</span> · <a href="#">GitHub Advisory Database record GHSA-977x-g7h5-7qgw</a></span></p>
+            </section>
+            <section class="psec">
+              <h4><span class="n">3</span>What each proof row covers</h4>
+              <p>Row 1 is the test pack's trial on public copies: 6.5.6 fails the advisory check; 6.5.7 passes.</p>
+              <p>Row 2 is about a public copy, not the system you run. A retest reruns the same locked tests on a public copy of the updated version, on this computer. The app has not checked that your own system was updated: in this version it does not connect to it.</p>
+            </section>
+            <section class="psec">
+              <h4><span class="n">4</span>Records</h4>
+              <div class="subfold" style="margin-top:0"><svg class="ic sm"><use href="#i-chev"/></svg>Otto ledger entries <span class="n">(28)</span></div>
+            </section>
+          </div>
+        </details>
+
+        <p class="small muted">The same update is recommended by the entry “Update elliptic to the fixed version (6.5.7)” in this list, for the other failed tests on this library. It is one update, not two.</p>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>What this change touches <span class="muted xs">where elliptic 6.5.6 is used</span></div>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Related <span class="n">(4)</span> <span class="muted xs">claim, checks, system and track, advisory</span></div>
+      </div>
+    </section>
+  </div>
+</template>
+
+<script>
+// Throwaway: a few lines that put the chosen screen into the shell. Nothing here is the app's code.
+const SCREENS = {
+  overview: { nav: "overview", crumb: "Overview", project: "Otto walk" },
+  checks: { nav: "checks", crumb: "Checks", project: "Otto walk" },
+  evidence: { nav: "evidence", crumb: "Evidence", project: "Otto walk" },
+  result: { nav: "evidence", crumb: "Evidence", project: "Otto walk" },
+  advisory: { nav: "advisories", crumb: "Advisories", project: "Sandbox research walk", mode: "Isolated mode", waiting: 4, fixes: 0 },
+  fix: { nav: "fixes", crumb: "Fixes", project: "Otto walk, a real library", mode: "Isolated mode", waiting: 1, fixes: 2 },
+};
+const ic = (id) => `<svg class="ic"><use href="#i-${id}"/></svg>`;
+function sidebar(s) {
+  const item = (key, icon, label, badge) =>
+    `<a class="nav${s.nav === key ? " on" : ""}" href="#">${ic(icon)}${label}${badge ? `<span class="badge" title="${badge[1]}">${badge[0]}</span>` : ""}</a>`;
+  const waiting = s.waiting ?? 0, fixes = s.fixes ?? 3;
+  return `
+    <div class="brand"><i>IL</i>Isogeny Labs</div>
+    <div class="org">My organization</div>
+    <div class="switch">${ic("doc")}<span class="grow">${s.project}</span><svg class="ic sm"><use href="#i-down"/></svg></div>
+    ${item("project", "folder", "Project overview")}
+    <div class="switch" style="margin-top:6px"><span class="grow">Assessment 1</span><span class="chip sm pass"><span class="sym">✓</span>Open</span></div>
+    <div style="height:6px"></div>
+    ${item("overview", "grid", "Overview")}
+    <div class="navsec"><b>1</b>Bring in</div>
+    ${item("import", "import", "Import")}
+    ${item("verify", "verify", "Verify")}
+    <div class="navsec"><b>2</b>Prove</div>
+    ${item("advisories", "horn", "Advisories", waiting ? [waiting, waiting + " proposed checks wait for your decision"] : null)}
+    ${item("checks", "flask", "Checks")}
+    ${item("evidence", "doc", "Evidence")}
+    <div class="navsec"><b>3</b>Fix</div>
+    ${item("fixes", "wrench", "Fixes", fixes ? [fixes, fixes + " open findings with a fix"] : null)}
+    <div class="navsec"><b>4</b>Plan the move</div>
+    ${item("migration", "route", "Migration plan")}
+    <div class="navsec"><b>5</b>Keep watching</div>
+    ${item("watch", "eye", "Change watch")}
+    <div class="sidefoot">
+      ${item("projects", "folder", "Projects")}
+      ${item("settings", "gear", "Settings")}
+      <a class="nav" href="#"><svg class="ic" style="transform:rotate(180deg)"><use href="#i-chev"/></svg>Collapse</a>
+    </div>`;
+}
+// One tab strip for Checks, Evidence and Fixes: the same four groups, the same order, a count on each,
+// and how many of its rows are findings (a False claim, a Failed test, a blocker).
+function tabs(active, page) {
+  const groups =
+    page === "fixes"
+      ? [["verification", "Verification", 0, ""], ["encryption", "Crypto tests", 2, ""], ["migration", "Migration", 0, ""], ["dependencies", "Dependencies", 0, ""]]
+      : [["verification", "Verification", 3, "1 false"], ["encryption", "Crypto tests", 6, "4 failed"], ["migration", "Migration", 2, ""], ["dependencies", "Dependencies", 0, ""]];
+  return `<div class="tabs" role="tablist" aria-label="Work groups">${groups
+    .map(
+      ([key, label, n, find]) =>
+        `<button class="tab${key === active ? " on" : ""}" role="tab" aria-selected="${key === active}">${label}<span class="n">${n}</span>${find ? `<span class="find">✕ ${find}</span>` : ""}</button>`,
+    )
+    .join("")}</div>`;
+}
+const state = { screen: "evidence", theme: "dark", proof: "closed" };
+function render() {
+  const s = SCREENS[state.screen] ?? SCREENS.evidence;
+  document.documentElement.dataset.theme = state.theme;
+  document.getElementById("sidebar").innerHTML = sidebar(s);
+  document.getElementById("crumbs").innerHTML = `${s.project}<span>/</span>Assessment 1<span>/</span><b>${s.crumb}</b>`;
+  document.getElementById("mode").innerHTML = `<span class="sym">●</span>${s.mode ?? "Demo mode"}`;
+  const page = document.getElementById("page");
+  page.replaceChildren(document.getElementById("t-" + state.screen).content.cloneNode(true));
+  page.querySelectorAll("[data-slot=tabs]").forEach((el) => (el.outerHTML = tabs(el.dataset.active, el.dataset.page)));
+  page.querySelectorAll("details[data-proof]").forEach((d) => (d.open = state.proof === "open"));
+  document.querySelectorAll("#mockbar button").forEach((b) => {
+    const on = b.dataset.screen === state.screen || b.dataset.themeSet === state.theme || b.dataset.proof === state.proof;
+    b.setAttribute("aria-pressed", String(on));
+  });
+}
+document.getElementById("mockbar").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.screen) state.screen = b.dataset.screen;
+  if (b.dataset.themeSet) state.theme = b.dataset.themeSet;
+  if (b.dataset.proof) state.proof = b.dataset.proof;
+  render();
+});
+document.addEventListener("click", (e) => { if (e.target.closest('a[href="#"]')) e.preventDefault(); });
+const q = new URLSearchParams(location.search);
+for (const k of ["screen", "theme", "proof"]) if (q.get(k)) state[k] = q.get(k);
+if (q.get("shot")) document.body.classList.add("shot");
+render();
+</script>
+</body>
+</html>
