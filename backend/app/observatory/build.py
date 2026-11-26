@@ -200,7 +200,6 @@ def _claim_checks(box: L.Box, got: dict) -> list[dict]:
             "came_from": None,
             "beside": [],
             "fix": None,
-            "next": None,
         }
         if res is not None and res.get("result"):
             word = str(res["result"])
@@ -274,7 +273,6 @@ def _test_checks(box: L.Box, got: dict) -> list[dict]:
             "related_key": f"test:{row['item_id']}",
             "beside": [],
             "fix": None,
-            "next": None,
         }
         result = row.get("result")
         if result:
@@ -361,7 +359,7 @@ def _status_checks(box: L.Box, got: dict) -> list[dict]:
                 at=(row or {}).get("last_run_at"),
                 plain=found.get("sentence"),
                 evidence_link=_link("evidence", f"system-{box.system}") if row else None,
-                next=system.get("plan_line"),
+                plan_line=system.get("plan_line"),
             )
         else:
             check.update(
@@ -373,7 +371,7 @@ def _status_checks(box: L.Box, got: dict) -> list[dict]:
                 at=None,
                 plain=None,
                 evidence_link=None,
-                next=None,
+                plan_line=None,
             )
         out.append(check)
     return out
@@ -496,7 +494,7 @@ def _public_check(check: dict, panel: bool) -> dict:
     ]
     out["related_key"] = check["related_key"]
     if panel:
-        out.update(plain=check.get("plain"), at=check.get("at"), fix=check.get("fix"), next=check.get("next"))
+        out.update(plain=check.get("plain"), at=check.get("at"), fix=check.get("fix"))
         out["links"] = check.get("links") or []
     return out
 
@@ -1057,6 +1055,8 @@ def panel(lab: Any, import_id: int, plan_id: int | None, key: str) -> dict:
     last = _newest(stamps)
     container = layout.container_of(box)
     library_groups = [g for g in _libraries(layout) if g["owner"] == key]
+    # The Migration plan has one line for a system, not one for each track: it is shown once for the box.
+    plan_line = next((c["plan_line"] for c in checks if c["kind"] == "status" and c.get("plan_line")), None)
     return {
         "key": key,
         "kind_label": words.PANEL_KIND,
@@ -1082,6 +1082,11 @@ def panel(lab: Any, import_id: int, plan_id: int | None, key: str) -> dict:
         "spots": _public_box(shown, panel=True)["spots"],
         "libraries": library_groups,
         "fixes": list(fixes.values()),
+        "next": (
+            {"text": plan_line, "label": words.LINK_SYSTEM, "link": _link("migration/systems", box.system)}
+            if plan_line
+            else None
+        ),
         "gaps": {"title": words.BOX_GAPS_TITLE, "items": _box_gaps(box, got)},
         "file_lines": _file_lines(box, got),
         "related_key": related_key,

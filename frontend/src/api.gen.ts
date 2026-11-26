@@ -4297,6 +4297,14 @@ export interface ObservatoryLine {
   kind: "uses" | "live" | "ask";
   label: string;
 }
+export interface ObservatoryNext {
+  /**
+   * The Migration plan's own line for this system, as its Systems table shows it.
+   */
+  text: string;
+  label: string;
+  link: ItemLink;
+}
 export interface ObservatoryOutside {
   key: "clients" | "this_computer";
   title: string;
@@ -4329,6 +4337,10 @@ export interface ObservatoryPanel {
    * The fixes a recorded link ties to this box or to one of its checks.
    */
   fixes: ObservatoryFix[];
+  /**
+   * The next step the Migration plan names for this system, once its status was measured; else null.
+   */
+  next: ObservatoryNext | null;
   gaps: ObservatoryBoxGaps;
   /**
    * The lines of the files that name it.
@@ -4419,10 +4431,6 @@ export interface ObservatoryPanelCheck {
   plain: string | null;
   at: string | null;
   fix: ObservatoryCheckFix | null;
-  /**
-   * For a post-quantum status: the Migration plan's own next step.
-   */
-  next: string | null;
   links: ObservatoryCheckLink[];
 }
 /**
