@@ -33,6 +33,7 @@ import { GuidedBar } from "./components/shell/GuidedBar";
 import { DecisionsPage } from "./components/evidence/DecisionsPage";
 import { EvidenceFilesPage } from "./components/evidence/EvidenceFilesPage";
 import { TimelinePage } from "./components/evidence/TimelinePage";
+import { ObservatoryPage } from "./components/observatory/ObservatoryPage";
 import { Sidebar, type PageAccess } from "./components/shell/Sidebar";
 import { TopBar } from "./components/shell/TopBar";
 import { ErrorBox, formatTime, SecondaryButton } from "./components/ui";
@@ -678,6 +679,9 @@ export default function App() {
         }}
       />
     );
+  } else if (page === "observatory") {
+    // The design refactor (26 November 2026): the map of the systems the files describe. It only reads.
+    content = <ObservatoryPage assessmentId={current.id} openItem={routeItem} />;
   } else if (page === "inventory/verify" && imp) {
     // (Continue to checks opens Crypto tests, where the test plan and Run all are: Kevin's decision of 20 November 2026)
     content = (

@@ -252,7 +252,7 @@ export function Sidebar({
     <div
       data-testid="sidebar"
       data-collapsed={collapsed || undefined}
-      className={`flex h-full flex-col gap-3 ${collapsed ? "w-16 px-2" : "w-64 px-3"} py-3.5`}
+      className={`flex h-full flex-col gap-2.5 ${collapsed ? "w-16 px-2" : "w-64 px-3"} py-3`}
     >
       <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} gap-2`}>
         {collapsed ? (
@@ -287,6 +287,7 @@ export function Sidebar({
               current={route.kind === "project"}
               collapsed={collapsed}
               onNavigate={onNavigate}
+              dense
             />
           </div>
         ) : null}
@@ -311,7 +312,7 @@ export function Sidebar({
                     {step.label && !collapsed ? (
                       <p
                         data-testid="sidebar-step-name"
-                        className="flex items-center gap-2 px-2.5 pb-0.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wide text-slate-500"
+                        className="flex items-center gap-2 px-2.5 pb-0.5 pt-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-slate-500"
                       >
                         {step.n ? (
                           <span
@@ -391,7 +392,7 @@ export function Sidebar({
         )}
       </nav>
 
-      <nav aria-label="Workspace" className="space-y-0.5 border-t border-slate-800 pt-3">
+      <nav aria-label="Workspace" className="space-y-0.5 border-t border-slate-800 pt-2">
         <NavLink
           href="#/projects"
           label="Projects"
@@ -399,6 +400,7 @@ export function Sidebar({
           current={route.kind === "projects"}
           collapsed={collapsed}
           onNavigate={onNavigate}
+          dense
         />
         <NavLink
           href="#/settings"
@@ -407,6 +409,7 @@ export function Sidebar({
           current={route.kind === "settings"}
           collapsed={collapsed}
           onNavigate={onNavigate}
+          dense
         />
         <button
           type="button"

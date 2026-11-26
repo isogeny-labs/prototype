@@ -300,7 +300,9 @@ describe("Evidence Lab, results view", () => {
     await open(withResult(lab, 13, { run_record: { ...lab.rows[2]!.result!.run_record, meta } }));
     expand("Official test vectors");
     expect(screen.getByText("somewhere")).not.toBeNull();
-    expect(screen.queryByRole("link")).toBeNull();
+    // (the one link in the panel is the app's own way to the result's place on the map; the source is none)
+    expect(screen.getAllByRole("link").map((a) => a.getAttribute("data-testid"))).toEqual(["show-on-the-map"]);
+    expect(within(screen.getByTestId("proof-fold")).queryByRole("link")).toBeNull();
   });
 
   it("puts Mark reviewed and Dig deeper on every opened result", async () => {

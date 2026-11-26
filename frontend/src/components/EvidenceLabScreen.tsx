@@ -32,7 +32,7 @@ import {
 import { AlsoChecks, CheckPanel, EarlierRuns } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
 import { LibraryPanel, LibraryTable } from "./checks/LibraryEvidence";
-import { FoldLine, Trail } from "./proof";
+import { FoldLine, GlanceFact, Trail } from "./proof";
 import { sourceParts } from "./sourceParts";
 import { HistoryFold } from "./evidence/HistoryFold";
 import { ItemLinkView, RelatedFold, WithRelated } from "./related";
@@ -564,6 +564,16 @@ export function EvidenceLabScreen({
       table(visible, true, "Results")
     );
 
+  // Where this result sits on the map of the systems: the Observatory opens on its box.
+  const onTheMap = (itemId: number) => (
+    <GlanceFact icon="map" testId="on-the-map">
+      On your map:{" "}
+      <ItemLinkView link={{ page: "observatory", item: `test:${itemId}` }} testId="show-on-the-map">
+        Show on the map
+      </ItemLinkView>
+    </GlanceFact>
+  );
+
   const panel = (
     <DetailPanel
       open={selected !== null}
@@ -595,6 +605,7 @@ export function EvidenceLabScreen({
                       heading={current.columns?.after_heading}
                       plain={selected.after.plain}
                       controlLine={selected.control_line || null}
+                      place={onTheMap(selected.item_id)}
                       busy={busy}
                       onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                       onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
@@ -607,6 +618,7 @@ export function EvidenceLabScreen({
                       heading={current.columns?.before_heading}
                       plain={selected.result.plain}
                       controlLine={selected.after ? null : selected.control_line || null}
+                      place={selected.after ? undefined : onTheMap(selected.item_id)}
                       busy={busy}
                       onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                       onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
@@ -619,6 +631,7 @@ export function EvidenceLabScreen({
                   result={selected.result}
                   plain={selected.result.plain}
                   controlLine={selected.control_line || null}
+                  place={onTheMap(selected.item_id)}
                   busy={busy}
                   onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                   onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}

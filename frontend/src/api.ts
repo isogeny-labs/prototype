@@ -268,6 +268,18 @@ export type {
   EvidenceFileRow,
   HistoryView,
   HistoryLine,
+  // ... and the Observatory
+  ObservatoryView,
+  ObservatoryService,
+  ObservatoryBox,
+  ObservatorySpot,
+  ObservatoryCheck,
+  ObservatoryAlgorithm,
+  ObservatoryLibraries,
+  ObservatoryLine,
+  ObservatoryPanel,
+  ObservatoryPanelCheck,
+  ObservatoryPlace,
 } from "./api.gen";
 import { notifyChanged } from "./changes";
 import { TIMES_ASK, TIMES_HEADER, withLocalTimes } from "./time";
@@ -307,6 +319,9 @@ import type {
   DecisionsView,
   EvidenceFilesView,
   HistoryView,
+  ObservatoryView,
+  ObservatoryPanel,
+  ObservatoryPlace,
 } from "./api.gen";
 
 /** "?a=1&b=2" from the values that are set; nothing for none. */
@@ -641,6 +656,15 @@ export const api = {
   getEvidenceFiles: (planId: number) => request<EvidenceFilesView>(`/api/plans/${planId}/evidence-files`),
   /** The history of one item, keyed as the Related block keys its panel ("test:12", "fix:...", "system:..."). */
   getHistory: (planId: number, key: string) => request<HistoryView>(`/api/plans/${planId}/history${query({ key })}`),
+
+  // The Observatory (26 November 2026): the map of the systems as the files describe them. Three reads.
+  getObservatory: (assessmentId: number) => request<ObservatoryView>(`/api/assessments/${assessmentId}/observatory`),
+  /** One box of the map. Its key may hold colons and slashes: it is the rest of the address. */
+  getObservatoryBox: (planId: number, box: string) =>
+    request<ObservatoryPanel>(`/api/plans/${planId}/observatory/${box.split("/").map(encodeURIComponent).join("/")}`),
+  /** Where the item a side panel is about sits on the map, by the key its Related block uses. */
+  getObservatoryPlace: (planId: number, key: string) =>
+    request<ObservatoryPlace>(`/api/plans/${planId}/observatory/place${query({ key })}`),
 
   // Change watch (phase 6d). The read, and its two actions; neither action sends anything but its own address.
   getChangeWatch: (planId: number) => request<ChangeWatchView>(`/api/plans/${planId}/change-watch`),

@@ -165,7 +165,7 @@ describe("a side panel's header", () => {
     // (the panels: a claim on Import and on Verify, an advisory, a check, a result and a library on Evidence, a fix, a
     // system, a library on Dependencies, since phase 6d a developer's change on Change watch, with Sandbox research a
     // watched weakness on its Watch list, and since 26 November 2026 an entry of the record on Evidence's Timeline and
-    // on Approvals and decisions, which share one panel)
+    // on Approvals and decisions, which share one panel, and a box of the Observatory's map)
     const found: string[] = [];
     const walk = (dir: string) => {
       for (const name of readdirSync(dir)) {
@@ -179,7 +179,7 @@ describe("a side panel's header", () => {
       }
     };
     walk(join(process.cwd(), "src", "components"));
-    expect(found).toHaveLength(12);
+    expect(found).toHaveLength(13);
     expect(found.filter((f) => f.endsWith("NO ITEM"))).toEqual([]);
   });
 });
