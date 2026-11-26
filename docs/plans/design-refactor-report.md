@@ -20,7 +20,23 @@ A result's panel used to be one long column with everything open. Now it reads i
 
 The same three layers are on an advisory's panel and on a fix's panel. On a library's fix the two proof rows keep their exact words ("Proven on public copies", "Proven in this assessment"), drawn as step 1 and step 2, with the note under the second.
 
-Pictures: PICTURES_LAYERS
+A result, as it opens:
+
+![A result's panel, folded](../screenshots/design-refactor/06-a-result-folded-light.png)
+
+The same result with its Cryptanalysis proof opened:
+
+![A result with its Cryptanalysis proof open](../screenshots/design-refactor/07-a-result-with-its-cryptanalysis-proof-open-light.png)
+
+A result that was observed on a server, with its Technical record:
+
+![An observed result with its Technical record](../screenshots/design-refactor/09-an-observed-result-with-its-technical-record-light.png)
+
+A fix, as it opens, and with its dropdown open:
+
+![A fix, folded](../screenshots/design-refactor/11-a-fix-folded-light.png)
+
+![A fix with its fold open](../screenshots/design-refactor/12-a-fix-with-its-fold-open-light.png)
 
 ### 2. The sidebar is a path
 
@@ -28,7 +44,7 @@ Overview, then **1 Bring in** (Import), **2 Observe** (Observatory, Verify), **3
 
 Each tab now says how many items it holds and how many are findings ("Crypto tests 5 · ✕ 3 failed"). On Results and Fixes the rows come in labelled parts: **On your systems**, **On copies on this computer**, **Said by the maker**, **Only in your file**, and **No result yet**.
 
-Pictures: PICTURES_SIDEBAR
+![The sidebar: six steps, then Evidence](../screenshots/design-refactor/01-sidebar-six-steps-then-evidence-light.png)
 
 ### 3. The Observatory: your systems as a map
 
@@ -36,7 +52,19 @@ A new page under step 2. It draws the service your scanner file describes, the p
 
 It is not a result and not a score, and it starts nothing.
 
-Pictures: PICTURES_OBSERVATORY
+Before anything is checked:
+
+![The Observatory before anything was checked](../screenshots/design-refactor/02-observatory-before-anything-was-checked-light.png)
+
+After Verify and Run all:
+
+![The Observatory after Verify and Run all](../screenshots/design-refactor/03-observatory-after-verify-and-run-all-light.png)
+
+A box opened, and the List view:
+
+![A box of the map opened](../screenshots/design-refactor/04-observatory-a-box-open-light.png)
+
+![The Observatory as a list](../screenshots/design-refactor/05-observatory-list-light.png)
 
 ### 4. Evidence is the full record
 
@@ -49,7 +77,17 @@ You asked whether Evidence only took the latest run. Every run was always kept, 
 
 Every panel has **History of this** check, fix, system or advisory. Checks, Advisories, Fixes, Migration plan and Dependencies each have **History of** that page in their header.
 
-Pictures: PICTURES_EVIDENCE
+![The Timeline](../screenshots/design-refactor/13-timeline-light.png)
+
+![An entry of the Timeline opened](../screenshots/design-refactor/14-timeline-an-entry-open-light.png)
+
+![Results by version, after a retest](../screenshots/design-refactor/10-results-by-version-after-a-retest-light.png)
+
+![Approvals and decisions](../screenshots/design-refactor/15-approvals-and-decisions-light.png)
+
+![Evidence files, after a download](../screenshots/design-refactor/17-evidence-files-after-a-download-light.png)
+
+![History of this check](../screenshots/design-refactor/08-history-of-this-check-light.png)
 
 ### 5. Who did what
 
@@ -93,7 +131,23 @@ CHECKS
 
 A separate reviewer read the whole build against the SPEC and your rules. It reported 13 findings. None was about a wrong result. What it found, and what was done:
 
-REVIEW_TABLE
+| # | What the review found | What was done |
+|---|---|---|
+| 1 | "History of this check" read "nothing has happened" for a claim's row, and failed for the rows of a retest, a fix proof or a Change watch run. | Fixed, with a test for each kind of row. |
+| 2 | The "✕ N failed" number on a tab counted Change watch's runs, which your rules keep apart. | Fixed: a tab leaves them out. |
+| 3 | The record said "with New assessment" when the button pressed was New project or Load demo projects. That wording also went into the signed file. | Fixed: it names the button that was pressed. |
+| 4 | The Observatory's List left out the libraries, the ties and each service's line, and had one sentence of its own that could be false. | Fixed: the List shows what the Map shows, and that sentence is gone. |
+| 5 | The Observatory's first line said every claim is checked "on your live systems". A signing program is checked on a copy. | Fixed. |
+| 6 | No end-to-end walk and no width measurement for the new pages. | Added. The width measurement then found two real layout faults on the Observatory (see below), both fixed. |
+| 7 | With one program, once a proposal was accepted the panel no longer said that accepting runs nothing. | Fixed: the sentence is always on the panel. |
+| 8 | "Show on the map" was drawn for results that have no place on the map. | Fixed: only for results of a server or a signing program. |
+| 9 | The fourth number on Advisories was labelled as counting checks; it counts advisories. | Fixed. |
+| 10 | Approvals and decisions said "Applied" for an Apply the server refused. | Fixed: it reads "Not applied: the server refused the settings". |
+| 11 | If recording a press failed after the button's own work succeeded, the button would answer with an error. | Changed: the button's answer wins, and the press is left unrecorded with one line in the log. This is a choice, so it is under "Your calls" below. |
+| 12 | The SPEC's list of what was not built missed four items, and three built things were not written in it. | Fixed. |
+| 13 | "Open" on a fix proof's run or a Change watch run in the Timeline landed on a page with nothing open. | Fixed: it opens Checks, where that row is. |
+
+**Two layout faults the new width measurement found.** With both the Otto panel and a box's panel open at 1440 pixels, the map has about a third of the page. Its two top boxes overlapped and result chips stuck out of their boxes; the List view scrolled sideways. Both are fixed: the map and the list now lay themselves out by their own width, and a line of the map is led round the side where it would cross another box. The layout walk now checks this on every run.
 
 It also confirmed what it found sound: the answer keys, the reviewer, the wireframes, the research data and the package lists are untouched; no new network call; no "secure", score or severity in any new text; folding dropped no record; the new reads write nothing; the two new tables are add-only and have one writer; an older evidence file still verifies.
 
