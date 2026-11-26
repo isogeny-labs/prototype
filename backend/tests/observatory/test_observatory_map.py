@@ -260,8 +260,9 @@ def test_before_any_check_every_spot_says_what_the_file_claims_and_that_it_is_no
         assert view["state"] == "file_only" and view["empty"] is None
         assert (view["banner"]["strong"], view["banner"]["text"]) == (
             "Nothing has been checked yet.",
-            "This is what your scanner file says. Verify checks each claim on your live systems, and the map fills in as "
-            "each check runs.",
+            # (a claim about a signing program is checked on a copy, never on a live system: the sentence says both)
+            "This is what your scanner file says. Verify checks each claim: a server at its address, a signing program on "
+            "a copy on this computer. The map fills in as each check runs.",
         )
         assert view["banner"]["link"] == {"page": "inventory/verify", "item": None}
         assert all(not c["checked"] and c["word"] in W.NOT_YET and c["tone"] is None for c in W.checks(view))

@@ -12,7 +12,7 @@ export const observatoryFileOnly: ObservatoryView = {
   empty: null,
   banner: {
     strong: "Nothing has been checked yet.",
-    text: "This is what your scanner file says. Verify checks each claim on your live systems, and the map fills in as each check runs.",
+    text: "This is what your scanner file says. Verify checks each claim: a server at its address, a signing program on a copy on this computer. The map fills in as each check runs.",
     link: {
       page: "inventory/verify",
       item: null,

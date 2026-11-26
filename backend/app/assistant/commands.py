@@ -187,7 +187,8 @@ CHIPS: dict[str, tuple[str, ...]] = {
     "inventory/verify": ("Open Checks", "Show failed checks", HELP),
     "advisories": ("Show proposed checks", "Open Checks", HELP),
     "checks": ("Show failed checks", "Run all", HELP),
-    "observatory": ("Verify claims", "Open Checks", HELP),
+    # (beside the map the examples only open pages: the Observatory starts nothing, and neither does a chip beside it)
+    "observatory": ("Open Verify", "Open Checks", HELP),
     "evidence": ("Show failed results", "Open Fixes", HELP),
     "evidence/timeline": ("Open Evidence", "Show failed checks", HELP),
     "evidence/decisions": ("Open Evidence", "Open Fixes", HELP),

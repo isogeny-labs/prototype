@@ -106,7 +106,11 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
       </table>
       {/* The libraries of the dependency list, as the map groups them (or the map's own line that none was added). */}
       {view.libraries.length > 0 ? (
-        <table aria-label="Libraries, as a list" data-testid="list-libraries" className="w-full border-collapse border-t border-slate-800 text-left text-sm">
+        <table
+          aria-label="Libraries, as a list"
+          data-testid="list-libraries"
+          className="w-full border-collapse border-t border-slate-800 text-left text-sm"
+        >
           <thead>
             <tr className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
               <th scope="col" className="px-4 py-2.5 font-medium">
@@ -123,7 +127,11 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
           <tbody>
             {view.libraries.flatMap((group) =>
               group.rows.map((row, i) => (
-                <tr key={`${group.key}/${row.id}`} data-testid="list-library" className="border-b border-slate-800/70 last:border-b-0">
+                <tr
+                  key={`${group.key}/${row.id}`}
+                  data-testid="list-library"
+                  className="border-b border-slate-800/70 last:border-b-0"
+                >
                   {i === 0 ? (
                     <th scope="rowgroup" rowSpan={group.rows.length} className="px-4 py-3 align-top font-normal">
                       <span className="font-medium text-slate-100">{group.title}</span>

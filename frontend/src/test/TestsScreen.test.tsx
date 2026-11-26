@@ -98,7 +98,12 @@ describe("Tests screen", () => {
   it("says on each test where it runs, in the flat plan: on your server, or on a copy on this computer", async () => {
     // (26 November 2026: observing and testing are told apart on every row; under a target's own heading the heading
     // says it, and the row does not repeat it)
-    const server = { key: "server:localhost:8443", kind: "server" as const, heading: "Server: localhost:8443", note: null };
+    const server = {
+      key: "server:localhost:8443",
+      kind: "server" as const,
+      heading: "Server: localhost:8443",
+      note: null,
+    };
     const program = {
       key: "software:lib-acme-sign",
       kind: "software" as const,

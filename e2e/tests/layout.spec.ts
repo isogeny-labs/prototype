@@ -8,6 +8,9 @@
 // The design refactor (26 November 2026): the page that was Evidence is the Results view of Evidence (its pictures keep
 // their names, "evidence-..."), and a panel keeps its records behind one fold. A panel is measured as it opens, with
 // the fold shut (that is the picture), and once more with the fold open, so the tables inside it are measured too.
+// The three new pages that have a side panel are measured the same way: the Observatory (its Map and its List, each
+// with a box's panel open), Evidence's Timeline (an entry's panel open) and Approvals and decisions (a row's panel
+// open). Their pictures go to docs/screenshots/design-refactor/.
 // It runs on a copy of the app of its own (own data folder and ports), so the main app is never touched.
 // Main-screen buttons only.
 import { expect, test, type Page } from "@playwright/test";
@@ -29,6 +32,7 @@ import {
 
 const SHOTS = screenshotFolder("phase5b");
 const TAB_SHOTS = screenshotFolder("group-tabs");
+const NEW_PAGE_SHOTS = screenshotFolder("design-refactor");
 const GROUPS = [
   { key: "verification", label: "Verification" },
   { key: "encryption", label: "Crypto tests" },
@@ -53,8 +57,10 @@ async function shots(name: string, folder = SHOTS): Promise<void> {
   });
 }
 
-/** Measures the page with its panel closed, then opens a row's panel and measures again; takes both screenshots. */
-async function measure(name: string, open?: () => Promise<void>, folder = SHOTS): Promise<void> {
+/** Measures the page with its panel closed, then opens a row's panel and measures again; takes both screenshots.
+ * `compact`: beside its open panel a table shows its compact form, and that is waited for; a page that is no such
+ * table (the Observatory's map and its List, the Timeline's list) is drawn as it is beside its panel. */
+async function measure(name: string, open?: () => Promise<void>, folder = SHOTS, compact = true): Promise<void> {
   const panel = page.getByTestId("detail-panel").or(page.getByTestId("claim-panel"));
   if ((await panel.count()) > 0) {
     // The panel can close by itself just now: a check belongs to its tab, so when another tab opens the page closes the
@@ -77,7 +83,7 @@ async function measure(name: string, open?: () => Promise<void>, folder = SHOTS)
   const checkPanel = page.getByTestId("check-panel");
   if ((await checkPanel.count()) > 0) await expect(checkPanel.getByTestId("earlier-runs")).toBeVisible();
   // The table (or the Roadmap's plan) beside the panel is in its compact form.
-  await expect(page.locator('main [data-compact="true"]').first()).toBeVisible();
+  if (compact) await expect(page.locator('main [data-compact="true"]').first()).toBeVisible();
   expect(await layoutProblems(page), `${name}, panel open`).toEqual([]);
   await shots(`${name}-panel-open`, folder);
   // The panel's records are behind one fold, shut until it is opened (a result's, a fix's): with it open the tables in
@@ -211,6 +217,42 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await measure("11-migration-dependencies", () =>
     page.getByTestId("dependency-row").filter({ hasText: "openssl 3.0.22" }).first().locator("p.font-mono").click(),
   );
+
+  // ---- The design refactor (26 November 2026): the three new pages that have a side panel
+  // The Observatory: the map, then the List (a table), each with a box's panel open
+  await stepLink(page, "Observatory").click();
+  await expect(page.getByTestId("observatory-map")).toBeVisible();
+  await measure(
+    "layout-observatory-map",
+    () => page.getByTestId("map-box-open").first().click(),
+    NEW_PAGE_SHOTS,
+    false,
+  );
+  await expect(page.getByTestId("box-panel")).toBeVisible();
+  await page.getByRole("group", { name: "Observatory view" }).getByRole("button", { name: "List" }).click();
+  await expect(page.getByTestId("observatory-list")).toBeVisible();
+  await measure(
+    "layout-observatory-list",
+    () => page.getByTestId("observatory-list").getByTestId("list-row").first().getByRole("button").first().click(),
+    NEW_PAGE_SHOTS,
+    false,
+  );
+  await expect(page.getByTestId("box-panel")).toBeVisible();
+  // Evidence, the Timeline: an entry's panel (Run all, with the runs it started)
+  await stepLink(page, "Timeline").click();
+  const ranAll = page.getByTestId("timeline-entry").filter({ hasText: "Run all" }).first();
+  await expect(ranAll).toBeVisible();
+  await measure("layout-timeline", () => ranAll.getByRole("button").first().click(), NEW_PAGE_SHOTS, false);
+  await expect(page.getByTestId("entry-panel")).toBeVisible();
+  // Evidence, Approvals and decisions: a table, compact beside the panel of one of its rows
+  await stepLink(page, "Approvals and decisions").click();
+  await expect(page.getByTestId("decision-row").first()).toBeVisible();
+  await measure(
+    "layout-decisions",
+    () => page.getByTestId("decision-row").first().locator(":scope > *").first().click(),
+    NEW_PAGE_SHOTS,
+  );
+  await expect(page.getByTestId("entry-panel")).toBeVisible();
 
   // ---- The Overview, then a second pass of the same file (Rerun as new assessment), for the Project overview
   await stepLink(page, "Overview").click();

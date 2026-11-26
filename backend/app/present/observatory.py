@@ -24,8 +24,8 @@ EMPTY_TEXT = "No file has been brought in yet. The map is drawn from your scanne
 EMPTY_LINK_LABEL = "Open Import"
 BANNER_STRONG = "Nothing has been checked yet."
 BANNER_TEXT = (
-    "This is what your scanner file says. Verify checks each claim on your live systems, and the map fills in as each "
-    "check runs."
+    "This is what your scanner file says. Verify checks each claim: a server at its address, a signing program on a copy "
+    "on this computer. The map fills in as each check runs."
 )
 BANNER_LINK_LABEL = "Open Verify"
 
