@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
-from app.db import EvidenceExportRow, ImportRow
+from app.db import ActionRow, EvidenceExportRow, ImportRow
 from app.errors import BadRequest, NotFound
 from app.evidence.export import VERIFY_COMMAND, export_view
 from app.present import record as words
@@ -112,15 +112,14 @@ def _matches(entry: dict, terms: list[str]) -> bool:
 
 
 def _days(rows: list[dict], zone: tzinfo, key: str) -> list[dict]:
-    """Rows (newest first) by the day each happened on, in the viewer's time zone."""
-    days: list[dict] = []
+    """Rows (newest first) by the day each happened on, in the viewer's time zone: the newest day first, and inside a
+    day the rows in the order they came."""
+    days: dict[str, dict] = {}
     for row in rows:
-        day = _day(row["at"], zone)
-        if not days or days[-1]["date"] != day:
-            days.append({"date": day, "count": 0, key: []})
-        days[-1][key].append(row)
-        days[-1]["count"] += 1
-    return days
+        day = days.setdefault(_day(row["at"], zone), {"date": _day(row["at"], zone), "count": 0, key: []})
+        day[key].append(row)
+        day["count"] += 1
+    return [days[date] for date in sorted(days, reverse=True)]
 
 
 def _filter(label_all: str, labels: tuple, counts: dict, total: int) -> list[dict]:
@@ -160,13 +159,15 @@ class RecordMixin:
         kind: str | None = None,
         q: str | None = None,
         tz: str | None = None,
+        read: Entries | None = None,
     ) -> dict:
         """Everything that happened in the assessment, newest first, by day. Change watch's runs and changes are listed
-        only when Change watch is chosen, and are counted in no other number."""
+        only when Change watch is chosen, and are counted in no other number. (`read`: the entries, where the caller
+        has read them already; a route never has.)"""
         frame = self._record_frame(plan_id)
         area, kind = self._record_choice(area, kind)
         terms = str(q or "")[:MAX_SEARCH].casefold().split()
-        found = entries(self, plan_id)
+        found = read or entries(self, plan_id)
         zone, zone_name = _zone(tz)
 
         def listed(entry: dict, in_area: str | None) -> bool:
@@ -207,10 +208,10 @@ class RecordMixin:
 
     # ---------------------------------------------------------------- 2. one entry's story
 
-    def timeline_entry_view(self, plan_id: int, entry_id: str) -> dict:
+    def timeline_entry_view(self, plan_id: int, entry_id: str, read: Entries | None = None) -> dict:
         """One entry for a side panel: who, what it rested on, what came after, and the facts of its record."""
         frame = self._record_frame(plan_id)
-        entry = entries(self, plan_id).by_id.get(str(entry_id))
+        entry = (read or entries(self, plan_id)).by_id.get(str(entry_id))
         if entry is None:
             raise NotFound("That entry is not in this assessment's timeline.")
         record = list(entry["record"])
@@ -239,12 +240,14 @@ class RecordMixin:
 
     # ---------------------------------------------------------------- 3. Approvals and decisions
 
-    def decisions_view(self, plan_id: int, area: str | None = None, tz: str | None = None) -> dict:
+    def decisions_view(
+        self, plan_id: int, area: str | None = None, tz: str | None = None, read: Entries | None = None
+    ) -> dict:
         """Every decision a person made in the assessment, newest first, by day. No result is in this list: no person
         decides one."""
         frame = self._record_frame(plan_id)
         area, _ = self._record_choice(area, None)
-        found = entries(self, plan_id)
+        found = read or entries(self, plan_id)
         zone, zone_name = _zone(tz)
         decided = [e for e in found.all if e["decision"] is not None]
         shown = [e for e in decided if area is None or e["area"] == area]
@@ -298,24 +301,33 @@ class RecordMixin:
     def evidence_files_view(self, plan_id: int) -> dict:
         """Every download of the signed evidence file, newest first, how to check a file and what it holds."""
         frame = self._record_frame(plan_id)
-        found = entries(self, plan_id)
         with self.db() as db:
             rows = db.scalars(
                 select(EvidenceExportRow)
                 .where(EvidenceExportRow.plan_id == plan_id)
                 .order_by(EvidenceExportRow.id.desc())
             ).all()
+            pressed = {
+                (a.detail or {}).get("export_id"): a
+                for a in db.scalars(
+                    select(ActionRow).where(ActionRow.plan_id == plan_id, ActionRow.kind == "evidence_downloaded")
+                )
+            }
             files = []
             for row in rows:
                 shown = export_view(row)
-                entry = found.by_id.get(f"export-{row.id}")
+                press = pressed.get(row.id)
                 files.append(
                     {
                         "id": row.id,
                         "at": shown["created_at"],
                         "fingerprint": shown["fingerprint"],
                         "fingerprint_label": shown["fingerprint_label"],
-                        "who": entry["who"] if entry is not None else words.nobody(),
+                        "who": (
+                            words.who(press.by, press.by_source, pressed=words.button(press.kind, press.detail))
+                            if press is not None
+                            else words.nobody()
+                        ),
                         "json": shown["json"],
                         "html": shown["html"],
                     }
@@ -339,13 +351,13 @@ class RecordMixin:
 
     # ---------------------------------------------------------------- 5. the history of one item
 
-    def history_view(self, plan_id: int, key: str) -> dict:
+    def history_view(self, plan_id: int, key: str, read: Entries | None = None) -> dict:
         """What happened to one item, newest first, keyed as the Related block keys its panel."""
         frame = self._record_frame(plan_id)
-        return {**frame, **history_of(entries(self, plan_id), str(key)[:720])}
+        return {**frame, **history_of(read or entries(self, plan_id), str(key)[:720])}
 
     def record_entries(self, plan_id: int) -> Entries:
-        """The timeline's entries as plain data (for the evidence file's part and the tests)."""
+        """The timeline's entries, read now (for a caller that asks several of the reads above about the same moment)."""
         return entries(self, plan_id)
 
 

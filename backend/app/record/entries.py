@@ -73,8 +73,11 @@ _OTTO_AREA = {"check": "advisories", "fix": "fixes", "plan": "migration", "depen
 
 
 def _key(entry: dict) -> tuple:
+    """Newest first by when it happened. Some records keep their time to the second only (a decision on a proposal, a
+    download): those are placed by the finer time of their own row or press, so two things of the same second stand in
+    the order they happened. The time that is shown stays the record's own."""
     kind, _, number = entry["id"].partition("-")
-    when = times.instant(entry["at"])
+    when = times.instant(entry["sort_at"] or entry["at"])
     return (
         when.timestamp() if when is not None else 0.0,
         _ORDER.index(kind) if kind in _ORDER else len(_ORDER),
@@ -146,12 +149,14 @@ class Entries:
         about: set[str] | None = None,
         pending: int = 0,
         title: str | None = None,
+        sort_at: str | None = None,
     ) -> dict:
         lead, rest = sentence
         person = who or words.nobody()
         entry = {
             "id": entry_id,
             "at": at,
+            "sort_at": sort_at,
             "area": area,
             "kind": kind,
             "icon": icon,
@@ -237,26 +242,29 @@ class Entries:
     def _change_area(self, key: str) -> str:
         return "fixes" if G.group_of_change(key) == "encryption" else "migration"
 
-    def _change_link(self, key: str, item_id: int | None = None) -> dict:
-        """Where a change's box is: its fix in Fixes, or its system on Migration plan."""
+    def _change_homes(self, key: str, item_id: int | None = None) -> tuple[str | None, str | None]:
+        """(the fix whose box a change is acted on in, the system it changes), each None where there is none."""
         fix_id = next(
             (fid for fid, f in self.r.fix_words.items() if (f.get("change_box") or {}).get("id") == key), None
         )
-        if fix_id is not None:
-            return {"page": "fixes", "item": fix_id}
         if item_id is None:
             item_id = next((t["item_id"] for t in self.r.tries if t["change_key"] == key), None)
-        system = self.r.system_of_item.get(item_id) if item_id is not None else None
-        if system is not None:
+        return fix_id, (self.r.system_of_item.get(item_id) if item_id is not None else None)
+
+    def _change_link(self, key: str, item_id: int | None = None) -> dict:
+        """Where a change lives: the migration plan's on its system (Migration plan), the server fix's in Fixes."""
+        fix_id, system = self._change_homes(key, item_id)
+        if self._change_area(key) == "migration" and system is not None:
             return {"page": "migration/systems", "item": system}
+        if fix_id is not None:
+            return {"page": "fixes", "item": fix_id}
         return {"page": "fixes" if self._change_area(key) == "fixes" else "migration/systems", "item": None}
 
     def _change_about(self, key: str, item_id: int | None = None) -> set[str]:
-        about = {f"change:{key}"}
-        link = self._change_link(key, item_id)
-        if link["item"] is not None:
-            about.add(("fix:" if link["page"] == "fixes" else "system:") + str(link["item"]))
-        return about
+        fix_id, system = self._change_homes(key, item_id)
+        return (
+            {f"change:{key}"} | ({f"fix:{fix_id}"} if fix_id else set()) | ({f"system:{system}"} if system else set())
+        )
 
     def _run_about(self, runs: list[dict]) -> set[str]:
         about = set()
@@ -370,6 +378,7 @@ class Entries:
                 link={"page": "evidence", "item": None, "section": "files"},
                 people=[words.role("downloaded", self._pressed(press), export["at"])],
                 record=[words.fact("Fingerprint (SHA-256)", export["fingerprint"])],
+                sort_at=press["at"] if press is not None else None,  # (a download's own time is kept to the second)
             )
 
     def _signoff(self) -> None:
@@ -484,8 +493,8 @@ class Entries:
                 ids = list(detail.get("removed", []))
                 sentence = words.test_removed(next((r.items[i]["title"] for i in ids if i in r.items), None))
             elif press["kind"] == "tests_reordered":
-                ids = [m["item"] for m in detail.get("moved", [])]
-                sentence = words.tests_reordered(len(ids))
+                ids = list(detail.get("order", []))
+                sentence = words.tests_reordered([r.items[i]["title"] for i in ids if i in r.items])
             else:
                 continue
             self._add(
@@ -598,7 +607,7 @@ class Entries:
                 sentence = (
                     words.marked_reviewed(run["name"], run["ran_on"], run["label"])
                     if kind == "mark"
-                    else words.dig_deeper(run["name"], run["ran_on"])
+                    else words.asked_to_dig(run["name"], run["ran_on"])
                 )
                 self._add(
                     f"{kind}-{row['id']}",
@@ -869,6 +878,7 @@ class Entries:
                 record=[words.fact("Proposal", d["proposal"])],
                 about=about,
                 title=f"{words.OTTO_DECISIONS[d['decision']]}: {words.OTTO_WHAT.get(d['kind'], words.OTTO_PROPOSAL)}",
+                sort_at=d["made"],
             )
 
     def _looks(self) -> None:
@@ -885,6 +895,7 @@ class Entries:
                 link={"page": "advisories", "item": None},
                 people=[words.role("looked", named, look["at"])],
                 about={f"advisory:{a}" for a in look["advisories"]},
+                sort_at=look["made"],
             )
         for run in self.r.research.values():
             named = (
@@ -902,6 +913,7 @@ class Entries:
                 link={"page": "advisories", "item": None},
                 people=[words.role("started", named, run["at"])],
                 about={f"advisory:{a}" for a in run["advisories"]},
+                sort_at=run["made"],
             )
 
     # ---------------------------------------------------------------- a change to a system
@@ -1236,6 +1248,7 @@ class Entries:
                 link={"page": "change-watch", "item": None, "section": "watch-list"},
                 decision="stop" if mark["kind"] == "stop" else "watch",
                 on=str(mark["item"]) + (f". Reason: {mark['reason']}" if mark["reason"] else ""),
+                sort_at=mark["made"],
                 people=[words.role("decided", named, mark["at"])],
             )
 

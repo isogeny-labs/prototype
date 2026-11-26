@@ -413,11 +413,16 @@ PRESSES: dict[str, What] = {
             "connection_id": t.first("code_connections"),
             "change_id": t.first("changes"),
             "proof_id": t.first("proofs"),
+            **_queued(t),  # the tests the proof that starts by itself queued (none where nothing can be proved)
         },
         needs=("code_connections",),
     ),
     "run_proof_again": What(
-        "proof_started", _plan, item=_fix, detail=lambda t: {"proof_id": t.first("proofs")}, needs=("proofs",)
+        "proof_started",
+        _plan,
+        item=_fix,
+        detail=lambda t: {"proof_id": t.first("proofs"), **_queued(t)},
+        needs=("proofs",),
     ),
     "open_pull_request": What(
         "pull_request_opened",

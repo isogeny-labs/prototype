@@ -94,7 +94,7 @@ ACTION_KEYS = {"n", "at", "by", "by_source", "kind", "what", "button", "item", "
 PART_KEYS = {"schema", "note", "sources", "actions"}
 MAX_ACTIONS, MAX_REFS, MAX_FACTS, MAX_LIST = 100_000, 5_000, 40, 5_000
 _MOMENT = re.compile(r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\Z")
-_FACT = re.compile(r"\A[a-z_]{1,40}\Z")
+_FACT = re.compile(r"\A[a-z][a-z0-9_]{0,39}\Z")  # a fact's name, as the app writes them ("retest_id", "sha256")
 _HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
 
 
@@ -156,15 +156,17 @@ def held(evidence: dict) -> dict[str, set]:
     fixes = _list_of_dicts(evidence.get("fixes"), 100_000)
     watch = evidence.get("change_watch") if isinstance(evidence.get("change_watch"), dict) else {}
     runs = [r for c in checks for r in _list_of_dicts(c.get("runs"), 100_000)]
-    tests = {t.get("item_id") for t in _list_of_dicts(evidence.get("tests"), 100_000)}
+    tests = {t.get("item_id") for t in _list_of_dicts(evidence.get("tests"), 100_000) if _whole(t.get("item_id"))}
     for part in ("migration", "dependencies"):
         inside = evidence.get(part) if isinstance(evidence.get(part), dict) else {}
-        tests |= {m.get("item_id") for m in _list_of_dicts(inside.get("measurements"), 100_000)}
+        tests |= {
+            m.get("item_id") for m in _list_of_dicts(inside.get("measurements"), 100_000) if _whole(m.get("item_id"))
+        }
     changes = [c.get("change") for c in _list_of_dicts(evidence.get("changes"), 100_000)]
     return {
         "run": {r.get("run_id") for r in runs if _whole(r.get("run_id"))},
         "verify_run": {r.get("verify_run_id") for r in runs if _whole(r.get("verify_run_id"))},
-        "test": {t for t in tests if _whole(t)},
+        "test": tests,
         "fix": {f.get("id") for f in fixes if isinstance(f.get("id"), str)},
         "proof": {p.get("id") for f in fixes for p in _list_of_dicts(f.get("proofs"), 100_000) if _whole(p.get("id"))},
         "change": {c.get("key") for c in changes if isinstance(c, dict) and isinstance(c.get("key"), str)},
@@ -297,9 +299,13 @@ def _check_records(actions: list[dict], evidence: dict) -> None:
         n, kind, facts = action["n"], action["kind"], action["facts"]
         fix = _fix_of(action, evidence)
         if kind == "approved" and fix is not None:
-            names = {a.get("name") for a in _list_of_dicts(fix.get("approvals"), 1000) if a.get("approved_at")}
+            names = {
+                a.get("name")
+                for a in _list_of_dicts(fix.get("approvals"), 1000)
+                if a.get("approved_at") and isinstance(a.get("name"), str)
+            }
             _need(
-                facts.get("as") in names,
+                isinstance(facts.get("as"), str) and facts.get("as") in names,
                 f"press {n} says a pull request was approved as {_plain(facts.get('as'))}, and the fix it names holds no such approval.",
             )
         if kind == "merged" and fix is not None:

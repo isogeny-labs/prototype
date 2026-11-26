@@ -297,8 +297,9 @@ def test_removed(title: str | None) -> Sentence:
     ]
 
 
-def tests_reordered(n: int) -> Sentence:
-    return "Changed the order of the test plan.", [_t(f" {count(n, 'test')} moved.")]
+def tests_reordered(titles: list[str]) -> Sentence:
+    order = f" The order is now: {join_and(titles)}." if titles else ""
+    return "Changed the order of the test plan.", [_t(order)] if order else []
 
 
 def ran(kind: str, n: int, title: str | None = None) -> Sentence:
@@ -328,7 +329,7 @@ def marked_reviewed(title: str, ran_on: str | None, label: str | None) -> Senten
     return "Marked reviewed:", [_t(rest)]
 
 
-def dig_deeper(title: str, ran_on: str | None) -> Sentence:
+def asked_to_dig(title: str, ran_on: str | None) -> Sentence:
     return "Asked to dig deeper:", [
         _t(f" “{title}”" + (f" on {ran_on}" if ran_on else "") + ". The request is kept; no answer is made up for it.")
     ]
