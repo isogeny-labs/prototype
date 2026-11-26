@@ -74,9 +74,6 @@ class Reading:
         self.lab, self.plan_id = lab, plan_id
         ledger = lab.ledger(plan_id)  # NotFound for a plan that does not exist
         self.rows: list[dict] = ledger["rows"]
-        fixes_view = lab.fixes_view(plan_id)  # each fix as Fixes words it (its title, its change box)
-        self.fix_words = {f["id"]: f for f in fixes_view.get("fixes") or []}
-        self.fix_states = {f["id"]: f for f in lab.fix_states(plan_id)}
         try:
             self.watch = lab.change_watch_state(plan_id)  # the developer's changes, read from the connected repository
         except NotFound:
@@ -114,6 +111,10 @@ class Reading:
             }
             self._assessment(db, imp.id)
             self._tests(db, plan_id)
+            # each fix where it stands and as Fixes words it (its change box, whether it is a proposal of Otto's)
+            fixes = lab._fix_details(db, plan)
+            self.fix_states = {state["id"]: state for state, _ in fixes}
+            self.fix_words = {state["id"]: shown for state, shown in fixes}
             self.systems = {s["key"]: s for s in lab._migration_states(db, plan)}
             self.system_of_item = {s["item_id"]: s["key"] for s in self.systems.values()}
             self.system_names = {s["key"]: s["name"] for s in lab._systems(lab._claims(imp))}
@@ -372,6 +373,7 @@ class Reading:
                 "reason": d.reason,
                 "by": d.by,
                 "at": stamp(d.at),
+                "made": stamp(d.created_at),  # (its row's own time, finer than the second `at` is kept to: to sort by)
                 "title": str((d.proposal or {}).get("title") or "A proposal from Otto"),
                 "about": dict((d.proposal or {}).get("about") or {}),
             }
@@ -385,6 +387,7 @@ class Reading:
                 "by": look.by,
                 "source": look.source,
                 "at": stamp(look.at),
+                "made": stamp(look.created_at),
                 "libraries": len(look.asked or []),
                 "advisories": [str(((f or {}).get("advisory") or {}).get("id")) for f in look.found or []],
             }
@@ -397,15 +400,26 @@ class Reading:
             select(OttoResearchRow).where(OttoResearchRow.plan_id == plan_id).order_by(OttoResearchRow.id)
         ):
             run = self.research.setdefault(
-                r.run_key, {"key": r.run_key, "by": None, "at": None, "advisories": [], "ended": None, "pack": None}
+                r.run_key,
+                {"key": r.run_key, "by": None, "at": None, "made": None, "advisories": [], "ended": None, "pack": None},
             )
             if r.kind == "started":
-                run.update(by=r.by, at=stamp(r.at), advisories=[str(a) for a in r.advisories or []])
+                run.update(
+                    by=r.by, at=stamp(r.at), made=stamp(r.created_at), advisories=[str(a) for a in r.advisories or []]
+                )
             else:
                 run.update(ended=stamp(r.at), pack=r.pack_version)
-                run["at"] = run["at"] or stamp(r.at)
+                run["at"], run["made"] = run["at"] or stamp(r.at), run["made"] or stamp(r.created_at)
         self.watch_marks = [
-            {"id": m.id, "item": m.item, "kind": m.kind, "by": m.by, "reason": m.reason, "at": stamp(m.at)}
+            {
+                "id": m.id,
+                "item": m.item,
+                "kind": m.kind,
+                "by": m.by,
+                "reason": m.reason,
+                "at": stamp(m.at),
+                "made": stamp(m.created_at),
+            }
             for m in db.scalars(
                 select(WatchListMarkRow).where(WatchListMarkRow.plan_id == plan_id).order_by(WatchListMarkRow.id)
             )

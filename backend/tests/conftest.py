@@ -75,6 +75,15 @@ SLOW_SHARED_WALKS = {
     "test_watch_evidence.py": "made",
     "test_watch_panel.py": "beside",
     "test_watch_view.py": "page",
+    # 26 November 2026, Evidence as the full record: one walk shared by the files of tests/record (the fix from Connect
+    # demo code to the merge, a retest, a developer's change and its picked tests, two downloads; five to six seconds to
+    # make). Its readers are slow by the rule above. What stays in the everyday run: the tests on the short walk of
+    # tests/record/record_walk.py, the name sources, what leaves no row, the source scans and the bent copies of the
+    # evidence part. Run all of it with: pytest -q tests/record --full (about a minute).
+    "test_actions_record.py": "walked",
+    "test_record_timeline.py": "walked",
+    "test_record_reads_only.py": "walked",
+    "test_record_evidence.py": "walked",
 }
 # 19 November 2026: the whole demo, made once for the run (`demo_flow` below: Run all, then Retest on 1.4.3). It takes
 # about 49 seconds on the build machine (the published test cases twice and the speed test twice), and 41 tests in
