@@ -27,6 +27,7 @@ import {
   layoutProblems,
   openFreshAssessment,
   openPageGroup,
+  openProofFold,
   screenshotFolder,
   startCopy,
   stepLink,
@@ -166,9 +167,9 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   expect(fixesCounted.title).toMatch(/^Open findings with a fix \(\d+\)$/i);
   await expect(page.getByTestId("fix-apart")).toHaveCount(0);
 
-  // what Evidence says before any change comes in (compared again at the end)
-  // (the test results are Evidence's Crypto tests tab)
-  await openPageGroup(page, "Evidence", "Crypto tests");
+  // what Results (the page that was Evidence) says before any change comes in (compared again at the end)
+  // (the test results are Results' Crypto tests tab)
+  await openPageGroup(page, "Results", "Crypto tests");
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
   await expect(page.getByTestId("evidence-row").first()).toBeVisible();
   // (the rows' own text, whatever is drawn at this instant: `innerText` reads as one unbroken line while a row is in
@@ -302,6 +303,8 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   expect(await page.locator("#fix-list-title").innerText()).toBe(fixesCounted.title);
   expect(await encryptionFixes.getByTestId("group-counts").innerText()).toBe(fixesCounted.group);
   expect(await page.getByTestId("fix-row").count()).toBe(fixesCounted.rows);
+  // (the design refactor, 26 November 2026: the entry's sections are inside the panel's one fold, shut until opened)
+  await openProofFold(page.getByTestId("detail-panel"), "fix-proof-fold");
   const takenOut = page.locator('[data-section="change"]');
   await expect(takenOut).toContainText("What the change takes out");
   expect(await takenOut.locator('[data-testid="code-line"][data-mark="-"]').count()).toBeGreaterThan(0);
@@ -355,12 +358,12 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
     .click();
   await expect(page).toHaveURL(/#\/a\/\d+\/checks\?item=proof-\d+-in-\d+$/);
   await expect(page.getByTestId("check-panel").getByTestId("result-badge").first()).toHaveText("Passed");
-  // Evidence lists the change's runs too, under Crypto tests, each saying where it came from
-  await openPageGroup(page, "Evidence", "Crypto tests");
+  // Results lists the change's runs too, under Crypto tests, each saying where it came from
+  await openPageGroup(page, "Results", "Crypto tests");
   await expect(page.getByTestId("check-row").filter({ hasText: "Change watch" })).toHaveCount(3);
 
-  // ---- these runs are kept apart: Evidence reads exactly what it read before the change came in
-  await openPageGroup(page, "Evidence", "Crypto tests");
+  // ---- these runs are kept apart: Results reads exactly what it read before the change came in
+  await openPageGroup(page, "Results", "Crypto tests");
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
   await expect.poll(async () => page.getByTestId("evidence-row").allTextContents()).toEqual(evidenceBefore);
 
@@ -400,7 +403,7 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   await page.keyboard.press("Escape");
 
   // ---- the evidence file holds both changes and the run, and the verify command checks that part against the runs
-  await stepLink(page, "Evidence").click();
+  await stepLink(page, "Results").click();
   const created = page.waitForResponse(
     (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
   );

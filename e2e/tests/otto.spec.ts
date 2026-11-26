@@ -40,8 +40,10 @@ import {
   exactText,
   importVerifyAndOpenTests,
   layoutProblems,
+  openFoldLine,
   openFreshAssessment,
   openPageGroup,
+  openProofFold,
   openResult,
   screenshotFolder,
   startCopy,
@@ -336,7 +338,7 @@ async function openOttosFix(page: Page, assessment: string): Promise<Locator> {
 }
 
 async function downloadEvidence(page: Page): Promise<{ json: any; report: string; file: string }> {
-  await stepLink(page, "Evidence").click();
+  await stepLink(page, "Results").click(); // (the page that was Evidence: the Results view of Evidence)
   const created = page.waitForResponse(
     (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
   );
@@ -479,6 +481,11 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     // Advisories: the three advisories of the pack; two have a test, and each of those is a proposal waiting
     let advisories = await openAdvisories(page, assessment);
     await expect(advisories.getByTestId("advisory-row")).toHaveCount(3);
+    // The design refactor (26 November 2026): the lines about the installed packs, the answers and the harness are one
+    // folded line above the list ("Where this page's facts come from"), shut until it is opened.
+    await expect(advisories.getByTestId("advisories-packs-line")).toBeHidden();
+    await openFoldLine(advisories, "advisories-facts");
+    await expect(advisories.getByTestId("advisories-packs-line")).toBeVisible();
     await expect(advisories.getByTestId("advisories-packs-line")).toContainText("2026.11.1");
     await expect(advisories.getByTestId("advisory-test")).toHaveText(["Test ready", "Test ready", "No test yet"]);
     await expect(advisories.getByTestId("advisory-proposal")).toHaveText(["Proposed", "Proposed", "Nothing proposed"]);
@@ -497,11 +504,11 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
       /^https:\/\/raw\.githubusercontent\.com\/openjdk\/jdk17u\//,
     );
     await expect(panel.getByTestId("advisory-notes")).not.toHaveAttribute("open", "");
+    // In the open: where the test stands and why. Its question, cases, control and rule, the trial and the records are
+    // behind the panel's one fold (read below, once the fold is opened).
     const block = panel.getByTestId("advisory-test-block");
-    await expect(block).toContainText("77 published cases");
-    await expect(block).toContainText("accepts every signature"); // the control that must fail
-    await expect(block).toContainText("Passed only if every answer is right"); // the pass rule
-    await expect(panel.getByTestId("advisory-trial").first()).toContainText("openjdk 17.0.2");
+    await expect(block).toContainText("Test ready");
+    await expect(block.getByTestId("advisory-test-reason")).toBeVisible();
     await expect(panel.getByTestId("advisory-fix-label")).toHaveText("From Otto");
     await expect(panel.getByTestId("advisory-fix")).toContainText(
       "The test pack carries a fix for openjdk, the library this advisory is about: update it to 17.0.3 or later.",
@@ -513,7 +520,6 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
       "it is a proposal, with Accept and Reject, only where it applies",
     );
     await expect(panel.getByTestId("advisory-fix")).not.toContainText("Otto proposes:");
-    await expect(panel.getByTestId("advisory-claude")).toContainText("Recorded during the build");
     let proposal = panel
       .locator('[data-testid="advisory-here-row"][data-program="acme-sign 1.4.2"]')
       .getByTestId("otto-proposal");
@@ -521,15 +527,33 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(proposal.getByTestId("proposal-status")).toHaveText("Proposed");
     await expect(proposal.getByTestId("proposal-why")).toContainText("Why it applies");
     await expect(proposal.getByTestId("proposal-why")).toContainText("acme-sign 1.4.2 checks ECDSA P-256 signatures");
-    await expect(proposal.getByTestId("proposal-lines")).toContainText("Control that must fail");
+    // (the card no longer repeats the test's question, cases and control as bullets of its own: they are said once,
+    // under "The test", in the fold)
+    await expect(proposal.getByTestId("proposal-lines")).toHaveCount(0);
     await expect(proposal.getByTestId("proposal-decided")).toHaveText("Nobody has decided this yet.");
     await expect(proposal.getByTestId("proposal-note")).toContainText("It runs nothing.");
     await expect(proposal.getByRole("button")).toHaveText(["Accept", "Reject"]);
     expect(await layoutProblems(page), "Advisories, panel open on a proposal").toEqual([]);
     await shots(page, "1-00-advisory-proposal-waiting", { panel: true });
-    // the ledger entries of the research are folded under the test
-    await panel.getByTestId("advisory-test-block").getByTestId("advisory-ledger").locator("summary").click();
-    await expect(panel.getByTestId("advisory-test-block").getByTestId("advisory-ledger-entry").first()).toBeVisible();
+    // ---- the fold: shut until it is opened. The test was tried on public copies, so it is a Cryptanalysis proof. It
+    // holds the test's details, the trial and the records.
+    const records = panel.getByTestId("advisory-proof-fold");
+    await expect(records.getByTestId("proof-fold-toggle")).toHaveAttribute("aria-expanded", "false");
+    await expect(records.getByTestId("proof-fold-name")).toHaveText("Cryptanalysis proof");
+    await expect(panel.getByTestId("advisory-test-details")).toBeHidden();
+    await openProofFold(panel, "advisory-proof-fold");
+    const details = panel.getByTestId("advisory-test-details");
+    await expect(details).toBeVisible();
+    await expect(details).toContainText("77 published cases");
+    await expect(details).toContainText("accepts every signature"); // the control that must fail
+    await expect(details).toContainText("Passed only if every answer is right"); // the pass rule
+    await expect(panel.getByTestId("advisory-trial").first()).toContainText("openjdk 17.0.2");
+    await expect(panel.getByTestId("advisory-claude")).toContainText("Recorded during the build");
+    expect(await layoutProblems(page), "Advisories, panel open on a proposal, its fold open").toEqual([]);
+    // the ledger entries of the research are folded under the records
+    const ledger = records.getByTestId("proof-part-records").getByTestId("advisory-ledger");
+    await ledger.locator("summary").click();
+    await expect(ledger.getByTestId("advisory-ledger-entry").first()).toBeVisible();
     await closePanel(page);
     await tour(page, "1-inventory", assessment, project);
 
@@ -628,17 +652,26 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
 
     // ================================================================ 3. run: the runner and the reviewer decide
     await runAllAndWait(page, 6);
-    await stepLink(page, "Evidence").click();
+    await stepLink(page, "Results").click();
     let result = await openResult(page, RANGE_CHECK);
     await expect(result.getByTestId("result-badge").first()).toContainText("Failed");
-    await expect(result.getByTestId("advisories")).toContainText("CVE-2022-21449");
-    await expect(result.getByTestId("advisories")).toContainText("quoted from the named source, not a result");
+    // The design refactor (26 November 2026): the advisory, the cases, the control and where the check came from are
+    // records, behind the result's one fold; it was proven on a copy, so the fold is a Cryptanalysis proof.
+    await expect(result.getByTestId("proof-fold-name")).toHaveText("Cryptanalysis proof");
+    await expect(result.getByTestId("result-otto")).toBeHidden();
+    await openProofFold(result);
+    const quoted = result.getByTestId("proof-part-advisories");
+    await expect(quoted.getByTestId("advisories")).toBeVisible();
+    await expect(quoted).toContainText("CVE-2022-21449");
+    await expect(quoted).toContainText("quoted from the named source, not a result");
     await expect(result).toContainText("3 of 77 advisory cases wrong");
     await expect(result).toContainText("control (broken signer): wrong on 77 of 77");
     await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
     // where the check came from: the advisory, the design, the trial on public copies, every decision, the ledger
     const origin = result.getByTestId("result-otto");
-    await expect(origin.getByTestId("result-otto-label")).toHaveText("From Otto");
+    await expect(origin).toBeVisible();
+    // (the tag stands beside the part's title)
+    await expect(result.getByTestId("proof-part-otto").getByTestId("result-otto-label")).toHaveText("From Otto");
     await expect(origin.getByTestId("result-otto-line")).toContainText("in test pack 2026.11.1.");
     await expect(origin.getByTestId("result-otto-advisory")).toHaveAttribute(
       "href",
@@ -665,7 +698,13 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     const toAdvisory = page
       .getByTestId("detail-panel")
       .locator('[data-testid="related-line"][data-kind="advisory"] [data-testid="related-link"]');
+    // (the Related block is a folded line at the panel's foot; the same link is a step of the trail on top)
+    await expect(
+      page.getByTestId("detail-panel").locator('[data-testid="trail-step"][data-kind="advisory"]'),
+    ).toHaveCount(1);
+    await openFoldLine(page.getByTestId("detail-panel"), "related-fold");
     await expect(toAdvisory).toHaveCount(1);
+    await expect(toAdvisory).toBeVisible();
     expect(await layoutProblems(page), "Evidence, an advisory check's result open").toEqual([]);
     await shots(page, "3-00-evidence-result-where-the-check-came-from", { panel: true });
 
@@ -704,8 +743,11 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     // nothing can be connected before a person accepts the proposal
     await expect(fix.getByRole("button", { name: "Connect demo code" })).toBeDisabled();
     await expect(fix).toContainText("This change is a proposal. Accept it first; accepting runs nothing.");
-    await expect(proposal.getByTestId("proposal-lines")).toContainText("What it changes:");
-    await expect(proposal.getByTestId("proposal-lines")).toContainText("Accepting it runs nothing and changes nothing");
+    // (in the fix's own panel the card leaves out its bullets: what the change does stands right below it, once, and
+    // that accepting runs nothing is said by the two sentences here)
+    await expect(proposal.getByTestId("proposal-lines")).toHaveCount(0);
+    await expect(proposal.getByTestId("proposal-title")).toHaveCount(0);
+    await expect(fix.getByTestId("fix-what")).toContainText("What it would change:");
     await expect(fix).toContainText("Nothing is changed until you accept it and connect the code");
     await expect(
       page
@@ -728,6 +770,8 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await fix.getByRole("button", { name: "Connect demo code" }).click();
     await expect(fix.getByTestId("fix-status")).toHaveAttribute("data-status", "ready", { timeout: 300_000 });
     await expect(proposal.getByTestId("proposal-undo")).toBeDisabled(); // the code is connected: the accept stands
+    // (the change, its proof and the technical details are inside the panel's one fold, shut until it is opened)
+    await openProofFold(page.getByTestId("detail-panel"), "fix-proof-fold");
     const proof = page.locator('[data-testid="fix-section"][data-section="proof"]');
     if ((await proof.getByRole("button").first().getAttribute("aria-expanded")) !== "true")
       await proof.getByRole("button").first().click();
@@ -746,6 +790,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     expect(await layoutProblems(page), "Fixes, the proof open in the panel").toEqual([]);
     await shots(page, "4-00-fixes-proof-passed-on-ottos-change", { panel: true });
     // the changed code is, byte for byte, the registered program Otto's change gives
+    await openProofFold(page.getByTestId("detail-panel"), "fix-proof-fold");
     const technical = page.locator('[data-testid="fix-section"][data-section="details"]');
     if ((await technical.getByRole("button").first().getAttribute("aria-expanded")) !== "true")
       await technical.getByRole("button").first().click();
@@ -886,8 +931,8 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     // ================================================================ 6. Retest now: the same locked check on the merged code
     fix = await openOttosFix(page, assessment);
     await fix.getByRole("button", { name: "Retest now" }).click();
-    // straight to Evidence, on the retested result; the table's before and after columns are read with the panel closed
-    await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible({ timeout: 60_000 });
+    // straight to Results, on the retested result; the table's before and after columns are read with the panel closed
+    await expect(page.getByRole("heading", { name: "Results", level: 1 })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("detail-panel").getByTestId("lab-row")).toBeVisible();
     await closePanel(page);
     await expect(page.getByTestId("lab-columns")).toContainText("Before: acme-sign 1.4.2");
@@ -1024,7 +1069,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     expect(await layoutProblems(page), "Advisories with two packs, panel closed").toEqual([]);
     // Evidence: the two checks added since the retest ran on the version the file names. The page says how many of
     // the tests have a result after, and never that all eight ran on the retested version.
-    await stepLink(page, "Evidence").click();
+    await stepLink(page, "Results").click();
     await expect(page.getByTestId("lab-subline")).toContainText(
       "six of the eight locked tests were run on acme-sign 1.4.2 and then on acme-sign 1.4.3-otto",
     );
@@ -1145,6 +1190,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     advisories = await openAdvisories(page, assessment);
     await expect(page.getByTestId("closed-banner")).toBeVisible();
     await expect(advisories.getByTestId("advisory-row")).toHaveCount(6);
+    await openFoldLine(advisories, "advisories-facts");
     await expect(advisories.getByTestId("advisories-packs-line")).toContainText("when this assessment was closed");
     await expect(advisoryRow(page, "CVE-2022-21449").getByTestId("advisory-result")).toHaveText("Passed"); // as it was signed off
     panel = await openAdvisory(page, "CVE-2022-21449");
@@ -1234,7 +1280,10 @@ test("isolated mode: a real library's fix from Otto has two proof rows, and a re
     await panel.getByTestId("advisory-fix-link").first().click();
     await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
     const fix = page.getByTestId("fix-summary");
-    await expect(fix).toContainText("Update elliptic to 6.5.7");
+    // (the fix is named once, by the panel's title: the proposal's card no longer repeats it as a title of its own)
+    await expect(page.getByTestId("detail-panel").getByRole("heading", { level: 2 })).toContainText(
+      "Update elliptic to 6.5.7",
+    );
     await expect(fix.getByTestId("fix-status")).toContainText("Text only");
     const rows = fix.getByTestId("proof-row");
     await expect(rows).toHaveCount(2);
@@ -1246,7 +1295,11 @@ test("isolated mode: a real library's fix from Otto has two proof rows, and a re
       "href",
       /#\/a\/\d+\/advisories\?item=CVE-2024-42460$/,
     );
-    await expect(onPublic.getByTestId("advisory-ledger")).toContainText("Otto ledger entries");
+    // (the research ledger's entries behind this row are records: in the panel's one fold, with the suggestion)
+    await openProofFold(page.getByTestId("detail-panel"), "fix-proof-fold");
+    await expect(
+      page.getByTestId("detail-panel").getByTestId("fix-records").getByTestId("advisory-ledger"),
+    ).toContainText("Otto ledger entries");
     await expect(here.getByTestId("proof-row-badge")).toHaveText("Not yet");
     await expect(here.getByTestId("proof-row-text")).toHaveText("Update the library, then press Retest.");
     // what the row is about, right under its sentence: a public copy, not the system the reader runs
@@ -1272,7 +1325,7 @@ test("isolated mode: a real library's fix from Otto has two proof rows, and a re
     await expect(proposal.getByTestId("proposal-effect")).toContainText("then press Retest");
 
     // ---- the result in Evidence repeats the same two rows on its fix line
-    await stepLink(page, "Evidence").click();
+    await stepLink(page, "Results").click();
     const result = await openResult(page, MISSING_ZERO_CHECK);
     await expect(result.getByTestId("fix-line-row")).toHaveText([
       "Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.",

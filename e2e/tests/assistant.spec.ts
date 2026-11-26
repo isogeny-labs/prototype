@@ -24,6 +24,7 @@ import {
   layoutProblems,
   openFreshAssessment,
   openPageGroup,
+  openProofFold,
   screenshotFolder,
   startCopy,
   stepLink,
@@ -485,9 +486,10 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     // ================================================================ phase 6c: a fixed question, answered from the records
     // On Evidence the question that fits is "Why did this check fail?". Several checks failed and none is open, so it
     // asks which one, and the option asks about that one. The answer is a list of facts with links: nothing to press.
-    // (the results table is Evidence's Crypto tests tab)
+    // (the results table is the Crypto tests tab of Results, the page that was Evidence; the panel's sentences still
+    // call the page Evidence, as they always did)
     await page.goto(`/#/a/${assessment}/evidence?group=encryption`);
-    await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Results", level: 1 })).toBeVisible();
     await settled(page);
     await expect(panel.getByTestId("otto-question").first()).toHaveText("Why did this check fail?");
     const beforeAsked = changes(page).length;
@@ -517,7 +519,10 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     // Beside the open panel the table is drawn narrow, without that sentence: the panel carries it, as its first line.
     const opened = page.getByTestId("detail-panel");
     await expect(opened.getByTestId("result-plain").filter({ hasText: plainSentence })).toHaveCount(1);
-    await expect(opened).toContainText(whatHappened);
+    // (what happened is one of the records behind the result's fold, shut until it is opened: it stands there)
+    await openProofFold(opened);
+    await expect(opened.getByTestId("proof-part-happened")).toBeVisible();
+    await expect(opened.getByTestId("proof-part-happened")).toContainText(whatHappened);
     await expect(page.getByTestId("evidence-row").filter({ hasText: RANGE_CHECK })).not.toContainText(plainSentence);
     expect(await layoutProblems(page), "Evidence with an answer in the panel").toEqual([]);
     await shots(page, "08c-evidence-why-did-this-check-fail");
@@ -615,7 +620,7 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     await expect(entries(page, "suggestion:plan").getByTestId("otto-entry-badge")).toHaveText("Accepted");
 
     // ================================================================ Evidence: what each result means; the Fixing tab has opened
-    await openPageGroup(page, "Evidence", "Crypto tests");
+    await openPageGroup(page, "Results", "Crypto tests");
     await expect(page.getByTestId("evidence-row").first()).toBeVisible();
     const meaning = entryTitled(page, "meaning:result", RANGE_CHECK);
     await expect(meaning.getByTestId("otto-entry-mark")).toHaveText("What this means");
@@ -695,7 +700,7 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     const retest = entries(page, "next:retest_now");
     step = await ask(page, retest, "Retest now");
     expect(await confirm(page, step, /\/fixes\/[^/]+\/retest$/)).toMatch(/\/retest$/);
-    await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Results", level: 1 })).toBeVisible();
     // ... on the result this fix came from, open in the page's own side panel, exactly where Retest now on Fixes lands
     expect(page.url()).toMatch(new RegExp(`#/a/${assessment}/evidence\\?item=test-\\d+$`));
     await expect(page.getByTestId("detail-panel")).toBeVisible();
@@ -800,7 +805,7 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     await shots(page, "18-overview");
 
     // ================================================================ the evidence: signed, with the panel's decisions in it
-    await stepLink(page, "Evidence").click();
+    await stepLink(page, "Results").click();
     const created = page.waitForResponse(
       (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
     );

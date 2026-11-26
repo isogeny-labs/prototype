@@ -21,10 +21,10 @@ import {
   enterApp,
   layoutProblems,
   openFreshAssessment,
+  openMigrationView,
   openPageGroup,
   screenshotFolder,
   startCopy,
-  stepLink,
   stopCopy,
   type Copy,
 } from "./shared";
@@ -140,7 +140,8 @@ test("a what-if is answered from what the app knows; the try is the page's own r
   await expect(page.getByTestId("test-card").getByTestId("result-badge")).toHaveCount(5, { timeout: 180_000 });
 
   // ---- the demo dependency list
-  await stepLink(page, "Dependencies").click();
+  // (Migration plan's three views are the sidebar's links under it, listed while one of them is open)
+  await openMigrationView(page, "Dependencies");
   await page.getByLabel("Choose a dependency list").setInputFiles(DEPENDENCIES_FILE);
   await expect(page.getByTestId("dependency-row").first()).toBeVisible({ timeout: 60_000 });
   await page.waitForLoadState("networkidle");
@@ -206,7 +207,7 @@ test("a what-if is answered from what the app knows; the try is the page's own r
   await expect(page).toHaveURL(/#\/a\/\d+\/migration\/dependencies\?item=row-\d+$/);
 
   // ================================================================ where the page offers the retest: its own card
-  await openPageGroup(page, "Evidence", "Crypto tests"); // (the results are Evidence's Crypto tests tab)
+  await openPageGroup(page, "Results", "Crypto tests"); // (the results are the Crypto tests tab of Results, the page that was Evidence)
   await expect(page.getByTestId("evidence-row").first()).toBeVisible();
   await say("What if we update acme-sign to 1.4.3?");
   await expect(reply().getByTestId("otto-reply-text")).toHaveText("What if acme-sign is updated to 1.4.3?");

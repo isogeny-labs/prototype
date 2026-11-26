@@ -23,6 +23,7 @@ import {
   openFreshAssessment,
   openGroupTab,
   openPageGroup,
+  openProofFold,
   screenshotFolder,
   startCopy,
   stepLink,
@@ -131,6 +132,10 @@ async function installPack(page: Page, version: string): Promise<void> {
 }
 
 const part = (page: Page, key: string): Locator => page.locator(`[data-testid="part-section"][data-part="${key}"]`);
+/** The heading of a part, which opens and folds it. Since the design refactor (26 November 2026) a part with nothing in
+ * it yet (no retest, no fix proof) is one folded line until there is something in it, or until it is opened. */
+const partHeading = (page: Page, key: string): Locator =>
+  part(page, key).getByRole("heading", { level: 3 }).getByRole("button");
 const advisoryRow = (page: Page, id: string): Locator =>
   page.locator(`[data-testid="advisory-row"][data-advisory="${id}"]`);
 
@@ -253,6 +258,10 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await expect(proposal.getByTestId("proposal-decided")).toHaveText(
       new RegExp(`^Accepted by You on ${LOCAL_TIME.source}\\.$`),
     );
+    // (the design refactor, 26 November 2026: the records behind an advisory's test, what Claude was asked among them,
+    // are behind the panel's one fold, shut until it is opened)
+    await expect(panel.getByText("What Claude was asked")).toBeHidden();
+    await openProofFold(panel, "advisory-proof-fold");
     await expect(panel.getByText("What Claude was asked")).toBeVisible();
     await expectNoBannedWords(page, "Advisories, with a panel open");
     await shots(page, "02-advisory-panel-new-and-local-time");
@@ -287,13 +296,23 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await lists.nth(0).getByTestId("drag-handle").last().press("ArrowUp");
     await expect.poll(() => reorders).toBe(1);
     await expect(lists.nth(1).getByTestId("test-card")).toHaveCount(1);
-    // before any retest
+    // before any retest: a part with nothing in it is one folded line, with its count and, for the retests, its button;
+    // opened, it says why it is empty. The test plan is always open.
+    await expect(partHeading(page, "plan")).toHaveAttribute("aria-expanded", "true");
     await expect(part(page, "retests").getByTestId("part-count").first()).toHaveText("0 versions");
+    await expect(partHeading(page, "retests")).toHaveAttribute("aria-expanded", "false");
+    await expect(part(page, "retests").getByTestId("part-empty")).toHaveCount(0);
+    await expect(part(page, "retests").getByRole("button", { name: "Retest new version" })).toBeDisabled(); // nothing has run yet
+    await expect(part(page, "proofs").getByTestId("part-count").first()).toHaveText("0 proofs");
+    await expect(partHeading(page, "proofs")).toHaveAttribute("aria-expanded", "false");
+    await partHeading(page, "retests").click();
     await expect(part(page, "retests").getByTestId("part-empty")).toHaveText(
       "No retest yet. Retest new version reruns every test in the plan on another version.",
     );
-    await expect(part(page, "retests").getByRole("button", { name: "Retest new version" })).toBeDisabled(); // nothing has run yet
-    await expect(part(page, "proofs").getByTestId("part-count").first()).toHaveText("0 proofs");
+    await partHeading(page, "proofs").click();
+    await expect(part(page, "proofs").getByTestId("part-empty")).toHaveText(
+      "No fix proof yet. A proof starts in Fixes, when the code of a fix is connected.",
+    );
     // the other three groups have no parts, each on its own tab
     for (const other of ["Verification", "Migration", "Dependencies"]) {
       await openGroupTab(page, other);
@@ -382,11 +401,11 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await expect(block.getByTestId("check-row").first()).toContainText(LOCAL_TIME);
     expect(await layoutProblems(page), "Checks with a proof and a retest").toEqual([]);
     await shots(page, "06-checks-four-parts-with-a-proof-and-a-retest");
-    // the retest started here shows on Evidence as before and after
-    await stepLink(page, "Evidence").click();
+    // the retest started here shows on Results (the page that was Evidence) as before and after
+    await stepLink(page, "Results").click();
     await expect(page.getByTestId("lab-subline")).toContainText("acme-sign 1.4.3");
     await expect(page.getByRole("button", { name: "Retest new version" })).toBeEnabled();
-    await expectNoBannedWords(page, "Evidence");
+    await expectNoBannedWords(page, "Results");
 
     // ================================================================ fix 3: Open in new tab, on every kind of panel
     // ---- a check (a row of the retest's block)
@@ -454,8 +473,8 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
         },
       },
       {
-        name: "a result on Evidence",
-        back: "Evidence",
+        name: "a result on Results",
+        back: "Results",
         title: /\S/,
         open: async () => {
           await page.goto(`/#/a/${assessment}/evidence?group=encryption`);
@@ -505,7 +524,7 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     }
 
     // ================================================================ fix 6: files keep UTC, whatever the browser's zone
-    await stepLink(page, "Evidence").click();
+    await stepLink(page, "Results").click();
     const created = page.waitForResponse(
       (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
     );

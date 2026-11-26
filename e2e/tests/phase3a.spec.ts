@@ -876,7 +876,8 @@ test("the change is 3 lines added and 1 removed; the proof tables show every tes
   await expect(fact("Starting point")).toHaveText(/^branch main, commit [0-9a-f]{7} \(acme-sign 1\.4\.2\)$/);
   await expect(fact("Change branch")).toHaveText(/^fix\/ecdsa-range-check, commit [0-9a-f]{7}$/);
   await expect(fact("File changed")).toHaveText(`acme_sign.py: ${SIZE}`);
-  await expect(fact("Proof finished")).toHaveText(/, after \d+\.\d s\s*measured$/);
+  // (how long the proof took, as the app writes a duration: "41.3 s", or "1 min 3 s" on a busy machine)
+  await expect(fact("Proof finished")).toHaveText(/, after (\d+ min )?\d+(\.\d)? s\s*measured$/);
   await expect(fact("Mode")).toHaveText("Demo mode, not isolated");
   proofFingerprint = (await fact("Evidence fingerprint of the proof (SHA-256)").innerText()).trim();
   expect(proofFingerprint).toMatch(/^[0-9a-f]{64}$/);

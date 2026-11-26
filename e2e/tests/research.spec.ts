@@ -27,6 +27,7 @@ import {
   enterApp,
   layoutProblems,
   openFreshAssessment,
+  openProofFold,
   startCopy,
   stopCopy,
   type Copy,
@@ -226,6 +227,10 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     await expect(block(page).getByTestId("new-advisories-libraries")).toHaveText(
       "This assessment names: elliptic 6.5.6.",
     );
+    // (the design refactor, 26 November 2026: what the loop covers is a long paragraph, folded under its own name)
+    await expect(block(page).getByTestId("new-advisories-covers")).toBeHidden();
+    await block(page).getByTestId("new-advisories-covers-fold").locator("summary").click();
+    await expect(block(page).getByTestId("new-advisories-covers")).toBeVisible();
     await expect(block(page).getByTestId("new-advisories-covers")).toContainText("What this covers:");
     await expect(block(page).getByTestId("look-for-advisories")).toBeEnabled();
     await expect(block(page).getByTestId("design-and-prove")).toHaveCount(0); // there is nothing to try before a look
@@ -348,9 +353,18 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     await expect(panel.getByTestId("advisory-sentence")).toBeVisible();
     const proposal = panel.getByTestId("otto-proposal");
     await expect(proposal).toContainText("From Otto");
-    await expect(proposal).toContainText("Tried on public copies before the pack was signed");
-    await expect(proposal).toContainText("elliptic 6.5.7 got 0 wrong");
     await expect(proposal.getByRole("button")).toHaveText(["Accept", "Reject"]);
+    // The design refactor (26 November 2026): how the test did on public copies is said once, in the panel: the test's
+    // status with its reason in the open, and the trial's counts behind the fold. The card no longer repeats them.
+    await expect(proposal.getByTestId("proposal-lines")).toHaveCount(0);
+    await expect(panel.getByTestId("advisory-test-block")).toContainText("Test ready");
+    await expect(panel.getByTestId("advisory-proof-fold").getByTestId("proof-fold-name")).toHaveText(
+      "Cryptanalysis proof",
+    );
+    await openProofFold(panel, "advisory-proof-fold");
+    await expect(panel.getByTestId("advisory-trial")).toContainText(
+      /elliptic 6\.5\.7 \(the publisher's fixed version\): 0 of \d+ cases? wrong\./,
+    );
     await shots(page, "07-the-proven-check-proposed");
     const accepted = page.waitForResponse(
       (r) => /\/otto\/proposals\/[^/]+\/accept$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
