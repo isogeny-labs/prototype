@@ -1356,6 +1356,21 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(planChanged).toBe(0);
   });
 
+  it("says that accepting runs nothing once on the panel in every state: under Accept while it is offered, in the block after", async () => {
+    // Proposed: the card says it under its own Accept button, so the block's line is left out.
+    await open(advisoriesNotAdded);
+    let inPanel = await openRow(BLANK);
+    expect(inPanel.queryByTestId("advisory-here-note")).toBeNull();
+    expect(within(card()).getByTestId("proposal-note").textContent).toMatch(/It runs nothing\.$/);
+    cleanup();
+    // Accepted, with Undo still possible: the card's note is about Undo now, so the block says the sentence again.
+    await open(advisoriesAddedNotRun);
+    inPanel = await openRow(BLANK);
+    expect(within(card()).queryByTestId("proposal-accept")).toBeNull();
+    expect(inPanel.getByTestId("advisory-here-note").textContent).toBe(blankNotRun.panel.here.note);
+    expect(inPanel.getByTestId("advisory-here-note").textContent).toContain("runs nothing");
+  });
+
   it("Accept records one decision on one proposal, then the page is read again and the app is told the test plan changed", async () => {
     const accept = decide(blankProposal.id, "accept");
     const fetchMock = await openDeciding(advisoriesNotAdded, {

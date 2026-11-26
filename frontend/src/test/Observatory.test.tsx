@@ -230,6 +230,87 @@ describe("the Observatory, a box opened", () => {
 });
 
 describe("the Observatory, as a list", () => {
+  it("lists what the map shows and no less: each service's own line, the ties, and the libraries of the dependency list", async () => {
+    // (26 November 2026, the review: Map and List show the same thing.) The sample walk had no dependency list, so a
+    // group of libraries, a tie and a line to them are written here in the read's own form.
+    const published = {
+      key: "published" as const,
+      label: "Published",
+      meaning: "Said by the library's maker.",
+      note: null,
+    };
+    const withList = {
+      ...observatoryChecked,
+      libraries_note: null,
+      services: observatoryChecked.services.map((service) => ({
+        ...service,
+        sub: "Named in both files, with the same name and version",
+        boxes: service.boxes.map((b) =>
+          b.key === program.key
+            ? {
+                ...b,
+                ties: [
+                  {
+                    label: "acme-sign 1.4.2",
+                    source: "name_version",
+                    words: "In both files: the same name and version.",
+                  },
+                ],
+              }
+            : b,
+        ),
+      })),
+      libraries: [
+        {
+          key: "libraries:acme-ledger",
+          kind_label: "Libraries",
+          title: "acme-ledger 5.1.0's libraries · 8",
+          sub: "From your dependency list",
+          owner: null,
+          count: 8,
+          tag: published,
+          rows: [
+            {
+              id: "row-1",
+              label: "openssl 3.5.9",
+              via_words: "used directly",
+              answers_short: "Yes to all three",
+              tag: published,
+              link: { page: "migration/dependencies", item: "row-1" },
+            },
+          ],
+          more: {
+            count: 7,
+            label: "7 more",
+            link: { page: "migration/dependencies", item: null },
+            link_label: "on Dependencies",
+          },
+        },
+      ],
+      lines: [
+        ...observatoryChecked.lines,
+        { start: program.key, end: "libraries:acme-ledger", kind: "uses" as const, label: "uses 8 libraries" },
+      ],
+    };
+    await open(withList);
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+    const list = within(screen.getByTestId("observatory-list"));
+    expect(text(list.getAllByTestId("list-service")[0]!)).toContain(
+      "Named in both files, with the same name and version",
+    );
+    expect(list.getByTestId("list-tie").textContent).toBe("In both files: the same name and version.");
+    const libraries = within(list.getByRole("table", { name: "Libraries, as a list" }));
+    expect(text(libraries.getByTestId("list-library"))).toBe(
+      "acme-ledger 5.1.0's libraries · 8From your dependency list7 more on Dependenciesopenssl 3.5.9used directlyYes to all three Published",
+    );
+    // The line to the libraries is said in words too.
+    expect(text(list.getByTestId("list-lines"))).toContain(
+      "Your files say one uses the other: acme-sign 1.4.2 to acme-ledger",
+    );
+    // No sentence of the list's own stands where the map's read says nothing.
+    expect(text(screen.getByTestId("observatory-list"))).not.toContain("Nothing in your files");
+  });
+
   it("shows the same boxes, places and checks as a table, and the map's lines in words", async () => {
     await open();
     fireEvent.click(screen.getByRole("button", { name: "List" }));

@@ -55,10 +55,20 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
                       <span className="font-medium text-slate-100">{box.title}</span>
                     )}
                     <span className="mt-0.5 block text-xs text-slate-400">{box.sub}</span>
-                    {service.title ? <span className="block text-xs text-slate-500">In {service.title}</span> : null}
+                    {service.title ? (
+                      <span data-testid="list-service" className="block text-xs text-slate-500">
+                        In {service.title}
+                        {service.version ? ` ${service.version}` : ""}. {service.sub}
+                      </span>
+                    ) : null}
                     <span className="mt-1 block">
                       <WhereFromTag tag={box.tag} />
                     </span>
+                    {box.ties.map((tie, t) => (
+                      <span key={t} data-testid="list-tie" className="mt-1 block text-xs text-slate-400">
+                        {tie.words}
+                      </span>
+                    ))}
                     {box.note ? <span className="mt-1 block text-xs text-slate-400">{box.note}</span> : null}
                   </th>
                 ) : null}
@@ -69,7 +79,11 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
                       <span className="block text-xs text-slate-400">{spot.file_says}</span>
                     </>
                   ) : (
-                    <span className="text-xs text-slate-500">Nothing in your files</span>
+                    // (a part with no place of its own on the map: the map's own note about it stands in the first
+                    // column; nothing is said here that the read does not say)
+                    <span aria-hidden="true" className="text-xs text-slate-600">
+                      –
+                    </span>
                   )}
                 </td>
                 <td className="px-4 py-3 align-top">
@@ -90,6 +104,55 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
           )}
         </tbody>
       </table>
+      {/* The libraries of the dependency list, as the map groups them (or the map's own line that none was added). */}
+      {view.libraries.length > 0 ? (
+        <table aria-label="Libraries, as a list" data-testid="list-libraries" className="w-full border-collapse border-t border-slate-800 text-left text-sm">
+          <thead>
+            <tr className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Libraries of
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Library
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Post-quantum answers
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {view.libraries.flatMap((group) =>
+              group.rows.map((row, i) => (
+                <tr key={`${group.key}/${row.id}`} data-testid="list-library" className="border-b border-slate-800/70 last:border-b-0">
+                  {i === 0 ? (
+                    <th scope="rowgroup" rowSpan={group.rows.length} className="px-4 py-3 align-top font-normal">
+                      <span className="font-medium text-slate-100">{group.title}</span>
+                      <span className="mt-0.5 block text-xs text-slate-400">{group.sub}</span>
+                      {group.more ? (
+                        <span className="mt-1 block text-xs text-slate-400">
+                          {group.more.label} <ItemLinkView link={group.more.link}>{group.more.link_label}</ItemLinkView>
+                        </span>
+                      ) : null}
+                    </th>
+                  ) : null}
+                  <td className="px-4 py-3 align-top">
+                    <ItemLinkView link={row.link}>{row.label}</ItemLinkView>
+                    <span className="block text-xs text-slate-400">{row.via_words}</span>
+                  </td>
+                  <td className="px-4 py-3 align-top text-slate-200">
+                    {row.answers_short} <WhereFromTag tag={row.tag} />
+                  </td>
+                </tr>
+              )),
+            )}
+          </tbody>
+        </table>
+      ) : view.libraries_note ? (
+        <p data-testid="list-libraries-note" className="border-t border-slate-800 px-4 py-3 text-[13px] text-slate-300">
+          <span className="font-medium text-slate-200">{view.libraries_note.title}:</span> {view.libraries_note.sub}.{" "}
+          {view.libraries_note.text} <ItemLinkView link={view.libraries_note.link}>Dependencies</ItemLinkView>
+        </p>
+      ) : null}
       {view.lines.length > 0 ? (
         <div className="border-t border-slate-800 px-4 py-3">
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">The lines of the map, in words</p>
@@ -101,7 +164,8 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
               </li>
             ))}
             {view.lines
-              .filter((line) => line.kind !== "uses")
+              // (a line to an algorithm is said by the algorithm's own sentence above; every other line is said here)
+              .filter((line) => !view.algorithms.some((a) => a.key === line.end || a.key === line.start))
               .map((line, i) => (
                 <li key={i} data-kind={line.kind}>
                   {view.legend.find((l) => l.kind === line.kind)?.text}: {nameOf(view, line.start)} to{" "}

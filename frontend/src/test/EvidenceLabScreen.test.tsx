@@ -300,9 +300,23 @@ describe("Evidence Lab, results view", () => {
     await open(withResult(lab, 13, { run_record: { ...lab.rows[2]!.result!.run_record, meta } }));
     expand("Official test vectors");
     expect(screen.getByText("somewhere")).not.toBeNull();
-    // (the one link in the panel is the app's own way to the result's place on the map; the source is none)
-    expect(screen.getAllByRole("link").map((a) => a.getAttribute("data-testid"))).toEqual(["show-on-the-map"]);
-    expect(within(screen.getByTestId("proof-fold")).queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("links a result to its place on the map only where the map has one: a server's or a signing program's", async () => {
+    // (26 November 2026: the boxes of the map are the servers and programs of the file; a test on the reference
+    // library has no box, so its panel draws no such line)
+    const placed = {
+      ...lab,
+      rows: lab.rows.map((r, i) => ({ ...r, group: i === 0 ? "server:localhost:8443" : i === 2 ? "reference" : null })),
+    };
+    await open(placed);
+    fireEvent.click(rows()[0]!);
+    // (it is in the answer card, and it is a link: it opens the Observatory on the box this result sits in)
+    expect(within(screen.getByTestId("result-glance")).getByTestId("show-on-the-map").tagName).toBe("A");
+    expect(text(screen.getByTestId("on-the-map"))).toBe("On your map: Show on the map");
+    fireEvent.click(rows()[2]!);
+    expect(screen.queryByTestId("on-the-map")).toBeNull();
   });
 
   it("puts Mark reviewed and Dig deeper on every opened result", async () => {

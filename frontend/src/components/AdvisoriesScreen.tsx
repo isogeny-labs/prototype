@@ -183,7 +183,7 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
               key: "results",
               label: view.columns[view.columns.length - 1] ?? "Result here",
               value: view.rows.filter((r) => ["fail", "pass", "warn"].includes(r.result.key)).length,
-              sub: "advisory checks with a result",
+              sub: "advisories with a result here",
             },
           ]}
         />

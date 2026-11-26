@@ -638,6 +638,26 @@ describe("Checks, Crypto tests in four parts", () => {
     expect(within(part("plan")).getAllByTestId("test-card")).toHaveLength(plan.tests.length);
   });
 
+  it("counts a run of Change watch on no tab: the tab's number and its findings are the same with it and without", async () => {
+    // (26 November 2026, the review: these runs are kept apart from the assessment's own results, and a tab's count is
+    // a count of those)
+    const count = () => {
+      const tab = t0("encryption");
+      return [
+        within(tab).getByTestId("group-tab-total").textContent,
+        within(tab).queryByTestId("group-tab-findings")?.textContent ?? null,
+      ];
+    };
+    await open(withParts({ proofs: [proofBlock] }));
+    const without = count();
+    cleanup();
+    await open(withParts({ proofs: [proofBlock], changes: [watchBlock] }));
+    // The run is on the page, in its own part ...
+    expect(within(part("changes")).getAllByTestId("check-row")).toHaveLength(1);
+    // ... and the tab counts what it counted before.
+    expect(count()).toEqual(without);
+  });
+
   it("adds Tries on a test copy once a server change was tried", async () => {
     await open(withParts({ tries: [tryRow] }));
     expect(parts().map((p) => p.getAttribute("data-part"))).toEqual(["plan", "retests", "proofs", "tries"]);

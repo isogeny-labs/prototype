@@ -281,7 +281,19 @@ export function ChecksScreen({
   // Every tab says how many checks it holds and how many of them are findings, counted from the rows of that tab.
   const totals = useMemo(
     () =>
-      view ? Object.fromEntries(view.groups.map((g) => [g.key, tabTotal(tabRows(g).map((r) => r.result))])) : null,
+      view
+        ? Object.fromEntries(
+            view.groups.map((g) => [
+              g.key,
+              // (a run of Change watch is listed on its tab, and counted with nothing else: not on the tab either)
+              tabTotal(
+                tabRows(g)
+                  .filter((r) => r.came_from.key !== "watch")
+                  .map((r) => r.result),
+              ),
+            ]),
+          )
+        : null,
     [view],
   );
 

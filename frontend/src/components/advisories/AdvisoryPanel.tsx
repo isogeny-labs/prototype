@@ -141,7 +141,10 @@ export function AdvisoryPanel({
   // "Accepting adds the check to the test plan and runs nothing" is said once: with one program, whose proposal says
   // it under its own buttons, the block does not say it a second time above them. With several programs the block's
   // line stays, because it also says that each is decided by itself.
-  const saidUnderTheButtons = panel.here.rows.length === 1 && Boolean(panel.here.rows[0]!.proposal?.note);
+  // Once the proposal is decided its card's note is about Undo or Reconsider, so the block says the sentence again.
+  const only = panel.here.rows.length === 1 ? (panel.here.rows[0]!.proposal ?? null) : null;
+  const saidUnderTheButtons =
+    only !== null && Boolean(only.note) && only.buttons.some((button) => button.key === "accept");
 
   // The fold's parts, in order. The first is the test itself; the trial is the proof's own parts where the test was
   // tried on sandbox copies, and the view's counts line by line otherwise; the records come last.

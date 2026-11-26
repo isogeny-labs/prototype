@@ -565,14 +565,17 @@ export function EvidenceLabScreen({
     );
 
   // Where this result sits on the map of the systems: the Observatory opens on its box.
-  const onTheMap = (itemId: number) => (
-    <GlanceFact icon="map" testId="on-the-map">
-      On your map:{" "}
-      <ItemLinkView link={{ page: "observatory", item: `test:${itemId}` }} testId="show-on-the-map">
-        Show on the map
-      </ItemLinkView>
-    </GlanceFact>
-  );
+  // (only for a result of a server or of a signing program: those are the boxes of the map; a test on the reference
+  // library has no place on it, so no line is drawn for it)
+  const onTheMap = (itemId: number) =>
+    /^(server|software):/.test(current.rows.find((r) => r.item_id === itemId)?.group ?? "") ? (
+      <GlanceFact icon="map" testId="on-the-map">
+        On your map:{" "}
+        <ItemLinkView link={{ page: "observatory", item: `test:${itemId}` }} testId="show-on-the-map">
+          Show on the map
+        </ItemLinkView>
+      </GlanceFact>
+    ) : undefined;
 
   const panel = (
     <DetailPanel
@@ -694,7 +697,13 @@ export function EvidenceLabScreen({
           g.key,
           tabTotal(
             g.key === "encryption"
-              ? [...current.rows.map((r) => leading(r, beforeAfter)), ...extraOf(g).map((r) => r.result)]
+              ? [
+                  ...current.rows.map((r) => leading(r, beforeAfter)),
+                  // (a run of Change watch is listed under this tab, and counted with nothing else: not here either)
+                  ...extraOf(g)
+                    .filter((r) => r.came_from.key !== "watch")
+                    .map((r) => r.result),
+                ]
               : g.key === "dependencies"
                 ? checks.libraries.map(() => null)
                 : g.rows.map((r) => r.result),
