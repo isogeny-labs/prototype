@@ -24,6 +24,7 @@ from app.web import assistant as assistant_routes
 from app.web import changewatch as changewatch_routes
 from app.web import changes, checks, dependencies, fixes, hosting, importing, migration, projects, session
 from app.web import lab as lab_routes
+from app.web import observatory as observatory_routes
 from app.web import otto as otto_routes
 from app.web import tests as test_routes
 from app.web.turns import OneReadAtATime
@@ -135,6 +136,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         assistant_routes.routes(lab, require_login), dependencies=guarded
     )  # phase 6a: the panel's read; 6b: a typed sentence
     app.include_router(changewatch_routes.routes(lab, require_login), dependencies=guarded)  # phase 6d: Change watch
+    # The Observatory (design refactor): the map of the systems as the files describe them. Reads only.
+    app.include_router(observatory_routes.routes(lab, require_login), dependencies=guarded)
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):
