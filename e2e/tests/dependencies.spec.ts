@@ -26,6 +26,7 @@ import {
   stopCopy,
   openFreshAssessment,
   openMigrationView,
+  openProofFold,
   type Copy,
 } from "./shared";
 
@@ -206,6 +207,9 @@ test("demo mode: add the list, the lookups and their sources, Part of, the block
     const summary = page.getByTestId("fix-summary").filter({ hasText: "Update OpenSSL to 3.5.0 or later" });
     await expect(summary).toBeVisible();
     await expect(page.getByText("Text only", { exact: true }).first()).toBeVisible();
+    // (the design refactor, 26 November 2026: the suggestion in full is inside the fix's one fold, shut until opened)
+    await expect(page.getByText("This is about other people's software", { exact: false })).toBeHidden();
+    await openProofFold(page.getByTestId("detail-panel"), "fix-proof-fold");
     await expect(page.getByText("This is about other people's software", { exact: false })).toBeVisible();
     await shot(page, "06-fixes-update-openssl.png");
 

@@ -87,14 +87,19 @@ async function measure(name: string, open?: () => Promise<void>, folder = SHOTS,
   expect(await layoutProblems(page), `${name}, panel open`).toEqual([]);
   await shots(`${name}-panel-open`, folder);
   // The panel's records are behind one fold, shut until it is opened (a result's, a fix's): with it open the tables in
-  // it (the cases, a proof's tests) are on screen, as they always were before the fold, and are measured as well.
-  const shut = panel.first().locator('[data-testid="proof-fold-toggle"][aria-expanded="false"]');
-  const folds = await shut.count();
-  for (let i = 0; i < folds; i += 1) await shut.first().click();
-  if (folds > 0) {
-    await expect(shut).toHaveCount(0);
-    expect(await layoutProblems(page), `${name}, panel open, its fold open`).toEqual([]);
+  // it (the cases, a proof's tests) are on screen, as they always were before the fold, and are measured as well. Only a
+  // fold that can be seen is opened: one that sits inside another closed part of the panel (a run's record on Results,
+  // a library's "Details and evidence") stays as the panel opens it.
+  const shut = panel
+    .first()
+    .locator('[data-testid="proof-fold-toggle"][aria-expanded="false"]')
+    .filter({ visible: true });
+  let opened = 0;
+  while (opened < 6 && (await shut.count()) > 0) {
+    await shut.first().click();
+    opened += 1;
   }
+  if (opened > 0) expect(await layoutProblems(page), `${name}, panel open, its fold open`).toEqual([]);
 }
 
 /** Every tab of Checks, Results or Fixes, one after another: the tab's own table, measured with its panel closed and,
@@ -219,40 +224,57 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   );
 
   // ---- The design refactor (26 November 2026): the three new pages that have a side panel
+  // (each panel reads its own content after it opens, and beside the Otto panel that read waits its turn: the page is
+  // measured once the panel shows it)
+  const shows = async (panelContent: string) =>
+    expect(page.getByTestId("detail-panel").getByTestId(panelContent)).toBeVisible({ timeout: 30_000 });
   // The Observatory: the map, then the List (a table), each with a box's panel open
   await stepLink(page, "Observatory").click();
   await expect(page.getByTestId("observatory-map")).toBeVisible();
   await measure(
     "layout-observatory-map",
-    () => page.getByTestId("map-box-open").first().click(),
+    async () => {
+      await page.getByTestId("map-box-open").first().click();
+      await shows("box-panel");
+    },
     NEW_PAGE_SHOTS,
     false,
   );
-  await expect(page.getByTestId("box-panel")).toBeVisible();
   await page.getByRole("group", { name: "Observatory view" }).getByRole("button", { name: "List" }).click();
   await expect(page.getByTestId("observatory-list")).toBeVisible();
   await measure(
     "layout-observatory-list",
-    () => page.getByTestId("observatory-list").getByTestId("list-row").first().getByRole("button").first().click(),
+    async () => {
+      await page.getByTestId("observatory-list").getByTestId("list-row").first().getByRole("button").first().click();
+      await shows("box-panel");
+    },
     NEW_PAGE_SHOTS,
     false,
   );
-  await expect(page.getByTestId("box-panel")).toBeVisible();
   // Evidence, the Timeline: an entry's panel (Run all, with the runs it started)
   await stepLink(page, "Timeline").click();
   const ranAll = page.getByTestId("timeline-entry").filter({ hasText: "Run all" }).first();
   await expect(ranAll).toBeVisible();
-  await measure("layout-timeline", () => ranAll.getByRole("button").first().click(), NEW_PAGE_SHOTS, false);
-  await expect(page.getByTestId("entry-panel")).toBeVisible();
+  await measure(
+    "layout-timeline",
+    async () => {
+      await ranAll.getByRole("button").first().click();
+      await shows("entry-panel");
+    },
+    NEW_PAGE_SHOTS,
+    false,
+  );
   // Evidence, Approvals and decisions: a table, compact beside the panel of one of its rows
   await stepLink(page, "Approvals and decisions").click();
   await expect(page.getByTestId("decision-row").first()).toBeVisible();
   await measure(
     "layout-decisions",
-    () => page.getByTestId("decision-row").first().locator(":scope > *").first().click(),
+    async () => {
+      await page.getByTestId("decision-row").first().locator(":scope > *").first().click();
+      await shows("entry-panel");
+    },
     NEW_PAGE_SHOTS,
   );
-  await expect(page.getByTestId("entry-panel")).toBeVisible();
 
   // ---- The Overview, then a second pass of the same file (Rerun as new assessment), for the Project overview
   await stepLink(page, "Overview").click();

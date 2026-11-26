@@ -202,8 +202,9 @@ export async function importVerifyAndOpenTests(page: Page): Promise<void> {
  * one way to a group. A tab also shows how many items it holds, so it is found by its name, not by its whole text. */
 export async function openGroupTab(page: Page, label: string, on?: "Checks" | "Results" | "Fixes"): Promise<void> {
   const tab = page.getByRole("tablist", { name: "Work groups" }).getByRole("tab", { name: label, exact: true });
-  if (on) await expect(page.getByRole("heading", { name: on, level: 1, exact: true })).toBeVisible();
-  await expect(tab).toBeVisible();
+  // (a page reads its groups after it opens, and on a busy machine that read can wait its turn for a few seconds)
+  if (on) await expect(page.getByRole("heading", { name: on, level: 1, exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(tab).toBeVisible({ timeout: 20_000 });
   if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
@@ -275,9 +276,10 @@ export function resultPanel(page: Page): Locator {
 /** Opens one result in the detail panel (or keeps it open) and returns what the panel shows for it. */
 export async function openResult(page: Page, title: string, within?: Locator): Promise<Locator> {
   const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: title, exact: true });
-  // (the test results are Results' Crypto tests table: its tab is opened first, unless a panel is open on it already)
-  if ((await heading.count()) === 0 && (await page.getByRole("tablist", { name: "Work groups" }).count()) > 0)
-    await openGroupTab(page, "Crypto tests", "Results");
+  // (the test results are Results' Crypto tests table: its tab is opened first, unless a panel is open on it already.
+  // The page may still be loading when this is asked, right after its sidebar link was followed: its tabs come with
+  // its data, and it opens on the first group with something in it, which is Verification. So the tab is waited for.)
+  if ((await heading.count()) === 0) await openGroupTab(page, "Crypto tests", "Results");
   if ((await heading.count()) === 0) await evidenceRow(page, title, within).click();
   await expect(heading).toBeVisible();
   return resultPanel(page);

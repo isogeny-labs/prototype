@@ -20,14 +20,15 @@ export function CheckChip({ check, showTag }: { check: ObservatoryCheck; showTag
       data-testid="map-check"
       data-check={check.id}
       data-kind={check.kind}
-      className="inline-flex flex-wrap items-center gap-1.5"
+      // (a name and its word wrap inside their box; neither is ever drawn past its edge)
+      className="inline-flex max-w-full min-w-0 flex-wrap items-center gap-1.5"
     >
       <ItemLinkView
         link={check.link}
         testId="map-check-link"
-        className="inline-flex items-center gap-1.5 rounded-md py-0.5 text-xs text-slate-300 hover:text-sky-200"
+        className="inline-flex max-w-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md py-0.5 text-xs text-slate-300 hover:text-sky-200"
       >
-        <span>{check.name}</span>{" "}
+        <span className="min-w-0 break-words">{check.name}</span>{" "}
         {check.checked && check.tone ? (
           <StatusChip label={check.word} tone={check.tone} size="sm" wrap testId="map-check-word" />
         ) : (
@@ -69,7 +70,7 @@ function Spot({ spot, boxTagged }: { spot: ObservatorySpot; boxTagged: boolean }
         {!boxTagged ? <WhereFromTag tag={spot.tag} /> : null}
       </p>
       {spot.checks.length > 0 ? (
-        <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+        <ul className="mt-1 flex min-w-0 flex-wrap gap-x-3 gap-y-1">
           {spot.checks.map((check) => (
             <li key={check.id}>
               <CheckChip check={check} showTag={!boxTagged && !spot.tag} />
@@ -237,20 +238,22 @@ export function ObservatoryMap({
   ]);
   const lower = view.algorithms.length + view.libraries.length + (view.libraries_note ? 1 : 0);
   return (
-    <div data-testid="observatory-map" className="min-w-0">
+    // The map lays itself out by its own width, not the window's: beside an open box panel and the Otto panel it has a
+    // third of the page, and then everything stands in one column.
+    <div data-testid="observatory-map" className="@container min-w-0">
       <div ref={root} className="relative flex flex-col gap-y-14">
         <MapLines root={root} lines={view.lines} stamp={stamp} />
         {/* What is outside your systems. */}
-        <div data-testid="map-lane" data-lane="outside" className="grid gap-4 sm:grid-cols-2">
+        <div data-testid="map-lane" data-lane="outside" className="grid gap-4 @xl:grid-cols-2">
           {view.outside.map((o) => (
             <div
               key={o.key}
               data-testid="map-outside"
               data-node={o.key}
-              className={`rounded-xl border bg-slate-950 px-3.5 py-2.5 ${
+              className={`min-w-0 rounded-xl border bg-slate-950 px-3.5 py-2.5 ${
                 o.key === "clients"
-                  ? "border-dashed border-slate-600 sm:mr-auto sm:w-72"
-                  : "border-slate-700 sm:ml-auto sm:w-72"
+                  ? "border-dashed border-slate-600 @xl:mr-auto @xl:w-72"
+                  : "border-slate-700 @xl:ml-auto @xl:w-72"
               }`}
             >
               <p className="text-sm font-semibold text-slate-100">{o.title}</p>
@@ -277,7 +280,7 @@ export function ObservatoryMap({
                   {service.sub}
                 </span>
               </header>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 @2xl:grid-cols-2">
                 {service.boxes.map((box) => (
                   <Box key={box.key} box={box} open={box.key === openBox} onOpen={onOpenBox} />
                 ))}
@@ -288,7 +291,7 @@ export function ObservatoryMap({
 
         {/* What they use. */}
         {lower > 0 ? (
-          <div data-testid="map-lane" data-lane="uses" className="grid gap-4 md:grid-cols-2">
+          <div data-testid="map-lane" data-lane="uses" className="grid gap-4 @2xl:grid-cols-2">
             {view.algorithms.map((algorithm) => (
               <Algorithm key={algorithm.key} algorithm={algorithm} />
             ))}

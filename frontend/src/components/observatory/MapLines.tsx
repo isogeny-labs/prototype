@@ -27,6 +27,9 @@ function measure(root: HTMLElement, lines: ObservatoryLine[]): { drawn: Drawn[];
       top: r.top - frame.top,
       right: r.right - frame.left,
       bottom: r.bottom - frame.top,
+      // (a part drawn inside a service's frame: a label is kept out of that frame, off the service's own title)
+      inside:
+        node.getAttribute("data-testid") !== "map-service" && node.closest('[data-testid="map-service"]') !== null,
     };
   };
   // Lines that end on the same box are spread along its edge, so they do not run into one arrow.
@@ -47,14 +50,21 @@ function measure(root: HTMLElement, lines: ObservatoryLine[]): { drawn: Drawn[];
     let path: string;
     let x: number;
     let y: number;
+    // A label stands in the free room between the rows, next to the end of its line that is outside a service's frame
+    // (a line ties a part inside a service to something outside it, or two things outside).
+    const NEAR = 18;
     if (a.bottom <= b.top) {
       const mid = (a.bottom + b.top) / 2;
       path = `M ${ax} ${a.bottom} C ${ax} ${mid}, ${bx} ${mid}, ${bx} ${b.top}`;
       [x, y] = [(ax + bx) / 2, mid];
+      if (a.inside && !b.inside) [x, y] = [bx, b.top - NEAR];
+      else if (!a.inside && b.inside) [x, y] = [ax, a.bottom + NEAR];
     } else if (b.bottom <= a.top) {
       const mid = (b.bottom + a.top) / 2;
       path = `M ${ax} ${a.top} C ${ax} ${mid}, ${bx} ${mid}, ${bx} ${b.bottom}`;
       [x, y] = [(ax + bx) / 2, mid];
+      if (a.inside && !b.inside) [x, y] = [bx, b.bottom + NEAR];
+      else if (!a.inside && b.inside) [x, y] = [ax, a.top - NEAR];
     } else {
       const ay = (a.top + a.bottom) / 2;
       const by = (b.top + b.bottom) / 2;
@@ -62,7 +72,15 @@ function measure(root: HTMLElement, lines: ObservatoryLine[]): { drawn: Drawn[];
       path = `M ${from} ${ay} L ${to} ${by}`;
       [x, y] = [(from + to) / 2, (ay + by) / 2];
     }
-    drawn.push({ key: `${line.start}>${line.end}>${i}`, kind: line.kind, path, label: line.label, x, y });
+    drawn.push({
+      key: `${line.start}>${line.end}>${i}`,
+      kind: line.kind,
+      path,
+      label: line.label,
+      // (kept inside the map's frame, whatever its width)
+      x: Math.min(Math.max(x, 80), Math.max(frame.width - 80, 80)),
+      y,
+    });
   });
   return { drawn, width: frame.width, height: frame.height };
 }
@@ -142,7 +160,8 @@ export function MapLines({
           key={line.key}
           data-testid="map-line-label"
           style={{ left: line.x, top: line.y }}
-          className={`absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-slate-800 bg-slate-950 px-2 py-0.5 text-[11px] ${LOOK[line.kind].text}`}
+          title={line.label}
+          className={`absolute max-w-40 -translate-x-1/2 -translate-y-1/2 truncate rounded-full border border-slate-800 bg-slate-950 px-2 py-0.5 text-[11px] ${LOOK[line.kind].text}`}
         >
           {line.label}
         </span>
