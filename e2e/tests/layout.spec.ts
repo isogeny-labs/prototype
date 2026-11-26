@@ -59,8 +59,15 @@ async function shots(name: string, folder = SHOTS): Promise<void> {
 
 /** Measures the page with its panel closed, then opens a row's panel and measures again; takes both screenshots.
  * `compact`: beside its open panel a table shows its compact form, and that is waited for; a page that is no such
- * table (the Observatory's map and its List, the Timeline's list) is drawn as it is beside its panel. */
-async function measure(name: string, open?: () => Promise<void>, folder = SHOTS, compact = true): Promise<void> {
+ * table (the Observatory's map and its List, the Timeline's list) is drawn as it is beside its panel.
+ * `also`: one more measurement of the page's own, made in both states (the Observatory's map has one). */
+async function measure(
+  name: string,
+  open?: () => Promise<void>,
+  folder = SHOTS,
+  how: { compact?: boolean; also?: (state: string) => Promise<void> } = {},
+): Promise<void> {
+  const compact = how.compact ?? true;
   const panel = page.getByTestId("detail-panel").or(page.getByTestId("claim-panel"));
   if ((await panel.count()) > 0) {
     // The panel can close by itself just now: a check belongs to its tab, so when another tab opens the page closes the
@@ -74,6 +81,7 @@ async function measure(name: string, open?: () => Promise<void>, folder = SHOTS,
     await expect(panel).toHaveCount(0);
   }
   expect(await layoutProblems(page), `${name}, panel closed`).toEqual([]);
+  await how.also?.(`${name}, panel closed`);
   await shots(`${name}-panel-closed`, folder);
   if (!open) return;
   await open();
@@ -85,6 +93,7 @@ async function measure(name: string, open?: () => Promise<void>, folder = SHOTS,
   // The table (or the Roadmap's plan) beside the panel is in its compact form.
   if (compact) await expect(page.locator('main [data-compact="true"]').first()).toBeVisible();
   expect(await layoutProblems(page), `${name}, panel open`).toEqual([]);
+  await how.also?.(`${name}, panel open`);
   await shots(`${name}-panel-open`, folder);
   // The panel's records are behind one fold, shut until it is opened (a result's, a fix's): with it open the tables in
   // it (the cases, a proof's tests) are on screen, as they always were before the fold, and are measured as well. Only a
@@ -100,6 +109,95 @@ async function measure(name: string, open?: () => Promise<void>, folder = SHOTS,
     opened += 1;
   }
   if (opened > 0) expect(await layoutProblems(page), `${name}, panel open, its fold open`).toEqual([]);
+}
+
+/** What is wrong with the Observatory's map right now. The map lays itself out by its own width, which is small when
+ * the Otto panel and a box's panel are both open: no box may stand past the map's frame, no two boxes over each other,
+ * no result chip past its box, and no label of a line past the frame or over a service's name. Empty when all is well. */
+async function mapProblems(): Promise<string[]> {
+  return page.evaluate(() => {
+    const problems: string[] = [];
+    const map = document.querySelector('[data-testid="observatory-map"]');
+    if (!map) return ["the map is not drawn"];
+    const place = (r: DOMRect) => ({
+      left: Math.round(r.left),
+      right: Math.round(r.right),
+      top: Math.round(r.top),
+      bottom: Math.round(r.bottom),
+    });
+    const at = (el: Element) => place(el.getBoundingClientRect());
+    const all = (...ids: string[]) =>
+      Array.from(map.querySelectorAll(ids.map((id) => `[data-testid="${id}"]`).join(", ")));
+    const named = (el: Element) =>
+      `${el.getAttribute("data-testid")} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40)}"`;
+    const over = (a: ReturnType<typeof place>, b: ReturnType<typeof place>) => {
+      const wide = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const high = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      return wide > 1 && high > 1 ? `${wide} x ${high} px` : null;
+    };
+    const frame = at(map);
+    const past = (el: Element, inside: ReturnType<typeof place>, what: string) => {
+      const b = at(el);
+      if (b.right > inside.right + 1 || b.left < inside.left - 1)
+        problems.push(
+          `${named(el)} stands past ${what}: ${b.left} to ${b.right}, against ${inside.left} to ${inside.right}`,
+        );
+    };
+    // no box past the map's frame
+    for (const box of all(
+      "map-outside",
+      "map-service",
+      "map-box",
+      "map-algorithm",
+      "map-libraries",
+      "map-libraries-note",
+    ))
+      past(box, frame, "the map's frame");
+    // no two boxes over each other
+    const boxes = all("map-outside", "map-box", "map-algorithm", "map-libraries");
+    for (let i = 0; i < boxes.length; i += 1) {
+      for (let j = i + 1; j < boxes.length; j += 1) {
+        const by = over(at(boxes[i]!), at(boxes[j]!));
+        if (by) problems.push(`${named(boxes[i]!)} and ${named(boxes[j]!)} stand over each other by ${by}`);
+      }
+    }
+    // no result chip past its box
+    for (const chip of all("map-check-word")) {
+      const box = chip.closest('[data-testid="map-box"]');
+      if (box) past(chip, at(box), `its box ${named(box)}`);
+    }
+    // no label of a line past the map's frame, or over the words of a service's name
+    const titles = Array.from(map.querySelectorAll('[data-testid="map-service"] h3')).flatMap((title) => {
+      const words = document.createRange();
+      words.selectNodeContents(title);
+      return Array.from(words.getClientRects()).map((r) => ({ title, words: place(r) }));
+    });
+    for (const label of all("map-line-label")) {
+      const b = at(label);
+      if (b.right - b.left < 1 || b.bottom - b.top < 1) continue; // (a label that is not drawn)
+      past(label, frame, "the map's frame");
+      for (const { title, words } of titles) {
+        const by = over(b, words);
+        if (by) problems.push(`${named(label)} stands over the service's name "${title.textContent}" by ${by}`);
+      }
+    }
+    return problems;
+  });
+}
+
+/** The Observatory's map, measured once it has settled (its lines are drawn again after its width changes). */
+async function expectMapFits(state: string): Promise<void> {
+  await expect.poll(mapProblems, { message: `the Observatory's map, ${state}`, timeout: 10_000 }).toEqual([]);
+}
+
+/** The Observatory's List is a table: it must not scroll sideways. */
+async function expectListFits(state: string): Promise<void> {
+  const list = page.getByTestId("observatory-list");
+  await expect(list).toBeVisible();
+  const [inside, room] = await list.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+  expect(inside, `the Observatory's List, ${state}: it scrolls sideways (${inside} > ${room})`).toBeLessThanOrEqual(
+    room! + 1,
+  );
 }
 
 /** Every tab of Checks, Results or Fixes, one after another: the tab's own table, measured with its panel closed and,
@@ -228,18 +326,28 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   // measured once the panel shows it)
   const shows = async (panelContent: string) =>
     expect(page.getByTestId("detail-panel").getByTestId(panelContent)).toBeVisible({ timeout: 30_000 });
-  // The Observatory: the map, then the List (a table), each with a box's panel open
+  const openABox = async () => {
+    await page.getByTestId("map-box-open").first().click();
+    await shows("box-panel");
+  };
+  // The Observatory, its map. The map lays itself out by its own width, so it is measured in four states: the Otto
+  // panel hidden or shown, a box's panel closed or open. First with the Otto panel hidden (the top bar's toggle) ...
   await stepLink(page, "Observatory").click();
   await expect(page.getByTestId("observatory-map")).toBeVisible();
-  await measure(
-    "layout-observatory-map",
-    async () => {
-      await page.getByTestId("map-box-open").first().click();
-      await shows("box-panel");
-    },
-    NEW_PAGE_SHOTS,
-    false,
-  );
+  await page.getByRole("button", { name: "Hide the assistant" }).click();
+  await expect(page.getByTestId("otto-panel")).toHaveCount(0);
+  expect(await layoutProblems(page), "the Observatory's map, the Otto panel hidden, no box open").toEqual([]);
+  await expectMapFits("the Otto panel hidden, no box open");
+  await openABox();
+  expect(await layoutProblems(page), "the Observatory's map, the Otto panel hidden, a box open").toEqual([]);
+  await expectMapFits("the Otto panel hidden, a box open");
+  await page.getByTestId("detail-panel").getByRole("button", { name: "Close details" }).click();
+  await expect(page.getByTestId("detail-panel")).toHaveCount(0);
+  // ... then beside the Otto panel, as every other page of this walk: with both panels open the map is at its narrowest
+  await page.getByRole("button", { name: "Show the assistant" }).click();
+  await expect(page.getByTestId("otto-panel")).toBeVisible();
+  await measure("layout-observatory-map", openABox, NEW_PAGE_SHOTS, { compact: false, also: expectMapFits });
+  // Its List (a table) shows the same thing, and does not scroll sideways, with a box's panel closed and open
   await page.getByRole("group", { name: "Observatory view" }).getByRole("button", { name: "List" }).click();
   await expect(page.getByTestId("observatory-list")).toBeVisible();
   await measure(
@@ -249,7 +357,7 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
       await shows("box-panel");
     },
     NEW_PAGE_SHOTS,
-    false,
+    { compact: false, also: expectListFits },
   );
   // Evidence, the Timeline: an entry's panel (Run all, with the runs it started)
   await stepLink(page, "Timeline").click();
@@ -262,7 +370,7 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
       await shows("entry-panel");
     },
     NEW_PAGE_SHOTS,
-    false,
+    { compact: false },
   );
   // Evidence, Approvals and decisions: a table, compact beside the panel of one of its rows
   await stepLink(page, "Approvals and decisions").click();

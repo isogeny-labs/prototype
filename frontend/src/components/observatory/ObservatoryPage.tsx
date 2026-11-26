@@ -9,13 +9,18 @@ import { CheckChip, ObservatoryMap } from "./ObservatoryMap";
 
 const POLL_MS = 1000;
 
-/** The same boxes, places and checks as a table: for a screen reader, for printing, and for an estate too big to draw. */
+/** The same boxes, places and checks as a table: for a screen reader, for printing, and for an estate too big to draw.
+ * It goes by its own width: beside an open box panel and the Otto panel a row is drawn as a block, its cells one under
+ * the other, so nothing scrolls sideways; the column names are then kept for a screen reader only. */
 function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox?: (key: string) => void }) {
   const boxes = view.services.flatMap((service) => service.boxes.map((box) => ({ service, box })));
   return (
-    <div data-testid="observatory-list" className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/30">
-      <table aria-label="Your systems, as a list" className="w-full border-collapse text-left text-sm">
-        <thead>
+    <div
+      data-testid="observatory-list"
+      className="@container overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/30"
+    >
+      <table aria-label="Your systems, as a list" className="block w-full border-collapse text-left text-sm @xl:table">
+        <thead className="sr-only @xl:not-sr-only @xl:table-header-group">
           <tr className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
             <th scope="col" className="px-4 py-2.5 font-medium">
               System
@@ -28,20 +33,20 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="block @xl:table-row-group">
           {boxes.flatMap(({ service, box }) =>
             (box.spots.length > 0 ? box.spots : [null]).map((spot, i) => (
               <tr
                 key={`${box.key}/${spot?.key ?? "none"}`}
                 data-testid="list-row"
                 data-box={box.key}
-                className="border-b border-slate-800/70 last:border-b-0"
+                className="block border-b border-slate-800/70 last:border-b-0 @xl:table-row"
               >
                 {i === 0 ? (
                   <th
                     scope="rowgroup"
                     rowSpan={Math.max(box.spots.length, 1)}
-                    className="px-4 py-3 align-top font-normal"
+                    className="block px-4 py-3 align-top font-normal @xl:table-cell"
                   >
                     {onOpenBox ? (
                       <button
@@ -72,7 +77,7 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
                     {box.note ? <span className="mt-1 block text-xs text-slate-400">{box.note}</span> : null}
                   </th>
                 ) : null}
-                <td className="px-4 py-3 align-top">
+                <td className="block px-4 pb-3 align-top @xl:table-cell @xl:py-3">
                   {spot ? (
                     <>
                       <span className="block font-medium text-slate-200">{spot.title}</span>
@@ -86,7 +91,7 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 align-top">
+                <td className="block px-4 pb-3 align-top @xl:table-cell @xl:py-3">
                   {spot && spot.checks.length > 0 ? (
                     <ul className="flex flex-col gap-1">
                       {spot.checks.map((check) => (
@@ -109,9 +114,9 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
         <table
           aria-label="Libraries, as a list"
           data-testid="list-libraries"
-          className="w-full border-collapse border-t border-slate-800 text-left text-sm"
+          className="block w-full border-collapse border-t border-slate-800 text-left text-sm @xl:table"
         >
-          <thead>
+          <thead className="sr-only @xl:not-sr-only @xl:table-header-group">
             <tr className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
               <th scope="col" className="px-4 py-2.5 font-medium">
                 Libraries of
@@ -124,16 +129,20 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
               </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="block @xl:table-row-group">
             {view.libraries.flatMap((group) =>
               group.rows.map((row, i) => (
                 <tr
                   key={`${group.key}/${row.id}`}
                   data-testid="list-library"
-                  className="border-b border-slate-800/70 last:border-b-0"
+                  className="block border-b border-slate-800/70 last:border-b-0 @xl:table-row"
                 >
                   {i === 0 ? (
-                    <th scope="rowgroup" rowSpan={group.rows.length} className="px-4 py-3 align-top font-normal">
+                    <th
+                      scope="rowgroup"
+                      rowSpan={group.rows.length}
+                      className="block px-4 py-3 align-top font-normal @xl:table-cell"
+                    >
                       <span className="font-medium text-slate-100">{group.title}</span>
                       <span className="mt-0.5 block text-xs text-slate-400">{group.sub}</span>
                       {group.more ? (
@@ -143,11 +152,11 @@ function ObservatoryList({ view, onOpenBox }: { view: ObservatoryView; onOpenBox
                       ) : null}
                     </th>
                   ) : null}
-                  <td className="px-4 py-3 align-top">
+                  <td className="block px-4 pb-3 align-top @xl:table-cell @xl:py-3">
                     <ItemLinkView link={row.link}>{row.label}</ItemLinkView>
                     <span className="block text-xs text-slate-400">{row.via_words}</span>
                   </td>
-                  <td className="px-4 py-3 align-top text-slate-200">
+                  <td className="block px-4 pb-3 align-top text-slate-200 @xl:table-cell @xl:py-3">
                     {row.answers_short} <WhereFromTag tag={row.tag} />
                   </td>
                 </tr>
