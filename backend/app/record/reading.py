@@ -52,10 +52,20 @@ from app.db import (
 from app.engine import research
 from app.errors import NotFound
 from app.lab.testlab import HIDDEN_ORIGINS, read_spec
-from app.ledger.checks import ORIGINS
+from app.ledger.checks import BLOCK_ROW, ORIGINS
 from app.present import source as present_source
 from app.present import times
 from app.projects.store import PURPOSE_LABELS, assessment_title
+
+
+def run_link(check_id: str) -> dict:
+    """Where the row of one run is shown. Results holds a test of the plan (its retests with it) and every other
+    check by its own id; a row of one fix proof's block or of one Change watch run's block ("proof-12-in-4",
+    "watch-12-in-4") is a row of Checks only, linked as Checks links its own rows."""
+    block = BLOCK_ROW.match(check_id)
+    if block is not None and block.group(1) in ("proof", "watch", "watchbase"):
+        return {"page": "checks", "item": check_id}
+    return {"page": "evidence", "item": check_id}
 
 
 def stamp(value: Any) -> str | None:
@@ -74,6 +84,10 @@ class Reading:
         self.lab, self.plan_id = lab, plan_id
         ledger = lab.ledger(plan_id)  # NotFound for a plan that does not exist
         self.rows: list[dict] = ledger["rows"]
+        # each library of the dependency list, by its row, as Dependencies shows it (its answers, its proposals)
+        self.libraries: dict[str, dict] = {
+            row_id: info["row"] for row_id, info in ((ledger.get("dependencies") or {}).get("rows") or {}).items()
+        }
         try:
             self.watch = lab.change_watch_state(plan_id)  # the developer's changes, read from the connected repository
         except NotFound:
@@ -578,7 +592,7 @@ class Reading:
                     "check_id": check_id,
                     "system_key": row.get("system_key"),
                     "library_row": row.get("library_row"),
-                    "link": {"page": "evidence", "item": check_id},
+                    "link": run_link(check_id),
                 }
 
 

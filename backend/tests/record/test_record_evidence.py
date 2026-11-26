@@ -164,9 +164,11 @@ def test_the_verify_commands_own_lists_are_the_apps():
             continue  # (its facts need the record it made: only the list of queued tests is asked for here)
         if "items" in detail:
             queues.add(what.kind if isinstance(what.kind, str) else name)
-    assert {"run", "run_all", "retest", "retest_now", "measure_dependencies", "code_connected", "applied"} <= queues
+    assert {"run", "run_all", "retest", "retest_now", "measure_dependencies", "code_connected"} <= queues
     assert queues <= set(verifier.STARTS_RUNS) <= set(verifier.KINDS)
     assert set(verifier.ITEM_KINDS) == {"test", "fix", "change", "system", "run", "developer-change"}
+    # a button that makes several presses at once: the app, its words and the verify command name the same ones
+    assert verifier.THROUGH == actions.THROUGH and set(words.THROUGH) == set(actions.THROUGH)
 
 
 # ---------------------------------------------------------------- each way to bend the part, tried on purpose
@@ -276,6 +278,22 @@ def _an_item_of_no_known_kind(evidence):
     _first(evidence, "run")["item"] = "result:passed"
 
 
+def _an_apply_that_does_not_say_whether_the_server_took_it(evidence):
+    # (a press of Apply, as the app writes one, but for the one fact that says whether anything was applied)
+    press = _first(evidence, "address_confirmed")
+    press.update(kind="applied", what="Applied a change", button="Apply", facts={"apply_id": 1, "items": []})
+
+
+def _a_roll_back_whose_answer_is_not_yes_or_no(evidence):
+    press = _first(evidence, "address_confirmed")
+    press.update(kind="rolled_back", what="Rolled a change back", button="Roll back")
+    press["facts"] = {"rollback_id": 1, "accepted": "yes", "items": []}
+
+
+def _made_through_a_button_the_app_does_not_have(evidence):
+    _first(evidence, "assessment_started")["facts"]["through"] = "a_back_door"
+
+
 DRILLS = [
     (_someone_else, "takes its name from a source this app does not have"),
     (_unknown_button, "is of a kind this app does not record"),
@@ -301,6 +319,9 @@ DRILLS = [
     (_another_schema, "it is not a who-did-what record this version knows"),
     (_a_name_source_more, "it does not say what each of the three name sources is"),
     (_an_item_of_no_known_kind, "is on something this app does not name that way"),
+    (_an_apply_that_does_not_say_whether_the_server_took_it, "does not say whether the server took the settings"),
+    (_a_roll_back_whose_answer_is_not_yes_or_no, "does not say whether the server took the settings"),
+    (_made_through_a_button_the_app_does_not_have, "says it was made through a button this app does not have"),
 ]
 
 

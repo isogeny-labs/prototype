@@ -1396,7 +1396,7 @@ export const decisionsView: DecisionsView = {
     },
     {
       key: "otto",
-      title: "Otto's proposals decided",
+      title: "Proposals from Otto decided",
       value: "0",
       small: "none decided yet",
     },

@@ -3858,7 +3858,7 @@ class DecisionRow(Shape):
     decision: DecisionWord
     on: str
     marks: list[str]
-    who: RecordWho = Field(description="The name the decision was recorded under.")
+    who: RecordWho  # the name the decision was recorded under
     pressed_by: RecordWho | None = Field(
         description="Who pressed, where that is another name (an approval as a demo reviewer)."
     )
@@ -3905,7 +3905,7 @@ class EvidenceFileRow(Shape):
     at: str
     fingerprint: str
     fingerprint_label: str
-    who: RecordWho = Field(description="Who downloaded it.")
+    who: RecordWho  # who downloaded it
     # "json" would shadow BaseModel.json, so the attribute is json_ and the key stays "json".
     json_: FileLink = Field(alias="json")
     html: FileLink
@@ -3923,6 +3923,13 @@ class EvidenceFilesHolds(Shape):
     items: list[str]
 
 
+class EvidenceFilesDownload(Shape):
+    """The Download evidence button, as Evidence gives it (a shape of its own, so LabView's keeps its name)."""
+
+    can_start: bool
+    blocked_reason: str | None
+
+
 class EvidenceFilesView(Shape):
     plan_id: int
     is_demo: bool
@@ -3930,7 +3937,7 @@ class EvidenceFilesView(Shape):
     subline: str
     files: list[EvidenceFileRow] = Field(description="Every download, newest first.")
     empty_text: str | None
-    download: LabViewDownload = Field(description="The Download evidence button, as Evidence gives it.")
+    download: EvidenceFilesDownload
     check: EvidenceFilesCheck
     holds: EvidenceFilesHolds
     names_note: str

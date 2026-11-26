@@ -9384,8 +9384,7 @@
             "title": "Marks"
           },
           "who": {
-            "$ref": "#/components/schemas/RecordWho",
-            "description": "The name the decision was recorded under."
+            "$ref": "#/components/schemas/RecordWho"
           },
           "pressed_by": {
             "anyOf": [
@@ -11208,8 +11207,7 @@
             "title": "Fingerprint Label"
           },
           "who": {
-            "$ref": "#/components/schemas/RecordWho",
-            "description": "Who downloaded it."
+            "$ref": "#/components/schemas/RecordWho"
           },
           "json": {
             "$ref": "#/components/schemas/FileLink"
@@ -11259,6 +11257,33 @@
           "report_note"
         ],
         "title": "EvidenceFilesCheck"
+      },
+      "EvidenceFilesDownload": {
+        "properties": {
+          "can_start": {
+            "type": "boolean",
+            "title": "Can Start"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "can_start",
+          "blocked_reason"
+        ],
+        "title": "EvidenceFilesDownload",
+        "description": "The Download evidence button, as Evidence gives it (a shape of its own, so LabView's keeps its name)."
       },
       "EvidenceFilesHolds": {
         "properties": {
@@ -11320,8 +11345,7 @@
             "title": "Empty Text"
           },
           "download": {
-            "$ref": "#/components/schemas/LabViewDownload",
-            "description": "The Download evidence button, as Evidence gives it."
+            "$ref": "#/components/schemas/EvidenceFilesDownload"
           },
           "check": {
             "$ref": "#/components/schemas/EvidenceFilesCheck"

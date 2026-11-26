@@ -195,14 +195,17 @@ def test_the_fix_templates_own_branch_is_not_listed_as_a_developers_change(watch
 
 def test_bringing_in_a_demo_change_writes_one_branch_with_one_commit_and_runs_nothing(watch):
     before, after = watch.kept_before, watch.kept_after
-    assert after["rows"] == before["rows"]  # no row of any table was written: no run, no record
+    # No run and no record of the assessment was written. The one row is the press itself, in `actions` (who did what,
+    # design refactor, decision I): who pressed Bring in a demo change, and when.
+    assert {t for t in after["rows"] if after["rows"][t] != before["rows"][t]} == {"actions"}
     new = sorted(set(after["files"]) - set(before["files"]))
     assert all("/refs/heads/dev/" in name or "/objects/" in name for name in new) and len(new) == 4, (
         new
     )  # a branch, a commit, a tree, a file
+    database = watch.lab.settings.db_path.name  # (the database file holds that one new row)
     assert all(
-        after["files"][name] == before["files"][name] for name in before["files"]
-    )  # nothing that was there changed
+        after["files"][name] == before["files"][name] for name in before["files"] if name != database
+    )  # nothing else that was there changed
     assert watch.lab.jobs.live(watch.plan.id) == []
     repo = repo_of(watch.lab, watch.plan.id)
     head = repo.branch("dev/allow-tls-1-0-for-partner")

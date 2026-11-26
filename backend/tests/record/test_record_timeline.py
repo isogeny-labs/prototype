@@ -3,6 +3,8 @@ in an item's panel. They repeat what the records say, with who and when: every r
 gives, a result's decider is the separate reviewer (fixed rules for a claim on Verify) and never a person, Change
 watch stays apart, and what was done before names were kept says so."""
 
+import copy
+import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pytest
@@ -48,17 +50,22 @@ def on_the_pages(lab, plan_id: int) -> dict:
     kept = getattr(lab, "_pages_for_the_record_tests", None)
     if kept is None or kept[0] != plan_id:
         checks = lab.checks_view(plan_id)
-        ids = {row["id"] for group in checks["groups"] for row in group["rows"]}
+        ids = {row["id"] for group in checks["groups"] for row in group["rows"]}  # a group's own rows
+        in_blocks = set()  # the rows of one retest's, one fix proof's or one watch run's block: Checks only
         for group in checks["groups"]:
             for part in (group.get("parts") or {}).values():
                 rows = [*part["rows"], *(row for block in part["blocks"] for row in block["rows"])] if part else []
-                ids |= {row["id"] for row in rows} | {row["alias"] for row in rows if row.get("alias")}
+                in_blocks |= {row["id"] for row in rows} | {row["alias"] for row in rows if row.get("alias")}
         claims = lab.import_json_for(lab.plan_view(plan_id)["import_id"])["claims"]
         kept = (
             plan_id,
             {
-                "evidence": ids,
-                "checks": ids,
+                # Results (frontend/src/components/EvidenceLabScreen.tsx) opens a test of the plan by "test-<id>" or by
+                # the id of one of its retests (`opens`, below), a row of a group by its id, and a library of the list.
+                # A row of a block of Checks is not among them.
+                "evidence": ids | {library["id"] for library in checks["libraries"]},
+                "evidence_tests": {row["item_id"] for row in lab.lab_view(plan_id)["rows"]},
+                "checks": ids | in_blocks,
                 "fixes": {f["id"] for f in lab.fixes_view(plan_id)["fixes"]},
                 "inventory/verify": {f"claim-{c['id']}" for c in claims},
                 # (the systems the file names, by the keys Migration gives them. Its own read is not asked: the first
@@ -81,7 +88,13 @@ def opens(lab, plan_id: int, link: dict | None) -> bool:
     page, item = link["page"], link["item"]
     if page not in PAGES:
         return False
-    return item is None or item in on_the_pages(lab, plan_id).get(page, ())
+    if item is None:
+        return True
+    held = on_the_pages(lab, plan_id)
+    if page == "evidence" and item.split("-")[0] in ("test", "retest"):
+        number = item.split("-")[1]  # Results opens the test's own row, whichever of its runs the id names
+        return number.isdigit() and int(number) in held["evidence_tests"]
+    return item in held.get(page, ())
 
 
 # ---------------------------------------------------------------- every day: the five reads on a short assessment
@@ -97,6 +110,7 @@ def test_a_short_assessment_read_through_the_five_reads(short):
     entries = listed(view)
     kinds = ["start", "import", "action", "action", "verify", "press", "press", "mark", "export", "export"]
     assert [e["id"].split("-")[0] for e in reversed(entries)] == kinds and view["total"] == 10
+    assert entries[-1]["who"]["button"] == "New project"  # (a project is made with its first assessment)
     run, run_all = entries[-6], entries[-7]
     assert said(run) == "Run: “Certificate strength”." and len(run["runs"]) == 1 and run["who"]["button"] == "Run"
     assert said(run_all) == "Run all: the 4 tests in the plan." and len(run_all["runs"]) == 4
@@ -179,8 +193,18 @@ def test_a_short_assessment_read_through_the_five_reads(short):
     of_claim = lab.history_view(pid, f"claim:{claim['id']}", read=short.read)
     assert problems(of_claim, models.HistoryView) == [] and of_claim["decides"] == words.WHO_DECIDES_CLAIM
     assert of_claim["lines"][0]["decided_by"] == words.BY_RULES
-    with pytest.raises(NotFound):
-        lab.history_view(pid, "fix:no-such-fix")
+    # asked by a row of Checks or Results, by the row's own id: a claim's check has the claim's history, with the line
+    # that fixed rules decide a claim (not the reviewer); a test's row has the test's
+    by_row = lab.history_view(pid, f"check:claim-{claim['id']}", read=short.read)
+    assert problems(by_row, models.HistoryView) == [] and by_row["key"] == f"check:claim-{claim['id']}"
+    assert by_row["lines"] == of_claim["lines"] and by_row["lines"] and by_row["empty_text"] is None
+    assert by_row["decides"] == words.WHO_DECIDES_CLAIM and by_row["title"] == "History of this claim"
+    assert by_row["timeline"] == {"area": "observe"}
+    by_test = lab.history_view(pid, f"check:test-{short.item['bad_signatures']}", read=short.read)
+    assert by_test["lines"] == of_check["lines"] and by_test["decides"] == words.WHO_DECIDES
+    for missing in ("fix:no-such-fix", "check:claim-999", "check:test-999", "check:proof-999-in-9", "check:claim-x"):
+        with pytest.raises(NotFound):
+            lab.history_view(pid, missing, read=short.read)
     # no sentence rates anything, and reading changed nothing
     for shown in (view, decisions, files, of_check, of_claim):
         assert not any(w in text.lower() for text in texts(shown) for w in BANNED if text != view["disclaimer"])
@@ -369,6 +393,23 @@ def test_every_entry_and_every_run_links_to_where_it_lives(walked):
     for row in [r for d in lab.decisions_view(pid, read=walked.read)["days"] for r in d["rows"]]:
         assert opens(lab, pid, row["link"]), row
     assert checked >= 15
+    # A run of a fix proof and a run made for a developer's change are rows of one block of Checks; Results holds no
+    # such row, so their links open Checks. A first run and a retest open the test's row on Results.
+    view = lab.timeline_view(pid, read=walked.read)
+    held = on_the_pages(lab, pid)
+    for prefix, page, row_id in (
+        ("proof-", "checks", r"proof-\d+-in-\d+"),
+        ("retest-", "evidence", r"retest-\d+-on-\d+"),
+        ("press-", "evidence", r"test-\d+"),
+    ):
+        runs = entry(view, prefix)["runs"]
+        assert runs and all(r["link"]["page"] == page and re.fullmatch(row_id, r["link"]["item"]) for r in runs), prefix
+    watch_runs = entry(lab.timeline_view(pid, area="watch", read=walked.read), "watch-")["runs"]
+    assert watch_runs and all(
+        r["link"]["page"] == "checks" and re.fullmatch(r"watch(base)?-\d+-in-\d+", r["link"]["item"])
+        for r in watch_runs
+    )
+    assert not any(r["link"]["item"] in held["evidence"] for r in [*watch_runs, *entry(view, "proof-")["runs"]])
 
 
 def test_change_watch_is_listed_only_under_change_watch_and_counted_nowhere_else(walked):
@@ -603,7 +644,7 @@ def test_a_fixs_history_runs_from_connecting_the_code_to_the_retest_on_the_merge
 
 
 @pytest.mark.slow
-def test_a_change_to_a_system_from_its_try_to_its_roll_back(tmp_path):
+def test_a_change_to_a_system_from_its_try_to_its_roll_back(tmp_path, monkeypatch):
     from conftest import free_port, free_ports
 
     ports = free_ports(5)
@@ -673,8 +714,211 @@ def test_a_change_to_a_system_from_its_try_to_its_roll_back(tmp_path):
         of_system = [line["title"] for line in lab.history_view(pid, f"system:{w.system}")["lines"]]
         assert of_system.count(f"Measure status on {w.address}") == 2 and "Chose Hybrid" in of_system
         assert f"Measured right after Apply on {w.address}" in of_system and "Applied" in of_system
+        # An Apply the server refuses. (The server's answer is stood in for; the button, its records and the reads are
+        # the real ones.) It is pressed and recorded, nothing was applied, and nothing reads "Applied".
+        from app.db import ActionRow
+        from evidence import actions as verifier
+
+        lab.try_change(pid, w.key)  # (the server changed since the first try; the approvals of this change stand)
+        lab.wait_until_changes_idle(pid)
+        monkeypatch.setattr(lab, "_put_in_force", lambda *args, **kwargs: (False, "the stand-in server said no"))
+        lab.apply_change(pid, w.key)
+        monkeypatch.undo()
+        lab.wait_until_changes_idle(pid)
+        refused = listed(lab.timeline_view(pid, area="migration"))[0]
+        assert refused["id"].startswith("apply-") and refused["lead"] == "Not applied:" and refused["runs"] == []
+        assert refused["kind"]["key"] == "people" and refused["who"]["button"] == "Apply"
+        assert "the server refused the settings" in said(refused)
+        newest = [r for d in lab.decisions_view(pid, "migration")["days"] for r in d["rows"]][0]
+        assert newest["id"] == refused["id"]
+        assert newest["decision"] == {"key": "apply_refused", "label": "Not applied: the server refused the settings"}
+        assert lab.timeline_entry_view(pid, refused["id"])["after"] == []
+        with lab.db() as db:
+            press = db.query(ActionRow).order_by(ActionRow.id.desc()).first()
+        assert (press.kind, press.detail["accepted"], press.detail["items"]) == ("applied", False, [])
+        # the change's own page says the same, and so does the signed file
+        assert "Not applied" in lab.history_view(pid, f"change:{w.key}")["lines"][0]["title"]
+        evidence = record_walk.download(lab, pid).evidence
+        in_file = [a for a in evidence["actions"]["actions"] if a["kind"] == "applied"]
+        assert [(a["facts"]["accepted"], a["what"]) for a in in_file] == [
+            (True, "Applied a change"),
+            (False, "Pressed Apply; the server refused the settings"),
+        ]
+        assert verifier.check_actions(evidence).ok
     finally:
         lab.stop()
+
+
+# ---------------------------------------------------------------- a row's history, asked by the row's own id
+
+
+def test_a_row_of_a_retests_a_proofs_or_a_watch_runs_block_has_the_runs_of_that_block(walked):
+    """Checks lists a retest's, a fix proof's and a Change watch run's rows in blocks ("retest-12-on-3",
+    "proof-12-in-4", "watch-12-in-4"). Its panel asks the history by that id, and gets the runs of that block."""
+    lab, pid = walked.lab, walked.plan_id
+    parts = next(g for g in lab.checks_view(pid)["groups"] if g["key"] == "encryption")["parts"]
+    seen = {}
+    for part, button in (
+        ("retests", "Retest now, on Fixes"),
+        ("proofs", "Connect demo code"),
+        ("changes", "Run the picked tests"),
+    ):
+        for block in parts[part]["blocks"]:
+            for row in block["rows"]:
+                history = lab.history_view(pid, f"check:{row['id']}", read=walked.read)
+                assert problems(history, models.HistoryView, row["id"]) == [] and history["empty_text"] is None
+                assert len(history["lines"]) == row["runs"] >= 1, row["id"]
+                newest = history["lines"][0]
+                assert newest["result"]["label"] == row["result"]["label"], row["id"]
+                assert newest["decided_by"] == words.BY_REVIEWER and history["decides"] == words.WHO_DECIDES
+                assert newest["who"]["button"] == button and newest["said"] == f"started by You, with {button}"
+                assert opens(lab, pid, newest["link"]) and newest["fingerprint"]
+                seen[part] = seen.get(part, 0) + 1
+    assert seen["retests"] == 4 and seen["proofs"] == 4 and seen["changes"] >= 2
+    # the older ids, which open the newest block's row, are rows of the ledger itself: they are found as before
+    for older in ("retest", "proof"):
+        row_id = f"{older}-{walked.item['bad_signatures']}"
+        assert len(lab.history_view(pid, f"check:{row_id}", read=walked.read)["lines"]) == 1
+    with pytest.raises(NotFound):
+        lab.history_view(pid, "check:watch-999-in-1", read=walked.read)
+
+
+def test_a_library_that_nothing_was_run_for_says_what_is_true_of_it(lab):
+    w = record_walk.start(lab, "Libraries")
+    pid = w.plan_id
+    name = "dependencies-demo.cdx.json"
+    lab.add_dependency_list(pid, name, (record_walk.DEMO / name).read_bytes())
+    rows = {info["row"]["label"]: row_id for row_id, info in lab.ledger(pid)["dependencies"]["rows"].items()}
+    # answered from release notes alone: nothing was run, and the history says where its answers come from
+    from_notes = lab.history_view(pid, f"library:{rows['openssl 3.0.22']}")
+    assert problems(from_notes, models.HistoryView) == [] and from_notes["lines"] == []
+    assert from_notes["empty_text"] == words.LIBRARY_FROM_NOTES != words.NO_HISTORY
+    assert "release notes" in from_notes["empty_text"] and "Nothing was run" in from_notes["empty_text"]
+    # not in the knowledge base: nothing was run, and no source is claimed for it
+    unknown = lab.history_view(pid, f"library:{rows['python 3.12.3']}")
+    assert unknown["empty_text"] == words.LIBRARY_NOTHING_RUN and "release notes" not in unknown["empty_text"]
+    # Results lists a library by "library-<row>": its panel asks by that id and gets the library's history
+    by_row = lab.history_view(pid, f"check:library-{rows['openssl 3.0.22']}")
+    assert by_row["empty_text"] == words.LIBRARY_FROM_NOTES and by_row["title"] == "History of this library"
+    for missing in ("library:row-999", "check:library-row-999"):
+        with pytest.raises(NotFound):
+            lab.history_view(pid, missing)
+
+
+@pytest.mark.needs_otto
+def test_a_librarys_history_lists_each_decision_on_its_proposal(tmp_path):
+    from conftest import demo_plan
+
+    lab = make_lab(tmp_path)
+    try:
+        plan = demo_plan(lab)
+        for version in ("2026.11.1", "2026.11.2"):
+            lab.check_pack_updates()
+            lab.install_pack(version)
+        name = "dependencies-demo.cdx.json"
+        lab.add_dependency_list(plan.id, name, (record_walk.DEMO / name).read_bytes())
+        rows = {info["row"]["label"]: row_id for row_id, info in lab.ledger(plan.id)["dependencies"]["rows"].items()}
+        key = f"library:{rows['python-ecdsa 0.13.2']}"
+        proposal = next(
+            p for p in lab.otto_proposals(plan.id, ("dependency",)) if p["about"]["library"] == "python-ecdsa"
+        )
+        # proposed and not decided yet: the proposal has no time of its own, and the history says so
+        waiting = lab.history_view(plan.id, key)
+        assert [line["title"] for line in waiting["lines"]] == ["Proposed by Otto"] and waiting["empty_text"] is None
+        assert waiting["lines"][0]["at"] is None and waiting["lines"][0]["marks"] == ["From Otto"]
+        lab.set_decision_name("Kevin")
+        lab.otto_decide(plan.id, proposal["id"], "accept")
+        lab.otto_decide(plan.id, proposal["id"], "undo")
+        history = lab.history_view(plan.id, key)
+        assert problems(history, models.HistoryView) == []
+        assert [line["title"] for line in history["lines"]] == [
+            "Undone: Otto's proposed dependency update",
+            "Accepted: Otto's proposed dependency update",
+            "Proposed by Otto",
+        ]
+        assert all(line["who"]["name"] == "Kevin" and line["said"] == "by Kevin" for line in history["lines"][:2])
+        # a library nobody decided anything about lists none of them
+        other = lab.history_view(plan.id, f"library:{rows['openssl 3.0.22']}")
+        assert other["lines"] == [] and other["empty_text"] == words.LIBRARY_FROM_NOTES
+    finally:
+        lab.stop()
+
+
+# ---------------------------------------------------------------- an Apply or a Roll back the server refused
+
+
+def test_an_apply_or_a_roll_back_the_server_refused_never_reads_as_applied(short):
+    """Apply is pressed either way. Where the server refused the settings nothing changed, and the change's own page
+    says "Not applied: the server refused the settings". The record says the same: such a press is no change to a
+    system, and Approvals and decisions does not list it as Applied. (The records of three Applies as the database
+    keeps them, laid on the short walk's reading; the migration demo's real one is in the slow set.)"""
+    from app.record.entries import Entries
+
+    lab, pid = short.lab, short.plan_id
+    reading = copy.copy(short.read.r)
+    key, server = "migration:server:localhost:9", "localhost:9"
+
+    def apply(n: int, accepted: bool, back: tuple[int, bool] | None = None) -> dict:
+        return {
+            "id": n,
+            "change_key": key,
+            "change_fp": "f" * 64,
+            "address": server,
+            "try_id": None,
+            "request_id": None,
+            "accepted": accepted,
+            "at": f"2026-11-26T10:0{n}:00.000Z",
+            "rollback": {"id": back[0], "accepted": back[1], "at": f"2026-11-26T10:0{n}:30.000Z"} if back else None,
+        }
+
+    reading.tries, reading.requests = [], []
+    reading.applies = [apply(1, False), apply(2, True, (1, False)), apply(3, True, (2, True))]
+    found = Entries(reading)
+    refused, taken, not_back, back = (found.by_id[i] for i in ("apply-1", "apply-2", "rollback-1", "rollback-2"))
+    assert refused["lead"] == "Not applied:" and refused["title"] == "Not applied"
+    assert "Apply was pressed, and the server refused the settings" in words.plain(refused["lead"], refused["rest"])
+    assert (refused["kind"], refused["decision"], refused["after"]) == ("people", "apply_refused", [])
+    assert (taken["lead"], taken["kind"], taken["decision"]) == ("Applied:", "system", "applied")
+    assert not_back["lead"] == "Not rolled back:" and "refused the earlier settings" in not_back["rest"][-1]["v"]
+    assert (not_back["kind"], not_back["decision"], not_back["after"]) == ("people", "rollback_refused", [])
+    assert (back["lead"], back["kind"], back["decision"]) == ("Rolled back:", "system", "rolled_back")
+    # Approvals and decisions: each has its own word, in the page's words
+    decisions = lab.decisions_view(pid, read=found)
+    assert problems(decisions, models.DecisionsView) == []
+    said = {r["id"]: r["decision"] for d in decisions["days"] for r in d["rows"]}
+    assert said["apply-1"] == {"key": "apply_refused", "label": "Not applied: the server refused the settings"}
+    assert said["rollback-1"] == {
+        "key": "rollback_refused",
+        "label": "Not rolled back: the server refused the settings",
+    }
+    labels = [word["label"] for word in said.values()]
+    assert labels.count("Applied") == 2 and labels.count("Rolled back") == 1
+    # the Timeline: a refused press changed no system, so "Changes to a system" does not hold it
+    timeline = lab.timeline_view(pid, kind="system", read=found)
+    assert problems(timeline, models.TimelineView) == []
+    assert {e["id"] for e in listed(timeline)} == {"apply-2", "apply-3", "rollback-2"}
+    story = lab.timeline_entry_view(pid, "apply-1", read=found)
+    assert problems(story, models.TimelineEntryDetail) == [] and story["after"] == []
+    assert [p["role"] for p in story["people"]] == ["Pressed by"] and story["title"] == "Not applied"
+    assert [p["role"] for p in lab.timeline_entry_view(pid, "apply-2", read=found)["people"]] == ["Applied by"]
+    # and in the signed file's words
+    assert words.action_words("applied", {"accepted": False}) == "Pressed Apply; the server refused the settings"
+    assert words.action_words("rolled_back", {"accepted": False}).startswith("Pressed Roll back; the server refused")
+    assert words.action_words("applied", {"accepted": True}) == words.action_words("applied") == "Applied a change"
+
+
+def test_a_runs_link_names_the_page_that_holds_its_row():
+    from app.record.reading import run_link
+
+    assert run_link("test-12") == {"page": "evidence", "item": "test-12"}
+    assert run_link("retest-12-on-3") == {"page": "evidence", "item": "retest-12-on-3"}  # (Results opens test 12)
+    assert run_link("try-tls:localhost:1-try") == {"page": "evidence", "item": "try-tls:localhost:1-try"}
+    assert (
+        run_link("system-server:localhost:1")["page"] == "evidence" and run_link("library-row-1")["page"] == "evidence"
+    )
+    for block_row in ("proof-12-in-4", "watch-12-in-4", "watchbase-12-in-4"):
+        assert run_link(block_row) == {"page": "checks", "item": block_row}
+    assert run_link("proof-12") == {"page": "evidence", "item": "proof-12"}  # (the ledger's own row: Results holds it)
 
 
 # ---------------------------------------------------------------- before names were kept

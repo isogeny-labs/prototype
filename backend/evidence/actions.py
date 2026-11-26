@@ -13,7 +13,10 @@ button, what it was on, and references to the runs and records it started. What 
      to one press only;
   4. where the file holds the record a press made, the two agree: an approval is recorded in the fix it names under
      the name the press says it was given as; a merge and an opened pull request are in the fix they name; a run that
-     a press started was started by a press that starts runs.
+     a press started was started by a press that starts runs;
+  5. a press says what it must for its kind: a download names the fingerprint of its file, a tick says how it stands,
+     an Apply and a Roll back say whether the server took the settings (a refused one changed nothing, and must not
+     read as applied), and a press made through a button that makes several names a button this app has.
 
 The lists of kinds, sources and references are written out again here, apart from the app's own
 (app/lab/actions.py, app/record/part.py), so the file is not checked with the code that made it;
@@ -87,6 +90,8 @@ STARTS_RUNS = (
     "rolled_back",
     "picked_tests_run",
 )
+# the buttons that make several presses at once (each of those presses names its button in the fact "through")
+THROUGH = ("load_demo_projects",)
 REF_KINDS = ("run", "verify_run", "test", "fix", "proof", "change", "watch_run", "developer_change")
 NUMBERED = ("run", "verify_run", "test", "proof", "watch_run")  # references that are a number; the others are a name
 ITEM_KINDS = ("test", "fix", "change", "system", "run", "developer-change")
@@ -150,15 +155,19 @@ def _list_of_dicts(value: object, most: int) -> list:
     return [v for v in value if isinstance(v, dict)] if isinstance(value, list) and len(value) <= most else []
 
 
+def _dict(value: object) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
 def held(evidence: dict) -> dict[str, set]:
     """What the file holds that a press can point at, read from the file's own parts."""
     checks = _list_of_dicts(evidence.get("checks"), 100_000)
     fixes = _list_of_dicts(evidence.get("fixes"), 100_000)
-    watch = evidence.get("change_watch") if isinstance(evidence.get("change_watch"), dict) else {}
+    watch = _dict(evidence.get("change_watch"))
     runs = [r for c in checks for r in _list_of_dicts(c.get("runs"), 100_000)]
     tests = {t.get("item_id") for t in _list_of_dicts(evidence.get("tests"), 100_000) if _whole(t.get("item_id"))}
     for part in ("migration", "dependencies"):
-        inside = evidence.get(part) if isinstance(evidence.get(part), dict) else {}
+        inside = _dict(evidence.get(part))
         tests |= {
             m.get("item_id") for m in _list_of_dicts(inside.get("measurements"), 100_000) if _whole(m.get("item_id"))
         }
@@ -328,6 +337,16 @@ def _check_records(actions: list[dict], evidence: dict) -> None:
             _need(
                 isinstance(facts.get("confirmed"), bool), f"press {n} is a tick that does not say how the tick stands."
             )
+        if kind in ("applied", "rolled_back"):
+            _need(
+                isinstance(facts.get("accepted"), bool),
+                f"press {n} is an Apply or a Roll back that does not say whether the server took the settings.",
+            )
+        if "through" in facts:
+            _need(
+                facts["through"] in THROUGH,
+                f"press {n} says it was made through a button this app does not have: {_plain(facts['through'])}.",
+            )
 
 
 def check_actions(evidence: dict) -> ActionsOutcome:
@@ -359,6 +378,7 @@ __all__ = [
     "SCHEMA",
     "SOURCES",
     "STARTS_RUNS",
+    "THROUGH",
     "ActionsOutcome",
     "check_actions",
     "held",

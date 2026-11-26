@@ -2765,7 +2765,7 @@ export interface DecisionRow {
   /**
    * Who pressed, where that is another name (an approval as a demo reviewer).
    */
-  pressed_by: RecordWho1 | null;
+  pressed_by: RecordWho | null;
   area: RecordArea;
   link: ItemLink | null;
 }
@@ -2777,38 +2777,9 @@ export interface DecisionWord {
   label: string;
 }
 /**
- * The name the decision was recorded under.
- */
-export interface RecordWho {
-  /**
-   * The name, or "Not recorded (before names were kept)".
-   */
-  name: string;
-  /**
-   * account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name (Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none.
-   */
-  source: "account" | "typed" | "default" | "reviewer" | "signoff" | "decides" | "clock" | "author" | "none";
-  /**
-   * The same, in one plain line.
-   */
-  source_label: string;
-  /**
-   * Demo data: a demo reviewer or the demo developer.
-   */
-  demo: boolean;
-  /**
-   * False where no name was kept.
-   */
-  recorded: boolean;
-  /**
-   * The button it was pressed with ("Run all", "Retest now, on Fixes"), or null.
-   */
-  button: string | null;
-}
-/**
  * One name on a record, and where it came from. A person is never the decider of a result.
  */
-export interface RecordWho1 {
+export interface RecordWho {
   /**
    * The name, or "Not recorded (before names were kept)".
    */
@@ -3205,44 +3176,22 @@ export interface EvidenceFileRow {
   at: string;
   fingerprint: string;
   fingerprint_label: string;
-  who: RecordWho2;
+  who: RecordWho;
   json: FileLink;
   html: FileLink;
-}
-/**
- * One name on a record, and where it came from. A person is never the decider of a result.
- */
-export interface RecordWho2 {
-  /**
-   * The name, or "Not recorded (before names were kept)".
-   */
-  name: string;
-  /**
-   * account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name (Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none.
-   */
-  source: "account" | "typed" | "default" | "reviewer" | "signoff" | "decides" | "clock" | "author" | "none";
-  /**
-   * The same, in one plain line.
-   */
-  source_label: string;
-  /**
-   * Demo data: a demo reviewer or the demo developer.
-   */
-  demo: boolean;
-  /**
-   * False where no name was kept.
-   */
-  recorded: boolean;
-  /**
-   * The button it was pressed with ("Run all", "Retest now, on Fixes"), or null.
-   */
-  button: string | null;
 }
 export interface EvidenceFilesCheck {
   title: string;
   text: string;
   command: string;
   report_note: string;
+}
+/**
+ * The Download evidence button, as Evidence gives it (a shape of its own, so LabView's keeps its name).
+ */
+export interface EvidenceFilesDownload {
+  can_start: boolean;
+  blocked_reason: string | null;
 }
 export interface EvidenceFilesHolds {
   title: string;
@@ -3258,17 +3207,10 @@ export interface EvidenceFilesView {
    */
   files: EvidenceFileRow[];
   empty_text: string | null;
-  download: LabViewDownload;
+  download: EvidenceFilesDownload;
   check: EvidenceFilesCheck;
   holds: EvidenceFilesHolds;
   names_note: string;
-}
-/**
- * The Download evidence button, as Evidence gives it.
- */
-export interface LabViewDownload {
-  can_start: boolean;
-  blocked_reason: string | null;
 }
 export interface FixApprovers {
   /**
@@ -3782,7 +3724,7 @@ export interface HistoryLine {
    * Several results that stand together (a retest's, in a fix's history).
    */
   results: RecordChip[];
-  who: RecordWho1 | null;
+  who: RecordWho | null;
   /**
    * "started by You, with Run all", "by You", or that no name was kept.
    */
@@ -3870,7 +3812,7 @@ export interface LabView {
    */
   rows: LabRow[];
   retest: LabViewRetest;
-  download: LabViewDownload1;
+  download: LabViewDownload;
   /**
    * Something is running for this file (tests, a retest or a proof in Fixes): ask again in a second.
    */
@@ -3930,7 +3872,7 @@ export interface RetestVersion {
   tag: string;
   note: string;
 }
-export interface LabViewDownload1 {
+export interface LabViewDownload {
   can_start: boolean;
   blocked_reason: string | null;
 }
@@ -5342,7 +5284,7 @@ export interface RecordRole {
    * "Merged by", "Approved by", "Approved as", "Pressed by", ...
    */
   role: string;
-  who: RecordWho1;
+  who: RecordWho;
   at: string | null;
   note: string | null;
 }
@@ -5440,11 +5382,11 @@ export interface TimelineEntry {
    * The rest of the sentence.
    */
   rest: RichPart[];
-  who: RecordWho1;
+  who: RecordWho;
   /**
    * A second name: the demo reviewer an approval was given as, a commit's author.
    */
-  also: RecordWho1[];
+  also: RecordWho[];
   /**
    * "decided by the separate reviewer" for runs, "decided by fixed rules" for Verify; null otherwise.
    */
