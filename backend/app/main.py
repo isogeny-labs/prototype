@@ -27,6 +27,7 @@ from app.web import lab as lab_routes
 from app.web import otto as otto_routes
 from app.web import tests as test_routes
 from app.web.turns import OneReadAtATime
+from app.web.who import WhoIsAsking
 from app.web.common import error_response
 
 
@@ -73,6 +74,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Reads take turns, first come, first served: several views worked out side by side are much slower than one after
     # another (app/web/turns.py). Anything that changes something does not wait.
     app.add_middleware(OneReadAtATime)
+    # Who did what: the session of a request is known to the Lab while it is answered, so a press is recorded under
+    # the account that pressed it (app/web/who.py, app/lab/actions.py).
+    app.add_middleware(WhoIsAsking)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_request: Request, exc: StarletteHTTPException):
