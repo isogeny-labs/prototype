@@ -757,6 +757,39 @@ describe("Fixes, the confirm box before a merge", () => {
 });
 
 describe("Fixes, the folded sections", () => {
+  it("keeps the change, its proof and the technical details behind one fold: a Cryptanalysis proof for a tested finding", async () => {
+    await open(fixesViews.ready);
+    const fold = screen.getByTestId("fix-proof-fold") as HTMLDetailsElement;
+    // Folded until asked for, with its name and what is inside, in order.
+    expect(fold.tagName).toBe("DETAILS");
+    expect(fold.open).toBe(false);
+    expect(fold.getAttribute("data-kind")).toBe("proof");
+    expect(within(fold).getByTestId("proof-fold-name").textContent).toBe("Cryptanalysis proof");
+    expect(within(fold).getByTestId("proof-fold-inside").textContent).toBe("The change · Proof · Technical details");
+    // Every part is in it, whole, and nowhere else; the summary above it holds the answer and the next step.
+    for (const part of sections()) expect(fold.contains(part), part.getAttribute("data-section")!).toBe(true);
+    expect(sections().map((part) => part.getAttribute("data-part"))).toEqual(["1", "2", "3"]);
+    expect(summary().compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fold.contains(summary())).toBe(false);
+    fireEvent.click(within(fold).getByTestId("proof-fold-toggle"));
+    expect(fold.open).toBe(true);
+    // The small line over the title says what this is and which group it sits in.
+    expect(screen.getByTestId("panel-kicker").textContent).toBe("Fix · Crypto tests");
+  });
+
+  it("calls the fold a Technical record for a finding that was observed, and shows none before there is a record", async () => {
+    await open(fixesViews.ready, {}, TLS_FIX);
+    const fold = screen.getByTestId("fix-proof-fold");
+    expect(fold.getAttribute("data-kind")).toBe("record");
+    expect(within(fold).getByTestId("proof-fold-name").textContent).toBe("Technical record");
+    expect(within(fold).getByTestId("proof-fold-inside").textContent).toBe("The suggestion");
+    cleanup();
+    await open(fixesViews.not_connected);
+    expect(sections()).toHaveLength(0);
+    expect(screen.queryByTestId("fix-proof-fold")).toBeNull();
+    expect(screen.getByTestId("fix-sections-note")).not.toBeNull();
+  });
+
   it("starts with the change open and the others closed; a click opens and closes each", async () => {
     const fetchMock = await open(fixesViews.ready);
     // Each section's title is a heading, and the heading is the button that folds it.

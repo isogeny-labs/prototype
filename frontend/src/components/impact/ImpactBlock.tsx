@@ -47,17 +47,24 @@ function Part({ part, testId }: { part: ImpactPart; testId: string }) {
 
 /** "What this change touches" on a fix, "Where it is used" on a library (phase 4e). Every place, sentence and count is
  * the backend's: this only draws them. It has no button: its links only open pages. */
-export function ImpactBlock({ impact }: { impact: Impact | null | undefined }) {
+export function ImpactBlock({
+  impact,
+  bare = false,
+}: {
+  impact: Impact | null | undefined;
+  /** Inside a fold line that already shows the title: no box and no heading of its own. */
+  bare?: boolean;
+}) {
   if (!impact) return null;
   return (
     <section
       data-testid="impact"
       data-count={impact.count}
       aria-label={impact.title}
-      className="rounded-xl border border-slate-700 bg-slate-900 p-4"
+      className={bare ? "min-w-0" : "rounded-xl border border-slate-700 bg-slate-900 p-4"}
     >
-      <h3 className="text-[15px] font-semibold text-slate-50">{impact.title}</h3>
-      <p data-testid="impact-count" className="mt-1 text-sm font-semibold text-slate-100">
+      {bare ? null : <h3 className="text-[15px] font-semibold text-slate-50">{impact.title}</h3>}
+      <p data-testid="impact-count" className={`${bare ? "" : "mt-1 "}text-sm font-semibold text-slate-100`}>
         {impact.count_line}
       </p>
       <Part part={impact.here} testId="impact-here" />

@@ -1292,7 +1292,8 @@ describe("Advisories, Otto proposes and a person decides", () => {
     const fetchMock = await open(advisoriesNotAdded);
     const inPanel = await openRow(BLANK);
     const shown = blankProposal;
-    expect(inPanel.getByTestId("advisory-here-note").textContent).toBe(blankNotAdded.panel.here.note);
+    // One program: that accepting runs nothing is said once, under the card's own buttons, and not above them too.
+    expect(inPanel.queryByTestId("advisory-here-note")).toBeNull();
     expect(inPanel.getAllByTestId("otto-proposal")).toHaveLength(1);
     const it = card();
     expect(it.getAttribute("data-proposal")).toBe(shown.id);
@@ -1683,6 +1684,8 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(chipOf(BLANK, "advisory-proposal").textContent).toBe("Proposed");
     expect(within(rowOf(BLANK)).getByTestId("advisory-proposal-text").textContent).toBe("2 proposed");
     const inPanel = await openRow(BLANK);
+    // With several programs the block's own line stays: it says that each is decided by itself.
+    expect(inPanel.getByTestId("advisory-here-note").textContent).toBe(twoProposed.rows[0]!.panel.here.note);
     // One row and one proposal per program, each with its own buttons.
     expect(inPanel.getAllByTestId("advisory-here-row").map((r) => r.getAttribute("data-program"))).toEqual([
       ACME,

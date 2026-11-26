@@ -16,7 +16,9 @@ import {
   useShowGroups,
   type GroupNav,
 } from "./layout";
-import { RelatedFor } from "./related";
+import { LedgerView } from "./advisories/parts";
+import { FoldLine, ProofFold, Trail, proofKindOf } from "./proof";
+import { RelatedFold, WithRelated } from "./related";
 import { DemoDataLabel, ErrorBox } from "./ui";
 
 const POLL_MS = 1000;
@@ -253,6 +255,21 @@ export function FixesScreen({
   }
 
   const sectionKey = (fixId: string, section: FixSection) => `${fixId}/${section.key}`;
+  // The work group a fix sits in, for the small line over its panel's title.
+  const groupOf = (fixId: string) =>
+    (current.groups ?? []).find((g) => g.fix_ids.includes(fixId) || (g.apart?.fix_ids ?? []).includes(fixId))?.label ??
+    null;
+  // The fold is a Cryptanalysis proof where something in it was tested (the finding, the change's own proof, or a
+  // trial on public copies), and a Technical record otherwise.
+  const foldKind = (f: FixesView["fixes"][number]) =>
+    [f.source_tag, f.proof.source_tag, ...(f.proof_rows ?? []).map((row) => row.source_tag)].some(
+      (tag) => proofKindOf(tag) === "proof",
+    )
+      ? "proof"
+      : "record";
+  // The research ledger's entries behind a library fix's proof rows: records, so they are kept in the fold.
+  const ledgersOf = (f: FixesView["fixes"][number]) =>
+    (f.proof_rows ?? []).flatMap((row) => (row.ledger ? [row.ledger] : []));
 
   return (
     <section aria-label={current.title}>
@@ -307,47 +324,90 @@ export function FixesScreen({
               />
             }
             panel={
-              <DetailPanel open={fix !== null} item={fix?.id ?? null} title={fix?.title ?? ""} onClose={closePanel}>
+              <DetailPanel
+                open={fix !== null}
+                item={fix?.id ?? null}
+                kicker={fix ? ["Fix", groupOf(fix.id)].filter(Boolean).join(" · ") : undefined}
+                title={fix?.title ?? ""}
+                onClose={closePanel}
+              >
                 {fix ? (
-                  <div className="flex min-w-0 flex-col gap-3">
-                    {/* The key gives each fix its own ticks and its own confirm box. */}
-                    <FixSummary
-                      key={fix.id}
-                      fix={fix}
-                      busy={busy}
-                      onRequest={(asked) => request(fix.id, asked)}
-                      planId={current.plan_id}
-                      onProposalDecided={() => void reloadAfterDecision()}
-                    />
-                    {/* Phase 4e: where the part this fix changes is used. Links only; it runs and decides nothing. */}
-                    <ImpactBlock impact={fix.impact} />
-                    {fix.sections_note ? (
-                      <p data-testid="fix-sections-note" className="px-1 text-xs text-slate-400">
-                        {fix.sections_note}
-                      </p>
-                    ) : null}
-                    {fix.change_box ? (
-                      <ChangeBox
-                        key={fix.change_box.id}
-                        change={fix.change_box}
-                        planId={current.plan_id}
-                        onChanged={reloadAfterChange}
-                        onViewFix={choose}
-                      />
-                    ) : null}
-                    <FixSections
-                      sections={fix.sections}
-                      advisories={fix.advisories}
-                      isOpen={(section) => toggled[sectionKey(fix.id, section)] ?? section.open}
-                      onToggle={(section) =>
-                        setToggled((prev) => {
-                          const key = sectionKey(fix.id, section);
-                          return { ...prev, [key]: !(prev[key] ?? section.open) };
-                        })
-                      }
-                    />
-                    <RelatedFor itemKey={`fix:${fix.id}`} />
-                  </div>
+                  // The design refactor (26 November 2026), three layers. In the open: where the fix sits between its
+                  // claim, advisory and check, what it does, how far its proof has come, who approves and the next
+                  // step. Behind one fold, whole: the suggestion, the change, its proof, the technical details and the
+                  // ledger entries. Then two quiet lines: what the change touches, and what is related.
+                  <WithRelated itemKey={`fix:${fix.id}`}>
+                    {(lines) => (
+                      <div className="flex min-w-0 flex-col gap-4">
+                        <Trail
+                          lines={lines}
+                          here={{ kind: "fix", name: "Fix", label: fix.title, sub: fix.status.word }}
+                        />
+                        {/* The key gives each fix its own ticks and its own confirm box. */}
+                        <FixSummary
+                          key={fix.id}
+                          fix={fix}
+                          busy={busy}
+                          onRequest={(asked) => request(fix.id, asked)}
+                          planId={current.plan_id}
+                          onProposalDecided={() => void reloadAfterDecision()}
+                        />
+                        {fix.change_box ? (
+                          <ChangeBox
+                            key={fix.change_box.id}
+                            change={fix.change_box}
+                            planId={current.plan_id}
+                            onChanged={reloadAfterChange}
+                            onViewFix={choose}
+                          />
+                        ) : null}
+                        {fix.sections_note ? (
+                          <p data-testid="fix-sections-note" className="text-xs text-slate-400">
+                            {fix.sections_note}
+                          </p>
+                        ) : null}
+                        {fix.sections.length > 0 || ledgersOf(fix).length > 0 ? (
+                          <ProofFold
+                            key={`fold-${fix.id}`}
+                            kind={foldKind(fix)}
+                            inside={[
+                              ...fix.sections.map((section) => section.title),
+                              ...(ledgersOf(fix).length > 0 ? ["The records"] : []),
+                            ]}
+                            testId="fix-proof-fold"
+                          >
+                            <div className="flex min-w-0 flex-col gap-2.5 py-3">
+                              <FixSections
+                                sections={fix.sections}
+                                advisories={fix.advisories}
+                                isOpen={(section) => toggled[sectionKey(fix.id, section)] ?? section.open}
+                                onToggle={(section) =>
+                                  setToggled((prev) => {
+                                    const key = sectionKey(fix.id, section);
+                                    return { ...prev, [key]: !(prev[key] ?? section.open) };
+                                  })
+                                }
+                              />
+                              {ledgersOf(fix).length > 0 ? (
+                                <div data-testid="fix-records" className="space-y-2">
+                                  {ledgersOf(fix).map((ledger, i) => (
+                                    <LedgerView key={i} ledger={ledger} />
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          </ProofFold>
+                        ) : null}
+                        {/* Phase 4e: where the part this fix changes is used. Links only; it runs and decides nothing. */}
+                        {fix.impact ? (
+                          <FoldLine title={fix.impact.title} hint={fix.impact.count_line} testId="impact-fold">
+                            <ImpactBlock impact={fix.impact} bare />
+                          </FoldLine>
+                        ) : null}
+                        <RelatedFold lines={lines} />
+                      </div>
+                    )}
+                  </WithRelated>
                 ) : null}
               </DetailPanel>
             }

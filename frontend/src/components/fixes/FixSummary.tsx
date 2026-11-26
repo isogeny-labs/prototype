@@ -1,6 +1,5 @@
 import { Fragment, useCallback, useState, type ReactNode } from "react";
 import type { FixAction, FixApprovers, FixButton, FixDetail, FixProofRow, OttoProposal } from "../../api";
-import { LedgerView } from "../advisories/parts";
 import { ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
 import {
@@ -84,9 +83,11 @@ function Proof({ proof }: { proof: FixDetail["proof"] }) {
   return <p className="text-slate-300">{words}</p>;
 }
 
-/** Phase 5c: one of the two proof rows of a library's fix from Otto ("Proven on public copies", "Proven on your
- * system"): the row's own word as a chip, its sentence, its links, and under the first row the research ledger's
- * entries, folded. Every word is the view's; the chip repeats what a trial or a retest showed and decides nothing. */
+/** Phase 5c: one of the two proof rows of a library's fix from Otto ("Proven on public copies", "Proven in this
+ * assessment"): the row's own word as a chip, its sentence, the note that says what the row is about right under it,
+ * and its links. The research ledger's entries behind the first row are in the panel's fold, with the other records
+ * (the design refactor, 26 November 2026). Every word is the view's; the chip repeats what a trial or a retest
+ * showed and decides nothing. */
 function ProofRowView({ row }: { row: FixProofRow }) {
   return (
     <>
@@ -116,11 +117,6 @@ function ProofRowView({ row }: { row: FixProofRow }) {
             </ItemLinkView>
           ))}
         </p>
-      ) : null}
-      {row.ledger ? (
-        <div className="mt-2">
-          <LedgerView ledger={row.ledger} />
-        </div>
       ) : null}
     </>
   );
@@ -247,13 +243,9 @@ export function FixSummary({ fix, busy, onRequest, planId, onProposalDecided }: 
   }
 
   return (
-    <section
-      data-testid="fix-summary"
-      data-fix-id={fix.id}
-      aria-label={fix.title}
-      className="rounded-xl border border-slate-700 bg-slate-900 p-4"
-    >
-      <p data-testid="fix-source" className="mt-1 text-sm text-slate-400">
+    // No box of its own: the panel is the box, and the proposal's card is the one level inside it.
+    <section data-testid="fix-summary" data-fix-id={fix.id} aria-label={fix.title} className="min-w-0">
+      <p data-testid="fix-source" className="text-sm text-slate-400">
         <Rich parts={fix.source} />
       </p>
       {/* 22 November 2026: where the finding this fix answers came from, with what that means */}
@@ -277,12 +269,20 @@ export function FixSummary({ fix, busy, onRequest, planId, onProposalDecided }: 
           buttons below stay as the view sends them (Connect demo code is off, with the reason, until the accept). */}
       {fix.proposal && planId !== undefined ? (
         <div data-testid="fix-proposal" className="mt-3">
-          <ProposalCard planId={planId} proposal={fix.proposal} onDecided={(next) => onProposalDecided?.(next)} />
+          {/* The panel's title names the fix, and the two proof rows and what it suggests stand right below: the card
+              says neither a second time here. */}
+          <ProposalCard
+            planId={planId}
+            proposal={fix.proposal}
+            onDecided={(next) => onProposalDecided?.(next)}
+            showTitle={false}
+            compact
+          />
         </div>
       ) : null}
 
       {/* "Proof", "Pull request" and "Who approves" only name the rows. Everything that says how the fix stands comes from the view. */}
-      <dl className="mt-4 grid gap-x-4 gap-y-3.5 border-t border-slate-800 pt-4 text-sm sm:grid-cols-[120px_1fr]">
+      <dl className="mt-4 grid gap-x-4 gap-y-3.5 border-t border-slate-800 pt-4 text-sm @md:grid-cols-[132px_minmax(0,1fr)]">
         <dt className={DT}>{fix.what.label}</dt>
         <dd data-testid="fix-what" className="space-y-1.5 text-slate-200">
           {fix.what.paragraphs.map((parts, i) => (
@@ -299,9 +299,17 @@ export function FixSummary({ fix, busy, onRequest, planId, onProposalDecided }: 
 
         {fix.proof_rows && fix.proof_rows.length > 0 ? (
           // Phase 5c: a library's fix from Otto. Two plain rows, each named by the view, in place of the one Proof line.
-          fix.proof_rows.map((row) => (
+          // Drawn as two steps, so it is plain that the second is still to do.
+          fix.proof_rows.map((row, i) => (
             <Fragment key={row.key}>
-              <dt className={DT}>{row.label}</dt>
+              <dt className={`${DT} flex items-start gap-2`}>
+                <span
+                  aria-hidden="true"
+                  data-step={i + 1}
+                  className="mt-px inline-flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full border border-slate-600 text-[11px] font-semibold text-slate-300 before:content-[attr(data-step)]"
+                />
+                <span className="min-w-0">{row.label}</span>
+              </dt>
               <dd
                 data-testid="proof-row"
                 data-key={row.key}

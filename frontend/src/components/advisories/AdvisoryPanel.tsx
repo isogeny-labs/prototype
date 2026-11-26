@@ -137,6 +137,11 @@ export function AdvisoryPanel({
   const trial = test?.trial ?? noTest?.trial ?? null;
   const ledger = test?.ledger ?? noTest?.ledger ?? null;
 
+  // "Accepting adds the check to the test plan and runs nothing" is said once: with one program, whose proposal says
+  // it under its own buttons, the block does not say it a second time above them. With several programs the block's
+  // line stays, because it also says that each is decided by itself.
+  const saidUnderTheButtons = panel.here.rows.length === 1 && Boolean(panel.here.rows[0]!.proposal?.note);
+
   // The fold's parts, in order. The first is the test itself; the trial is the proof's own parts where the test was
   // tried on sandbox copies, and the view's counts line by line otherwise; the records come last.
   const parts: FoldPart[] = [
@@ -318,7 +323,7 @@ export function AdvisoryPanel({
 
           <section data-testid="advisory-here" aria-label={panel.here.title} className={BLOCK}>
             <h3 className={BLOCK_TITLE}>{panel.here.title}</h3>
-            {panel.here.note ? (
+            {panel.here.note && !saidUnderTheButtons ? (
               <p data-testid="advisory-here-note" className="mt-1.5 break-words text-xs text-slate-400">
                 {panel.here.note}
               </p>
