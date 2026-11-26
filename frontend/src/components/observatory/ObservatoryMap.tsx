@@ -272,7 +272,8 @@ export function ObservatoryMap({
               aria-label={service.title ?? "Your systems"}
               className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4"
             >
-              <header className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              {/* (a line of the map is never drawn across a service's name: MapLines reads this mark) */}
+              <header data-map-title className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 {service.title ? <h3 className="text-[15px] font-semibold text-slate-50">{service.title}</h3> : null}
                 {service.version ? <span className="font-mono text-xs text-slate-400">{service.version}</span> : null}
                 {service.is_demo ? <DemoDataLabel /> : null}

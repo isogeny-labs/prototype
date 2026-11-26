@@ -32,6 +32,20 @@ function measure(root: HTMLElement, lines: ObservatoryLine[]): { drawn: Drawn[];
         node.getAttribute("data-testid") !== "map-service" && node.closest('[data-testid="map-service"]') !== null,
     };
   };
+  // What a line must not be drawn across: every other box of the map, and a service's own name.
+  const blocks = Array.from(root.querySelectorAll<HTMLElement>("[data-node], [data-map-title]"))
+    .filter((node) => node.getAttribute("data-testid") !== "map-service")
+    .map((node) => {
+      const r = node.getBoundingClientRect();
+      return {
+        key: node.getAttribute("data-node"),
+        left: r.left - frame.left,
+        top: r.top - frame.top,
+        right: r.right - frame.left,
+        bottom: r.bottom - frame.top,
+      };
+    });
+  let aside = 0; // (how many lines were led round by the side so far: each gets a track of its own)
   // Lines that end on the same box are spread along its edge, so they do not run into one arrow.
   const endsAt = new Map<string, number>();
   const taken = new Map<string, number>();
@@ -53,7 +67,37 @@ function measure(root: HTMLElement, lines: ObservatoryLine[]): { drawn: Drawn[];
     // A label stands in the free room between the rows, next to the end of its line that is outside a service's frame
     // (a line ties a part inside a service to something outside it, or two things outside).
     const NEAR = 18;
-    if (a.bottom <= b.top) {
+    // Two boxes one under the other with something between them (the map in one column, beside two open panels): a
+    // straight line would run across what stands between, so the line is led round by the side of the column.
+    const [upper, lower] = a.bottom <= b.top ? [a, b] : [b, a];
+    const shared = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+    const stacked = upper.bottom <= lower.top && shared > 0.5 * Math.min(a.right - a.left, b.right - b.left);
+    const across =
+      stacked &&
+      blocks.some(
+        (o) =>
+          o.key !== line.start &&
+          o.key !== line.end &&
+          o.top < lower.top &&
+          o.bottom > upper.bottom &&
+          o.left < Math.max(ax, bx) + 2 &&
+          o.right > Math.min(ax, bx) - 2,
+      );
+    if (across) {
+      const track = 7 + 5 * Math.floor(aside / 2);
+      const right = aside % 2 === 0;
+      aside += 1;
+      const edge = right ? Math.max(a.right, b.right) + track : Math.min(a.left, b.left) - track;
+      const gx = Math.min(Math.max(edge, 2), frame.width - 2);
+      const ay = Math.min(a.top + 22, (a.top + a.bottom) / 2);
+      const by = Math.min(b.top + 22, (b.top + b.bottom) / 2);
+      path = `M ${right ? a.right : a.left} ${ay} L ${gx} ${ay} L ${gx} ${by} L ${right ? b.right : b.left} ${by}`;
+      // (its label stands in the free room just above the lower box, or just under the upper one)
+      [x, y] =
+        a.inside && !b.inside
+          ? [bx, b === lower ? b.top - NEAR : b.bottom + NEAR]
+          : [ax, a === upper ? a.bottom + NEAR : a.top - NEAR];
+    } else if (a.bottom <= b.top) {
       const mid = (a.bottom + b.top) / 2;
       path = `M ${ax} ${a.bottom} C ${ax} ${mid}, ${bx} ${mid}, ${bx} ${b.top}`;
       [x, y] = [(ax + bx) / 2, mid];
