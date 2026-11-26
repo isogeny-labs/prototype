@@ -37,6 +37,7 @@ import {
   stepNav,
   openFreshAssessment,
   openGroupTab,
+  openProofFold,
   closeResult,
   evidenceRow,
   openResult,
@@ -155,9 +156,9 @@ async function goTo(step: string): Promise<void> {
   await stepLink(page, step).click();
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText(stepName(step));
   // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
-  // Crypto tests tab of Checks and of Evidence)
-  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step))
-    await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Evidence");
+  // Crypto tests tab of Checks and of Results, the page that was Evidence)
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Results"].includes(step))
+    await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Results");
 }
 
 /** Opens a result in Evidence Lab (if it is closed) and hands back its row. */
@@ -216,7 +217,16 @@ function section(key: "change" | "proof" | "details" | "suggestion"): Locator {
   return page.locator(`[data-testid="fix-section"][data-section="${key}"]`);
 }
 
+/** The design refactor (26 November 2026): a fix's sections (the suggestion, the change, its proof, the technical
+ * details) stand inside the panel's one fold, which is shut until it is opened. Opens it, or keeps it open; a fix with
+ * no section yet (its code is not connected) has no fold. */
+async function openFixFold(): Promise<void> {
+  const panel = page.getByTestId("detail-panel");
+  if ((await panel.getByTestId("fix-proof-fold").count()) > 0) await openProofFold(panel, "fix-proof-fold");
+}
+
 async function setSection(key: "change" | "proof" | "details" | "suggestion", open: boolean): Promise<void> {
+  await openFixFold(); // (a section's own heading can be pressed only once the fold around the sections is open)
   const fold = section(key).getByRole("button").first();
   if ((await fold.getAttribute("aria-expanded")) !== String(open)) await fold.click();
   await expect(fold).toHaveAttribute("aria-expanded", String(open));
@@ -369,7 +379,7 @@ test("a fresh import: Verify, the five suggested tests plus Post-quantum readine
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
 
   // Phase 5b: once a file is in, every page opens, Evidence and Fixes included.
-  await expect(stepNav(page).getByRole("link")).toHaveText(sidebarLinksOn("Checks")); // (Checks' four groups under it)
+  await expect(stepNav(page).getByRole("link")).toHaveText(sidebarLinksOn("Checks")); // (the six steps, then Evidence)
   await expectPageOpen(page, "4. Evidence Lab");
   await expectPageOpen(page, "5. Fixes");
 
@@ -391,7 +401,7 @@ test("a fresh import: Verify, the five suggested tests plus Post-quantum readine
 
 test("Evidence Lab: each failed result that has a fix shows one line with View in Fixes; the others keep their advice box", async () => {
   await goTo("4. Evidence Lab");
-  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Results", level: 1 })).toBeVisible();
   await expect(page.getByTestId("evidence-row")).toHaveCount(6);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
 
@@ -545,7 +555,14 @@ test("the server fix has a change box (Ready to try) and its suggestion; the sum
   await expect(page.getByTestId("code-line")).toHaveCount(0);
   await expect(page.getByTestId("proof-table")).toHaveCount(0);
 
-  // One section, open: the suggestion (section 7c of the spec).
+  // One section, open: the suggestion (section 7c of the spec). Since the design refactor (26 November 2026) it
+  // stands inside the panel's one fold, shut until it is opened. The finding was observed on the server, so the fold
+  // is a Technical record.
+  const fold = page.getByTestId("detail-panel").getByTestId("fix-proof-fold");
+  await expect(fold.getByTestId("proof-fold-toggle")).toHaveAttribute("aria-expanded", "false");
+  await expect(fold.getByTestId("proof-fold-name")).toHaveText("Technical record");
+  await expect(section("suggestion").getByTestId("text-suggestion")).toBeHidden();
+  await openFixFold();
   await expect(page.getByTestId("fix-section")).toHaveCount(1);
   await expect(section("suggestion").getByRole("button").first()).toHaveAttribute("aria-expanded", "true");
   const text = section("suggestion").getByTestId("text-suggestion");
@@ -615,7 +632,11 @@ test("Connect demo code: the proof starts by itself; while it runs the status is
   await expect(s.getByRole("button")).toHaveCount(0);
   await expectUnproven();
 
-  // The change is on screen at once: 3 lines added and 1 removed. The proof and the details are folded.
+  // The change is there at once: 3 lines added and 1 removed. The proof and the details are folded. (The three
+  // sections are inside the panel's one fold: a signing program's fix was tested on a copy, so it is a Cryptanalysis
+  // proof.)
+  await expect(page.getByTestId("detail-panel").getByTestId("proof-fold-name")).toHaveText("Cryptanalysis proof");
+  await openFixFold();
   await expect(page.getByTestId("fix-section")).toHaveCount(3);
   await expect(section("change").getByRole("button").first()).toHaveAttribute("aria-expanded", "true");
   await expect(section("proof").getByRole("button").first()).toHaveAttribute("aria-expanded", "false");
@@ -763,7 +784,9 @@ test("with nobody pressing anything, the status goes from Proving to Ready for r
 
 test("the change is 3 lines added and 1 removed; the proof tables show every test of the plan; Technical details shows commit ids and fingerprints", async () => {
   // The change: exactly the range check and the version line, labelled as coming from a fix template.
+  await openFixFold();
   const change = section("change");
+  await expect(change.getByTestId("change-part").first()).toBeVisible();
   await expect(change.getByTestId("fix-section-line")).toHaveText(`${SIZE}, in 1 file (acme_sign.py)`);
   await expect(change).toContainText("Written from a fix template");
   await expect(change).toContainText("It was not written by an AI model");
@@ -1119,8 +1142,8 @@ test("Download patch gives acme-sign-pull-request-1.patch: the two added lines a
 test("Retest now runs the retest and lands on Evidence Lab's before and after, which match the answer key R1 to R5", async () => {
   await summary().getByRole("button", { name: "Retest now" }).click();
   // Straight to Evidence Lab: before and after, running.
-  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
-  await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText("Evidence");
+  await expect(page.getByRole("heading", { name: "Results", level: 1 })).toBeVisible();
+  await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText("Results");
   // Phase 5b: it lands on the retested result itself (its panel holds its before and after); the whole table's
   // before and after columns are read with the panel closed.
   await expect(page).toHaveURL(/\/evidence\?item=test-\d+$/);
@@ -1189,6 +1212,9 @@ test("the opened row after the retest: the code each side ran on, the Code item,
     after.getByRole("heading", { name: `After: acme-sign 1.4.3, the merged fix (commit ${mergeCommit})`, exact: true }),
   ).toBeVisible();
   await expect(badge(after).first()).toHaveText("Passed");
+  // (each side's cases, control and run record are inside its own fold)
+  await openProofFold(after);
+  await openProofFold(before);
   // The case that failed before now passes: the signature r=0, s=0 is rejected.
   const zeroCase = (detail: Locator) =>
     detail

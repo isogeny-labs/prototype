@@ -44,7 +44,8 @@ export function screenshotFolder(
     | "phase6e"
     | "group-tabs"
     | "impact"
-    | "source-tags",
+    | "source-tags"
+    | "design-refactor",
 ): string {
   return path.join(REPO, "docs/screenshots", phase);
 }
@@ -85,53 +86,56 @@ export async function enterApp(page: Page, options: { ottoPanel?: boolean } = {}
 }
 
 // Phase 5a: the six steps of the old step bar are now pages of the open assessment, in the sidebar. Phase 5b: Tests is
-// now Checks (every check of the assessment; the test plan is in it, under Crypto tests).
+// now Checks (every check of the assessment; the test plan is in it, under Crypto tests). The design refactor (26
+// November 2026): Evidence is a section of four views, and the page of the results is its Results view; the page of
+// the migration is "Migration plan" ("Migration" is the work group).
 const STEP_PAGES: Record<string, string> = {
   "1. Import": "Import",
   "2. Verify": "Verify",
   "3. Tests": "Checks",
-  "4. Evidence Lab": "Evidence",
+  "4. Evidence Lab": "Results",
   "5. Fixes": "Fixes",
-  "6. Migration": "Migration",
+  "6. Migration": "Migration plan",
 };
 
-/** The sidebar's assessment pages, in order, once a file is in (Migration's three views open with it). */
-// Phase 5c: Advisories sits between Inventory and Checks. Phase 6d: Change watch comes after Fixes.
+/** The sidebar's assessment pages, in order, once a file is in: the Overview, the six steps (Bring in, Observe, Test,
+ * Fix, Plan the move, Keep watching) and then Evidence with its four views. */
+// Phase 5c: Advisories. Phase 6d: Change watch. The design refactor (26 November 2026): no "Inventory" link; the
+// Observatory before Verify; "Migration plan" (its three views are listed under it only while one of them is open);
+// the four work groups are tabs on their pages and are not listed here.
 export const SIDEBAR_PAGES = [
   "Overview",
-  "Inventory",
   "Import",
+  "Observatory",
   "Verify",
   "Advisories",
   "Checks",
-  "Evidence",
   "Fixes",
+  "Migration plan",
   "Change watch",
-  "Migration",
-  "Systems",
-  "Roadmap",
-  "Dependencies",
+  "Timeline",
+  "Results",
+  "Approvals and decisions",
+  "Evidence files",
 ];
 
-/** 20 November 2026: the sidebar lists the four work groups under the open page when it is Checks, Evidence or Fixes. The
- * sidebar's links, in order, with the open page's groups under it. */
-export function sidebarLinksOn(open: "Checks" | "Evidence" | "Fixes"): string[] {
-  const at = SIDEBAR_PAGES.indexOf(open);
-  return [
-    ...SIDEBAR_PAGES.slice(0, at + 1),
-    "Verification",
-    "Crypto tests",
-    "Migration",
-    "Dependencies",
-    ...SIDEBAR_PAGES.slice(at + 1),
-  ];
+/** Migration plan's three views, as the sidebar lists them under it while one of them is open. */
+export const MIGRATION_VIEWS = ["Systems", "Roadmap", "Dependencies"] as const;
+
+/** The sidebar's links, in order, with `open` the open page. The design refactor (26 November 2026): the four work
+ * groups are no longer listed under Checks, Results or Fixes (a group is opened by its tab on the page); only Migration
+ * plan lists something under it, its three views, while one of them is open. */
+export function sidebarLinksOn(open: string): string[] {
+  if (!(MIGRATION_VIEWS as readonly string[]).includes(open) && open !== "Migration plan") return [...SIDEBAR_PAGES];
+  const at = SIDEBAR_PAGES.indexOf("Migration plan");
+  return [...SIDEBAR_PAGES.slice(0, at + 1), ...MIGRATION_VIEWS, ...SIDEBAR_PAGES.slice(at + 1)];
 }
 
-/** The page an old step lands on, as the sidebar marks it current ("4. Evidence Lab" -> "Evidence"; "6. Migration"
- * opens Migration's first view, "Systems"). */
+/** The page an old step lands on, as the sidebar marks it current ("4. Evidence Lab" -> "Results"; "6. Migration"
+ * opens Migration plan's first view, "Systems"). */
 export function stepName(step: string): string {
   const name = STEP_PAGES[step] ?? step;
-  return name === "Migration" ? "Systems" : name;
+  return name === "Migration plan" ? "Systems" : name;
 }
 
 /** The sidebar's assessment pages (what the step bar was). */
@@ -139,9 +143,19 @@ export function stepNav(page: Page): Locator {
   return page.getByRole("navigation", { name: "Assessment" });
 }
 
-/** The sidebar link for one of the old steps ("4. Evidence Lab") or a page name ("Evidence", "Roadmap"). */
+/** The sidebar link for one of the old steps ("4. Evidence Lab") or a page name ("Results", "Timeline"). A view of
+ * Migration plan ("Roadmap") has its link only while Migration plan is open: see `openMigrationView`. */
 export function stepLink(page: Page, step: string): Locator {
   return stepNav(page).getByRole("link", { name: STEP_PAGES[step] ?? step, exact: true });
+}
+
+/** Opens one of Migration plan's three views from anywhere in the assessment. The page has no switch of its own any
+ * more: its views are the sidebar's links under "Migration plan", listed only while one of them is open. */
+export async function openMigrationView(page: Page, view: (typeof MIGRATION_VIEWS)[number]): Promise<void> {
+  const link = stepLink(page, view);
+  if ((await link.count()) === 0) await stepLink(page, "Migration plan").click();
+  await link.click();
+  await expect(link).toHaveAttribute("aria-current", "page");
 }
 
 /** Phase 5a: every walk works in its own project. New project (from Projects) opens its first assessment on Import. */
@@ -180,28 +194,24 @@ export async function importVerifyAndOpenTests(page: Page): Promise<void> {
   await continueToChecks(page);
 }
 
-/** 20 November 2026: Checks, Evidence and Fixes show the four work groups as tabs, one group's table at a time. Opens
- * the tab of one group by its name ("Crypto tests"), or keeps it open; the page's own tabs, never the Otto panel's.
- * `on`: the page it is on, right after that page was opened. For a moment the page before may still be drawn, with tabs
- * of its own (Evidence and Fixes have a Crypto tests tab too), and a page opened again from the sidebar picks its tab
- * again: the sidebar's link to the group on that page ("Crypto tests on Evidence") exists only once that page is open,
- * and the address it sets decides the tab, so it is followed first. */
-export async function openGroupTab(page: Page, label: string, on?: "Checks" | "Evidence" | "Fixes"): Promise<void> {
+/** 20 November 2026: Checks, Results (the page that was Evidence) and Fixes show the four work groups as tabs, one
+ * group's table at a time. Opens the tab of one group by its name ("Crypto tests"), or keeps it open; the page's own
+ * tabs, never the Otto panel's. `on`: the page it is on, right after that page was opened. For a moment the page before
+ * may still be drawn, with tabs of its own (Results and Fixes have a Crypto tests tab too), so the page's own title is
+ * waited for first. Since the design refactor (26 November 2026) the sidebar no longer lists the groups: the tab is the
+ * one way to a group. A tab also shows how many items it holds, so it is found by its name, not by its whole text. */
+export async function openGroupTab(page: Page, label: string, on?: "Checks" | "Results" | "Fixes"): Promise<void> {
   const tab = page.getByRole("tablist", { name: "Work groups" }).getByRole("tab", { name: label, exact: true });
-  if (on) {
-    const link = stepNav(page).getByRole("link", { name: `${label} on ${on}`, exact: true });
-    await link.click();
-    await expect(link).toHaveAttribute("aria-current", "true");
-  }
+  if (on) await expect(page.getByRole("heading", { name: on, level: 1, exact: true })).toBeVisible();
   await expect(tab).toBeVisible();
   if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
-/** A sidebar link to a page, then the tab of one of its work groups: Checks, Evidence or Fixes on that group. */
+/** A sidebar link to a page, then the tab of one of its work groups: Checks, Results or Fixes on that group. */
 export async function openPageGroup(page: Page, step: string, label: string): Promise<void> {
   await stepLink(page, step).click();
-  await openGroupTab(page, label, stepName(step) as "Checks" | "Evidence" | "Fixes");
+  await openGroupTab(page, label, stepName(step) as "Checks" | "Results" | "Fixes");
 }
 
 /** Verify's Continue to checks (was Continue to tests): opens Checks on Crypto tests, where the test plan's cards are. */
@@ -246,7 +256,9 @@ export async function shotBothThemes(page: Page, name: string, fullPage = true):
 }
 
 // Phase 5a: Evidence is a table of results; a row opens the right-side detail panel, which holds what the opened row
-// held before (the "lab-row" wrapper with "result-detail", the fix line, Mark reviewed, Dig deeper...).
+// held before (the "lab-row" wrapper with "result-detail", the fix line, Mark reviewed, Dig deeper...). The design
+// refactor (26 November 2026): the page is the Results view of Evidence, and a result's panel reads in three layers:
+// the answer, what it shows, and one fold, shut until it is opened, with every record (see `openProofFold`).
 
 /** The table row of one result, by its test title (inside a group's section when `within` is given). */
 export function evidenceRow(page: Page, title: string, within?: Locator): Locator {
@@ -263,9 +275,9 @@ export function resultPanel(page: Page): Locator {
 /** Opens one result in the detail panel (or keeps it open) and returns what the panel shows for it. */
 export async function openResult(page: Page, title: string, within?: Locator): Promise<Locator> {
   const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: title, exact: true });
-  // (the test results are Evidence's Crypto tests table: its tab is opened first, unless a panel is open on it already)
+  // (the test results are Results' Crypto tests table: its tab is opened first, unless a panel is open on it already)
   if ((await heading.count()) === 0 && (await page.getByRole("tablist", { name: "Work groups" }).count()) > 0)
-    await openGroupTab(page, "Crypto tests", "Evidence");
+    await openGroupTab(page, "Crypto tests", "Results");
   if ((await heading.count()) === 0) await evidenceRow(page, title, within).click();
   await expect(heading).toBeVisible();
   return resultPanel(page);
@@ -283,6 +295,35 @@ export async function toggleResult(page: Page, title: string, within?: Locator):
   const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: title, exact: true });
   if ((await heading.count()) > 0) await closeResult(page);
   else await openResult(page, title, within);
+}
+
+// ---- The folds of a panel (the design refactor, 26 November 2026) ----
+// A panel shows the answer in the open and keeps every record behind one fold, shut until it is opened: a result's
+// "Cryptanalysis proof" or "Technical record" (the technical summary, what happened, the control, the locked test, the
+// run record, the advisory, where the check came from), an advisory's (the test's details, the trial, the records) and
+// a fix's (its sections and the ledger entries). At the foot of a panel sit quiet folded lines: every run, History of
+// this check, Related, What this change touches. A walk opens a fold as a person would before it reads what is in it.
+
+/** Opens the one fold of a panel (or keeps it open) and returns it. `scope`: the panel, or the one result in it;
+ * `testId`: "proof-fold" (a result, a proposal's proof), "advisory-proof-fold" or "fix-proof-fold". */
+export async function openProofFold(scope: Page | Locator, testId = "proof-fold"): Promise<Locator> {
+  const fold = scope.getByTestId(testId).first();
+  const toggle = fold.getByTestId("proof-fold-toggle").first();
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  return fold;
+}
+
+/** Opens a folded line at the foot of a panel (or keeps it open) and returns it: "runs-fold", "history-fold",
+ * "related-fold", "impact-fold", or the Advisories page's "advisories-facts". */
+export async function openFoldLine(scope: Page | Locator, testId: string): Promise<Locator> {
+  const line = scope.getByTestId(testId).first();
+  const toggle = line.getByRole("button").first();
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  return line;
 }
 
 // ---- A copy of the app of its own (phase 4d; shared since phase 5b) ----

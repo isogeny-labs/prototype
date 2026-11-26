@@ -21,6 +21,7 @@ import {
   openGroupTab,
   evidenceRow,
   openResult,
+  openProofFold,
   resultPanel,
   toggleResult,
   expectPageOpen,
@@ -266,9 +267,11 @@ test("Run all runs the tests in parallel and every card ends with a result", asy
 });
 
 test("Evidence Lab lists the six results; every control behaved as expected", async () => {
+  // The design refactor (26 November 2026): the page of the results is the Results view of Evidence (the sidebar's
+  // link "Results", at the address Evidence always had).
   await stepLink(page, "4. Evidence Lab").click();
-  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
-  await openGroupTab(page, "Crypto tests", "Evidence"); // (the results are Evidence's Crypto tests tab)
+  await expect(page.getByRole("heading", { name: "Results", level: 1 })).toBeVisible();
+  await openGroupTab(page, "Crypto tests", "Results"); // (the results are Results' Crypto tests tab)
   const rows = page.getByTestId("evidence-row");
   await expect(rows).toHaveCount(6);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
@@ -307,14 +310,21 @@ test("Independent exam (Wycheproof): the three wrong cases, the locked test and 
   await toggleResult(page, "Independent exam (Wycheproof)");
   const detail = resultPanel(page).getByTestId("result-detail");
   await expect(detail).toHaveCount(1);
+  // The design refactor (26 November 2026): the answer and what it shows are in the open; the wrong cases, what
+  // happened, the control and the locked test are behind one fold, shut until it is opened. This result was proven
+  // on a copy, so its fold is a Cryptanalysis proof.
+  await expect(detail.getByText("What this shows, and what it doesn't")).toBeVisible();
+  await expect(detail.getByTestId("proof-fold-name")).toHaveText("Cryptanalysis proof");
+  await expect(detail.getByTestId("locked-test")).toBeHidden();
+  await openProofFold(detail);
   const wrong = detail.getByRole("table").first().locator("tbody tr");
   await expect(wrong).toHaveCount(3);
   await expect(wrong.nth(0)).toContainText("168");
   await expect(wrong.nth(0)).toContainText("r=0 and s=0");
   await expect(wrong.nth(1)).toContainText("171");
   await expect(wrong.nth(2)).toContainText("364");
-  await expect(detail.getByText("What happened")).toBeVisible();
-  await expect(detail.getByText("What this shows, and what it doesn't")).toBeVisible();
+  await expect(detail.getByTestId("proof-part-happened").getByRole("heading", { name: "What happened" })).toBeVisible();
+  await expect(detail.getByTestId("what-happened")).toBeVisible();
   await expect(detail.getByText("measured", { exact: true }).first()).toBeVisible();
   await expect(detail.getByText("reference", { exact: true }).first()).toBeVisible();
   await expect(detail.getByText("demo", { exact: true }).first()).toBeVisible();
@@ -363,7 +373,7 @@ test("Dig deeper saves a queued research request with no answer; Mark reviewed r
   ).toHaveText(before);
   await shot(page, "06-lab-dig-deeper-queued.png");
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Results", level: 1 })).toBeVisible();
   await toggleResult(page, "Independent exam (Wycheproof)");
   const again = resultPanel(page).getByTestId("result-detail");
   await expect(again.getByRole("button", { name: "Dig deeper: queued" })).toBeDisabled();
@@ -380,6 +390,7 @@ test("Attacker tricks (our short list) failed on 1.4.2: the r=0, s=0 case is sho
   await expect(row.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed");
   await toggleResult(page, "Attacker tricks (our short list)");
   const detail = resultPanel(page).getByTestId("result-detail");
+  await openProofFold(detail); // (the cases, the control and the locked test are inside the fold)
   const zeroCase = detail
     .getByRole("table")
     .first()
@@ -496,7 +507,8 @@ test("before and after stays expandable: the bad-signature case now passes, and 
     after.getByRole("heading", { name: "After: acme-sign 1.4.3, the bundled demo version", exact: true }),
   ).toBeVisible();
   await expect(after.getByTestId("result-badge").locator("span:last-child")).toHaveText("Passed");
-  await expect(after).toContainText(/r\s?=\s?0.*s\s?=\s?0/);
+  await openProofFold(after); // (each side has its own fold; the cases and the control are inside it)
+  await expect(after.getByTestId("proof-part-happened")).toContainText(/r\s?=\s?0.*s\s?=\s?0/);
   await expect(after.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
   await expect(
     before.getByRole("heading", { name: "Before: acme-sign 1.4.2, the bundled demo version", exact: true }),
@@ -516,6 +528,7 @@ test("before and after stays expandable: the bad-signature case now passes, and 
   await expect(result.getByTestId("result-badge").locator("span:last-child")).toHaveText(
     "No slowdown beyond measured noise",
   );
+  await openProofFold(result); // (the table of measurements is inside the fold)
   const table = result.getByRole("table").first();
   await expect(table.locator("thead")).toContainText("acme-sign 1.4.2");
   await expect(table.locator("thead")).toContainText("acme-sign 1.4.3");
@@ -748,6 +761,7 @@ test("isolated mode: the mode line says so and a test really runs in a container
 
     await stepLink(view, "4. Evidence Lab").click();
     const detail = (await openResult(view, "Attacker tricks (our short list)")).getByTestId("result-detail");
+    await openProofFold(detail); // (the run record, with its mode, and the control are inside the fold)
     await expect(detail).toContainText(/Mode: Isolated mode/);
     await expect(detail.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
     await expect(view.getByText("Couldn't trust this run")).toHaveCount(0);

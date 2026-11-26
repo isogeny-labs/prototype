@@ -25,7 +25,9 @@ import {
   REPO,
   enterApp,
   layoutProblems,
+  openFoldLine,
   openGroupTab,
+  openMigrationView,
   screenshotFolder,
   startCopy,
   stepLink,
@@ -42,6 +44,12 @@ let page: Page;
 
 const detail = (): Locator => page.getByTestId("detail-panel");
 const impact = (): Locator => detail().getByTestId("impact");
+/** The design refactor (26 November 2026): on a fix, "What this change touches" is a folded line at the foot of the
+ * panel, with its count in the line itself; a click opens the block. (On a library it stands in the open, as before.) */
+async function openImpact(): Promise<void> {
+  await openFoldLine(detail(), "impact-fold");
+  await expect(impact()).toBeVisible();
+}
 const box = (): Locator =>
   detail().getByTestId("change-box").or(page.getByTestId("migration-system").getByTestId("change-box")).first();
 const clients = (): Locator => box().getByTestId("change-clients");
@@ -103,7 +111,7 @@ async function pickFix(title: string): Promise<void> {
 }
 
 async function openSystem(name: string): Promise<void> {
-  await page.getByRole("button", { name: /^Systems/ }).click();
+  await openMigrationView(page, "Systems"); // (Migration plan's views are the sidebar's links under it)
   await page.getByTestId("system-card").filter({ hasText: name }).click();
   await expect(page.getByTestId("migration-system").getByRole("heading", { name, level: 2 })).toBeVisible();
 }
@@ -152,8 +160,7 @@ test("setup: Load demo projects; Acme Pay verified, Run all, the demo dependency
   await page.getByRole("button", { name: "Continue to checks" }).click();
   await page.getByRole("button", { name: "Run all" }).click();
   await expect(page.getByTestId("test-card").getByTestId("result-badge")).toHaveCount(5, { timeout: 180_000 });
-  await stepLink(page, "6. Migration").click();
-  await page.getByRole("button", { name: "Dependencies", exact: true }).click();
+  await openMigrationView(page, "Dependencies");
   const added = page.waitForResponse(
     (r) => /\/api\/plans\/\d+\/dependencies\?/.test(r.url()) && r.request().method() === "POST",
   );
@@ -167,7 +174,14 @@ test("flow 1: the acme-sign fix says every system it touches, and that whether i
   await stepLink(page, "5. Fixes").click();
   await openGroupTab(page, "Crypto tests", "Fixes");
   await pickFix("acme-sign accepts out-of-range signatures");
-  await expect(impact().getByRole("heading", { name: "What this change touches" })).toBeVisible();
+  // The folded line names the block and says its count before it is opened; the block itself is shut until then.
+  const line = detail().getByTestId("impact-fold").getByRole("button").first();
+  await expect(line).toHaveAttribute("aria-expanded", "false");
+  await expect(line).toContainText("What this change touches");
+  await expect(line).toContainText("Re-check these 3 after the change.");
+  await expect(impact()).toBeHidden();
+  await openImpact();
+  await expect(impact()).toHaveAccessibleName("What this change touches");
   await expect(impact().getByTestId("impact-count")).toHaveText("Re-check these 3 after the change.");
   const here = impact().getByTestId("impact-here").getByTestId("impact-line");
   await expect(here.first()).toContainText("acme-sign 1.4.2");
@@ -198,12 +212,15 @@ test("flow 1: the acme-sign fix says every system it touches, and that whether i
     page.getByTestId("migration-system").getByRole("heading", { name: "acme-sign 1.4.2", level: 2 }),
   ).toBeVisible();
   await page.goBack();
+  await expect(detail().getByTestId("impact-fold")).toContainText("Re-check these 3 after the change.");
+  await openImpact();
   await expect(impact().getByTestId("impact-count")).toHaveText("Re-check these 3 after the change.");
 });
 
 test("flow 1: the OpenSSL update traces to the server; a library on Dependencies says where it is used", async () => {
   await openGroupTab(page, "Dependencies", "Fixes");
   await pickFix("Update OpenSSL to 3.5.0 or later");
+  await openImpact();
   await expect(impact().getByTestId("impact-count")).toHaveText("Re-check this one after the change.");
   await expect(impact().getByTestId("impact-here")).toContainText(
     `Your own software, from your dependency list. Uses it, through python 3.12.3. Part of ${copy!.server} (set by you).`,
@@ -212,8 +229,7 @@ test("flow 1: the OpenSSL update traces to the server; a library on Dependencies
   await expect(impact().getByTestId("impact-connect")).toContainText("This updates a TLS library");
   await shots("02-fix-openssl-update", impact());
 
-  await stepLink(page, "6. Migration").click();
-  await page.getByRole("button", { name: "Dependencies", exact: true }).click();
+  await openMigrationView(page, "Dependencies");
   await page
     .getByTestId("dependency-row")
     .filter({ has: page.locator("p.font-mono", { hasText: /^elliptic 6\.5\.6$/ }) })
@@ -238,6 +254,7 @@ test("flow 2: the Acme Pay server's TLS fix, tried on a test copy: the old firmw
   await stepLink(page, "5. Fixes").click();
   await openGroupTab(page, "Crypto tests", "Fixes");
   await pickFix("Server accepts TLS 1.2");
+  await openImpact();
   await expect(impact().getByTestId("impact-count")).toHaveText("Re-check these 2 after the change.");
   await expect(impact().getByTestId("impact-note").first()).toHaveText(
     "Apply changes this one server for every assessment that names it.",
@@ -332,7 +349,7 @@ test("the stand-ins' run is on Checks and Evidence, and in the signed evidence f
   await shots("07-checks-who-can-still-connect", detail());
   expect(await layoutProblems(page)).toEqual([]);
   // the evidence: the try of each change carries its stand-ins' words and run
-  await stepLink(page, "Roadmap").click();
+  await openMigrationView(page, "Roadmap");
   const created = page.waitForResponse(
     (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
   );

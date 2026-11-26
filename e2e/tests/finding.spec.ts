@@ -6,7 +6,16 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { enterApp, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import {
+  enterApp,
+  openFoldLine,
+  openFreshAssessment,
+  screenshotFolder,
+  startCopy,
+  stepLink,
+  stopCopy,
+  type Copy,
+} from "./shared";
 
 const SHOTS = screenshotFolder("phase5b");
 let copy: Copy | null = null;
@@ -25,7 +34,9 @@ async function shots(page: Page, name: string): Promise<void> {
   });
 }
 
-/** The Related block's link of one kind ("claim", "test", "fix", "system", "library") with this label. */
+/** The Related block's link of one kind ("claim", "test", "fix", "system", "library") with this label. Since the design
+ * refactor (26 November 2026) a result's panel and a fix's panel keep the Related block as a folded line at their foot
+ * ("related-fold": the walk opens it before it follows a link in it), and show the same links as a trail on top. */
 function related(page: Page, kind: string, label: string | RegExp) {
   return page
     .getByTestId("detail-panel")
@@ -102,7 +113,13 @@ test("one finding, end to end: claim, check, evidence, fix, migration track and 
   const evidencePanel = page.getByTestId("detail-panel");
   await expect(evidencePanel.getByRole("heading", { level: 2, name: "Old TLS versions", exact: true })).toBeVisible();
   await expect(evidencePanel.getByTestId("result-badge").first()).toHaveText("Failed");
-  await expect(related(page, "claim", claim)).toHaveCount(1);
+  // The trail on top of the panel says where the result sits: its claim before it, its fix after it.
+  await expect(evidencePanel.getByTestId("trail").getByTestId("trail-here")).toContainText("Result");
+  await expect(
+    evidencePanel.locator('[data-testid="trail-step"][data-kind="claim"]').getByTestId("trail-link"),
+  ).toContainText(claim);
+  await openFoldLine(evidencePanel, "related-fold");
+  await expect(related(page, "claim", claim)).toBeVisible();
   await shots(page, "finding-04-result-on-evidence");
   await evidencePanel.getByRole("button", { name: "View in Fixes" }).click();
 
@@ -117,9 +134,10 @@ test("one finding, end to end: claim, check, evidence, fix, migration track and 
     "aria-selected",
     "true",
   );
-  await expect(related(page, "test", "Old TLS versions")).toHaveCount(1);
+  await openFoldLine(fixPanel, "related-fold");
+  await expect(related(page, "test", "Old TLS versions")).toBeVisible();
   const toSystem = related(page, "system", copy.server);
-  await expect(toSystem).toHaveCount(1);
+  await expect(toSystem).toBeVisible();
   await shots(page, "finding-05-fix-on-fixes");
 
   // ---- 5. The system's migration track, on the Roadmap, with the fix in its Related block.

@@ -25,6 +25,7 @@ import {
   stepLink,
   stopCopy,
   openFreshAssessment,
+  openMigrationView,
   type Copy,
 } from "./shared";
 
@@ -40,8 +41,10 @@ async function shot(page: Page, name: string): Promise<void> {
 
 async function openDependencies(page: Page): Promise<void> {
   await stepLink(page, "6. Migration").click();
-  await expect(page.getByRole("heading", { name: "Migration", level: 1 })).toBeVisible();
-  await page.getByRole("button", { name: "Dependencies", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Migration plan", level: 1 })).toBeVisible();
+  // The design refactor (26 November 2026): the page has no switch of its own; Dependencies is one of the three views
+  // the sidebar lists under "Migration plan" while one of them is open.
+  await openMigrationView(page, "Dependencies");
   await expect(page.getByTestId("dependencies-view")).toBeVisible();
 }
 
@@ -74,7 +77,7 @@ async function tiePayServer(page: Page, server: string): Promise<void> {
 }
 
 async function downloadEvidence(page: Page): Promise<{ json: any; report: string; file: string }> {
-  await page.getByRole("button", { name: "Roadmap", exact: true }).click();
+  await openMigrationView(page, "Roadmap");
   const created = page.waitForResponse(
     (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
   );
@@ -189,7 +192,7 @@ test("demo mode: add the list, the lookups and their sources, Part of, the block
     // ---- the blocker on the roadmap, after Measure status
     await page.getByRole("button", { name: "Measure status" }).click();
     await expect(page.getByRole("button", { name: "Measure again", exact: true })).toBeEnabled({ timeout: 120_000 });
-    await page.getByRole("button", { name: "Roadmap", exact: true }).click();
+    await openMigrationView(page, "Roadmap");
     const notes = page.getByTestId("roadmap-row").filter({ hasText: "localhost:" }).getByTestId("roadmap-note");
     await expect(notes.filter({ hasText: "Blocker: it relies on openssl 3.0.22 (through python 3.12.3)" })).toHaveCount(
       2,
@@ -197,7 +200,7 @@ test("demo mode: add the list, the lookups and their sources, Part of, the block
     await shot(page, "05-roadmap-names-the-blocker.png");
 
     // ---- its Fixes entry: text only, with the official source
-    await page.getByRole("button", { name: "Dependencies", exact: true }).click();
+    await openMigrationView(page, "Dependencies");
     await server.getByTestId("blocker-line").first().getByRole("button", { name: "View in Fixes" }).click();
     await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
     const summary = page.getByTestId("fix-summary").filter({ hasText: "Update OpenSSL to 3.5.0 or later" });
@@ -318,7 +321,7 @@ test("isolated mode: Measure all, answers measured on a public copy with their c
     await page.getByRole("button", { name: "Measure status" }).click();
     await expect(page.getByRole("button", { name: "Measure again", exact: true })).toBeEnabled({ timeout: 300_000 });
     const notes = page.getByTestId("roadmap-row").filter({ hasText: "localhost:" }).getByTestId("roadmap-note");
-    await page.getByRole("button", { name: "Roadmap", exact: true }).click();
+    await openMigrationView(page, "Roadmap");
     await expect(notes.filter({ hasText: "measured on a public copy" })).toHaveCount(2);
     const evidence = await downloadEvidence(page);
     const part = evidence.json.evidence.dependencies;

@@ -27,6 +27,8 @@ import {
   stepNav,
   stepName,
   openGroupTab,
+  openMigrationView,
+  openProofFold,
 } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -56,9 +58,9 @@ async function goTo(target: Page, step: string): Promise<void> {
     stepName(step),
   );
   // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
-  // Crypto tests tab of Checks and of Evidence)
-  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step))
-    await openGroupTab(target, "Crypto tests", stepName(step) as "Checks" | "Evidence");
+  // Crypto tests tab of Checks and of Results, the page that was Evidence)
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Results"].includes(step))
+    await openGroupTab(target, "Crypto tests", stepName(step) as "Checks" | "Results");
 }
 
 /** Upload demo/real-libraries.csv on Import (the drop zone's file input) and wait for the answer. */
@@ -270,8 +272,14 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     await toggleRow(javaExam, EXAM);
     const javaDetail = resultPanel(view).getByTestId("result-detail");
     await expect(javaDetail).toBeVisible();
+    // The design refactor (26 November 2026): the advisory is one of the records behind the result's fold; it is a
+    // numbered part there, under its own title.
+    await openProofFold(javaDetail);
     const advisories = javaDetail.getByTestId("advisories");
-    await expect(advisories).toContainText("Published advisories for this version");
+    await expect(javaDetail.getByTestId("proof-part-advisories")).toContainText(
+      "Published advisories for this version",
+    );
+    await expect(advisories).toBeVisible();
     await expect(advisories, "expected the openjdk advisory CVE-2022-21449").toContainText("CVE-2022-21449");
     await expect(advisories.getByRole("link").first(), "expected a link to the OpenJDK advisory").toHaveAttribute(
       "href",
@@ -288,6 +296,7 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     const kem = labRow(view, "Key exchange program: openssl 3.5.9 (ML-KEM-768)", kemTitle);
     await expect(kem.getByTestId("result-badge"), "the ML-KEM-768 exam should read Passed").toContainText("Passed");
     await toggleRow(kem, kemTitle);
+    await openProofFold(resultPanel(view)); // (the parts table is inside the fold)
     for (const cell of ["125 of 125", "300 of 300", "230 of 230"]) {
       await expect(
         resultPanel(view).getByTestId("result-detail").getByRole("cell", { name: cell, exact: true }),
@@ -301,6 +310,7 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     const dsa = labRow(view, "Signing program: openssl 3.5.9 (ML-DSA-65)", dsaTitle);
     await expect(dsa.getByTestId("result-badge"), "the ML-DSA-65 exam should read Passed").toContainText("Passed");
     await toggleRow(dsa, dsaTitle);
+    await openProofFold(resultPanel(view)); // (the parts table is inside the fold)
     for (const cell of ["25 of 25", "195 of 195", "255 of 255"]) {
       await expect(
         resultPanel(view).getByTestId("result-detail").getByRole("cell", { name: cell, exact: true }),
@@ -330,6 +340,8 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     const summary = view.getByTestId("fix-summary");
     await expect(view.getByTestId("detail-panel").getByRole("heading", { name: javaFix, level: 2 })).toBeVisible(); // the panel's heading
     await expect(summary.getByTestId("fix-status")).toHaveText("Text only");
+    // (the suggestion, with the advisory it answers, is inside the fix's one fold)
+    await openProofFold(view.getByTestId("detail-panel"), "fix-proof-fold");
     await expect(view.getByTestId("advisories"), "expected the advisories box with its link in the fix").toBeVisible();
     await expect(view.getByTestId("advisories").getByRole("link").first()).toHaveAttribute(
       "href",
@@ -346,7 +358,7 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     await view.getByRole("button", { name: "Measure status" }).click();
     await expect(view.getByRole("button", { name: "Measure again" })).toBeEnabled({ timeout: 10 * 60_000 });
     const openSystem = async (name: string) => {
-      await view.getByRole("button", { name: /^Systems/ }).click();
+      await openMigrationView(view, "Systems");
       await view.getByTestId("system-card").filter({ hasText: name }).first().click();
       await expect(view.getByTestId("migration-system").getByRole("heading", { name, level: 2 })).toBeVisible();
     };
@@ -362,7 +374,7 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
       "can't make post-quantum signatures",
     );
     await shot(view, "13-migration-openjdk-blocked.png");
-    await view.getByRole("button", { name: "Roadmap", exact: true }).click();
+    await openMigrationView(view, "Roadmap");
     const target = view
       .getByTestId("roadmap-band")
       .filter({ has: view.getByRole("heading", { name: "At the target", exact: true }) });
@@ -422,9 +434,11 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
       "aria-label",
       /^After: openjdk 17\.0\.3/,
     );
-    await expect(after, "expected openjdk 17.0.3 to still get three of the 484 official cases wrong").toContainText(
-      "3 of 484 official cases wrong",
-    );
+    await openProofFold(after); // (the technical summary is inside the fold)
+    await expect(
+      after.getByTestId("technical-summary"),
+      "expected openjdk 17.0.3 to still get three of the 484 official cases wrong",
+    ).toContainText("3 of 484 official cases wrong");
     await shot(view, "17-java-17.0.3-still-three-wrong.png");
 
     await expect(view.getByTestId("disclaimer")).toHaveText(DISCLAIMER);

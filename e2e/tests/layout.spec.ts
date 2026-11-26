@@ -5,6 +5,9 @@
 // Since 20 November 2026 Checks, Evidence and Fixes show the four work groups as tabs, one group's table at a time: every
 // tab of the three pages is measured the same way, its panel closed and open (where the tab has a row to open), and its
 // pictures, dark and light, go to docs/screenshots/group-tabs/.
+// The design refactor (26 November 2026): the page that was Evidence is the Results view of Evidence (its pictures keep
+// their names, "evidence-..."), and a panel keeps its records behind one fold. A panel is measured as it opens, with
+// the fold shut (that is the picture), and once more with the fold open, so the tables inside it are measured too.
 // It runs on a copy of the app of its own (own data folder and ports), so the main app is never touched.
 // Main-screen buttons only.
 import { expect, test, type Page } from "@playwright/test";
@@ -16,6 +19,7 @@ import {
   layoutProblems,
   openFreshAssessment,
   openGroupTab,
+  openMigrationView,
   screenshotFolder,
   startCopy,
   stepLink,
@@ -76,9 +80,18 @@ async function measure(name: string, open?: () => Promise<void>, folder = SHOTS)
   await expect(page.locator('main [data-compact="true"]').first()).toBeVisible();
   expect(await layoutProblems(page), `${name}, panel open`).toEqual([]);
   await shots(`${name}-panel-open`, folder);
+  // The panel's records are behind one fold, shut until it is opened (a result's, a fix's): with it open the tables in
+  // it (the cases, a proof's tests) are on screen, as they always were before the fold, and are measured as well.
+  const shut = panel.first().locator('[data-testid="proof-fold-toggle"][aria-expanded="false"]');
+  const folds = await shut.count();
+  for (let i = 0; i < folds; i += 1) await shut.first().click();
+  if (folds > 0) {
+    await expect(shut).toHaveCount(0);
+    expect(await layoutProblems(page), `${name}, panel open, its fold open`).toEqual([]);
+  }
 }
 
-/** Every tab of Checks, Evidence or Fixes, one after another: the tab's own table, measured with its panel closed and,
+/** Every tab of Checks, Results or Fixes, one after another: the tab's own table, measured with its panel closed and,
  * where the tab lists a row, open on its first row. Returns how many rows each tab listed. */
 async function measureTabs(prefix: string, rowIds: string[]): Promise<Record<string, number>> {
   const listed: Record<string, number> = {};
@@ -130,7 +143,8 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
   await page.getByTestId("page-content").getByRole("button", { name: "Run all" }).click();
   await expect(page.getByTestId("test-card").getByTestId("result-badge")).toHaveCount(5, { timeout: 180_000 });
-  await stepLink(page, "Systems").click();
+  // (Migration plan's three views are the sidebar's links under it, listed while one of them is open)
+  await openMigrationView(page, "Systems");
   await page
     .getByTestId("page-content")
     .getByRole("button", { name: /^Measure status/ })
@@ -138,7 +152,7 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await expect(page.getByTestId("page-content").getByRole("button", { name: /^Measure again/ })).toBeEnabled({
     timeout: 120_000,
   });
-  await stepLink(page, "Dependencies").click();
+  await openMigrationView(page, "Dependencies");
   await page.getByLabel("Choose a dependency list").setInputFiles(LIST);
   await expect(page.getByTestId("dependency-row").first()).toBeVisible({ timeout: 30_000 });
 
@@ -163,8 +177,9 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await shots("checks-2-encryption-panel-open", TAB_SHOTS);
   expect(checks.migration).toBeGreaterThan(0);
 
-  // ---- Evidence: each tab (a claim's check, the results, a system's measurement, a library)
-  await stepLink(page, "Evidence").click();
+  // ---- Results (the page that was Evidence): each tab (a claim's check, the results, a system's measurement, a library)
+  await stepLink(page, "Results").click();
+  await expect(page.getByRole("heading", { name: "Results", level: 1 })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Verification", exact: true })).toHaveAttribute("aria-selected", "true");
   const evidence = await measureTabs("evidence", ["check-row", "evidence-row", "library-row"]);
   expect(evidence).toMatchObject({ verification: 3, encryption: 5 });
@@ -183,15 +198,15 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await page.getByRole("searchbox", { name: "Search fixes" }).fill("");
 
   // ---- Migration: Systems, Roadmap, Dependencies
-  await stepLink(page, "Systems").click();
+  await openMigrationView(page, "Systems");
   await expect(page.getByTestId("system-card").first()).toBeVisible();
   await measure("09-migration-systems", () => page.getByTestId("system-card").first().click());
-  await stepLink(page, "Roadmap").click();
+  await openMigrationView(page, "Roadmap");
   await expect(page.getByTestId("roadmap-row").first()).toBeVisible();
   await measure("10-migration-roadmap", () =>
     page.getByTestId("roadmap-row").first().getByRole("button").first().click(),
   );
-  await stepLink(page, "Dependencies").click();
+  await openMigrationView(page, "Dependencies");
   await expect(page.getByTestId("dependency-row").first()).toBeVisible();
   await measure("11-migration-dependencies", () =>
     page.getByTestId("dependency-row").filter({ hasText: "openssl 3.0.22" }).first().locator("p.font-mono").click(),

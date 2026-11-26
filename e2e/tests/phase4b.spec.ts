@@ -17,6 +17,7 @@ import {
   stepName,
   evidenceRow,
   openGroupTab,
+  openMigrationView,
 } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -47,7 +48,8 @@ function track(key: "kex" | "auth" | "signatures"): Locator {
 }
 
 async function openSystem(name: string): Promise<void> {
-  await page.getByRole("button", { name: /^Systems/ }).click();
+  // (the design refactor, 26 November 2026: Migration plan's views are the sidebar's links under it, not a switch on the page)
+  await openMigrationView(page, "Systems");
   await card(name).click();
   await expect(page.getByTestId("migration-system").getByRole("heading", { name, level: 2 })).toBeVisible();
 }
@@ -72,9 +74,9 @@ async function goTo(step: string): Promise<void> {
   await stepLink(page, step).click();
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText(stepName(step));
   // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
-  // Crypto tests tab of Checks and of Evidence)
-  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step))
-    await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Evidence");
+  // Crypto tests tab of Checks and of Results, the page that was Evidence)
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Results"].includes(step))
+    await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Results");
 }
 
 async function pickFix(title: string): Promise<void> {
@@ -199,7 +201,7 @@ test("Approvals: Apply stays off until You and Demo reviewer A have both approve
 });
 
 test("Roadmap: 8452's key exchange moved to Done for now", async () => {
-  await page.getByRole("button", { name: "Roadmap", exact: true }).click();
+  await openMigrationView(page, "Roadmap");
   await expect(band("Done for now").getByTestId("roadmap-row").filter({ hasText: "localhost:8452" })).toContainText(
     "Key exchange",
   );
