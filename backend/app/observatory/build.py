@@ -180,7 +180,10 @@ def _read(lab: Any, import_id: int, plan_id: int | None, counts: bool = True) ->
 
 def _claim_checks(box: L.Box, got: dict) -> list[dict]:
     verify = got["verify"]
-    results = {r.get("claim_id"): r for r in (verify or {}).get("results") or [] if isinstance(r, dict)}
+    if "verify_results" not in got:  # (read once for the map, not once for each box)
+        found = (verify or {}).get("results") or []
+        got["verify_results"] = {r.get("claim_id"): r for r in found if isinstance(r, dict)}
+    results = got["verify_results"]
     table = words.SERVER_CLAIM_SPOT if box.kind == "server" else words.SOFTWARE_CLAIM_SPOT
     out = []
     for claim in box.claims:
@@ -251,7 +254,11 @@ def _shown(result: dict, row: dict | None) -> dict:
 
 
 def _test_checks(box: L.Box, got: dict) -> list[dict]:
-    rows = [r for r in (got["lab"] or {}).get("rows") or [] if r.get("group") == box.key]
+    if "rows_of" not in got:  # Evidence's rows by the system each test is about (its own grouping), read once
+        got["rows_of"] = {}
+        for r in (got["lab"] or {}).get("rows") or []:
+            got["rows_of"].setdefault(r.get("group"), []).append(r)
+    rows = got["rows_of"].get(box.key, [])
     check_rows = _check_rows(got)
     table = words.SERVER_TEST_SPOT if box.kind == "server" else words.SOFTWARE_TEST_SPOT
     own = f"{box.name} {box.version}".strip() if box.name else None
@@ -431,9 +438,12 @@ def _system_names(layout: L.Layout) -> list[str]:
     """The real names of what a top entry of the dependency list could be tied to: a server by the name its service has
     in the file (with its address where two servers share that name), a program by its name and version."""
     systems = layout.systems()
-    titles = [b.title for b in systems if b.kind == "server"]
+    shared: dict[str, int] = {}
+    for b in systems:
+        if b.kind == "server":
+            shared[b.title] = shared.get(b.title, 0) + 1
     return [
-        (b.title if titles.count(b.title) == 1 else f"{b.title} ({b.label})") if b.kind == "server" else b.label
+        (b.title if shared[b.title] == 1 else f"{b.title} ({b.label})") if b.kind == "server" else b.label
         for b in systems
     ]
 
@@ -448,10 +458,13 @@ def _box(box: L.Box, got: dict) -> dict:
             s["tag"] = _one_tag(_tags_of(s["checks"]))
     note = None
     if box.kind == "own_software":
-        note = words.not_tied(_system_names(layout))
+        if "not_tied" not in got:  # (the same sentence for every untied entry: worked out once)
+            got["not_tied"] = words.not_tied(_system_names(layout))
+        note = got["not_tied"]
     elif not spots:
-        used = any(use["box"] == box.key for algorithm in layout.algorithms for use in algorithm["uses"])
-        note = words.NOTHING_CHECKED_OF_IT if used else words.NO_CRYPTOGRAPHY_NAMED
+        if "using" not in got:  # every box the file says uses an algorithm, worked out once for the map
+            got["using"] = {use["box"] for algorithm in layout.algorithms for use in algorithm["uses"]}
+        note = words.NOTHING_CHECKED_OF_IT if box.key in got["using"] else words.NO_CRYPTOGRAPHY_NAMED
     return {
         "key": box.key,
         "kind": box.kind,

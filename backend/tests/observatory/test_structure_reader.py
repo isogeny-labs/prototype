@@ -291,6 +291,21 @@ def test_a_file_with_more_references_or_services_than_the_reader_takes_is_refuse
     assert "more than" in refusal(
         cbom(lambda d: d.update(services=[{"name": f"s{n}"} for n in range(S.MAX_SERVICES + 1)]))
     )
+    # every address of a service is a box on the map: more than the reader takes is refused, over all services together
+    many = [f"https://h{n}.example:8443" for n in range(S.MAX_ENDPOINTS // 2 + 1)]
+    assert refusal(
+        cbom(lambda d: d.update(services=[{"name": "a", "endpoints": many}, {"name": "b", "endpoints": many}]))
+    ) == (
+        f"This file lists more than {S.MAX_ENDPOINTS} service endpoints, which is more than Evidence Lab reads for the map."
+    )
+    exactly = S.read_structure(
+        cbom(
+            lambda d: d["services"].append(
+                {"name": "many", "endpoints": many[:-1] + many[:-1][: S.MAX_ENDPOINTS // 2 - 1]}
+            )
+        )
+    )
+    assert len(exactly.services[1].addresses) == S.MAX_ENDPOINTS // 2  # (an address given twice is one address)
     monkeypatch.setattr(S, "MAX_REFERENCES", 5)
     assert refusal(DEMO_CBOM.read_bytes()) == S.TOO_MANY
     monkeypatch.setattr(S, "MAX_REFERENCES", 50_000)
