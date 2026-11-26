@@ -57,6 +57,7 @@ function Card({
   handleRef,
   headingLevel = 2,
   compact = false,
+  runsOn = null,
 }: {
   card: TestCard;
   position: number;
@@ -76,6 +77,8 @@ function Card({
   headingLevel?: 2 | 3;
   /** Phase 5b: beside an open detail panel, the row stacks instead of squeezing its columns. */
   compact?: boolean;
+  /** The design refactor (26 November 2026): where this test runs, in one line, where no heading over it says so. */
+  runsOn?: string | null;
 }) {
   const Heading = headingLevel === 3 ? "h3" : "h2";
   // A closed assessment is read-only: every control that changes the plan turns off and says why.
@@ -236,6 +239,12 @@ function Card({
       <td className="w-12 px-4 py-3 align-top">{handle}</td>
       <td className="min-w-0 px-4 py-3 align-top">
         {title}
+        {runsOn ? (
+          // Where this test runs: on your live server (it only observes), or on a copy on this computer.
+          <p data-testid="card-runs-on" className="mt-0.5 text-xs text-slate-400">
+            {runsOn}
+          </p>
+        ) : null}
         <p className="mt-1 text-sm text-slate-300">{card.description}</p>
         <p className="mt-1 text-[13px] text-slate-400">{card.why}</p>
         {advisory}
@@ -420,6 +429,8 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
           total={items.length}
           headingLevel={headingLevel}
           compact={compact}
+          // (under a target's own heading the heading says where its tests run; in the flat plan each test says it)
+          runsOn={current.grouped || card.group === null ? null : (headings.get(card.group)?.runs_on ?? null)}
           locked={busy}
           dragging={dragId === card.id}
           dropTarget={dragId !== null && dragId !== card.id && overId === card.id && dragSection === sectionIndex}

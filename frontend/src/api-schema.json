@@ -19848,6 +19848,18 @@
               }
             ],
             "title": "Note"
+          },
+          "runs_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs On",
+            "description": "Where its tests run, in one line: \"On your server, localhost:8443\", \"On a copy of acme-sign 1.4.2, on this computer\"."
           }
         },
         "additionalProperties": false,

@@ -368,7 +368,12 @@ class TestLabMixin:
                 note = NOT_DEMO_PROGRAM
             elif side == "software":
                 note = self._real_note(what)  # a real library that can't run here (demo mode, or its image is missing)
-            groups.append({"key": key, "kind": side, "heading": heading, "note": note})
+            # Where its tests run, in one line (the design refactor, 26 November 2026): on the live server at the address
+            # the file names, or on a copy of the program on this computer.
+            runs_on = (
+                f"On your server, {what}" if side == "server" else f"On a copy of {what['label']}, on this computer"
+            )
+            groups.append({"key": key, "kind": side, "heading": heading, "note": note, "runs_on": runs_on})
         if "reference" in used:
             groups.append(
                 {
@@ -376,6 +381,7 @@ class TestLabMixin:
                     "kind": "reference",
                     "heading": "Reference figures (no signing program from the file)",
                     "note": None,
+                    "runs_on": "On the reference library, on this computer",
                 }
             )
         known = {g["key"] for g in groups}
@@ -388,6 +394,7 @@ class TestLabMixin:
                         "kind": "software",
                         "heading": "Signing program: " + key.split(":", 1)[-1],
                         "note": None,
+                        "runs_on": f"On a copy of {key.split(':', 1)[-1]}, on this computer",
                     }
                 )
         return grouped, groups, key_of

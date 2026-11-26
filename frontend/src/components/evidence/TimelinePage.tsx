@@ -1,9 +1,10 @@
 import { useContext, useEffect, useState } from "react";
-import { api, errorMessage, type TimelineEntry, type TimelineView } from "../../api";
+import { api, errorMessage, type EvidenceExport, type TimelineEntry, type TimelineView } from "../../api";
 import { usePanelStamp } from "../../changes";
+import { DownloadStatus, downloadEvidence } from "../evidenceDownload";
 import { ItemPageContext, PageHeader, SearchInput, TableWithPanel } from "../layout";
 import { ItemLinkView } from "../related";
-import { DemoDataLabel, ErrorBox, WhereFromTag, formatTime } from "../ui";
+import { DemoDataLabel, ErrorBox, SecondaryButton, WhereFromTag, formatTime } from "../ui";
 import { EntryPanel } from "./EntryPanel";
 import { DayHeading, EVIDENCE_EYEBROW, FilterChips, NamesNote, RecordIcon, ResultWord, Sentence, Who } from "./parts";
 
@@ -121,6 +122,8 @@ export function TimelinePage({
     setOpenId(openItem);
   }
   const [tick, setTick] = useState(0);
+  const [downloading, setDownloading] = useState(false);
+  const [exported, setExported] = useState<EvidenceExport | null>(null);
   const chosenArea = onArea ? area : ownArea;
   const panelStamp = usePanelStamp();
   const asPage = Boolean(useContext(ItemPageContext)?.asPage);
@@ -164,6 +167,19 @@ export function TimelinePage({
         Loading…
       </p>
     );
+  }
+
+  async function download() {
+    setDownloading(true);
+    setError(null);
+    try {
+      setExported(await downloadEvidence(planId));
+      setTick((n) => n + 1); // the download is itself an entry of the record
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setDownloading(false);
+    }
   }
 
   const chooseArea = (key: string) => {
@@ -233,15 +249,22 @@ export function TimelinePage({
         title={view.title}
         description={<span data-testid="timeline-subline">{view.subline}</span>}
         actions={
-          <ItemLinkView
-            link={{ page: "evidence/files", item: null }}
-            testId="timeline-files-link"
-            className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:border-slate-500 hover:text-slate-50"
-          >
-            Evidence files
-          </ItemLinkView>
+          <>
+            <ItemLinkView
+              link={{ page: "evidence/files", item: null }}
+              testId="timeline-files-link"
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:border-slate-500 hover:text-slate-50"
+            >
+              Evidence files
+            </ItemLinkView>
+            {/* The same button and the same request as on Results and on Evidence files. */}
+            <SecondaryButton allowWhenClosed disabled={downloading} onClick={() => void download()}>
+              Download evidence
+            </SecondaryButton>
+          </>
         }
       />
+      {exported ? <DownloadStatus exported={exported} /> : null}
       {error ? (
         <div className="mb-3">
           <ErrorBox>{error}</ErrorBox>

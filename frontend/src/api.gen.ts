@@ -3899,6 +3899,10 @@ export interface PlanGroup {
   kind: "server" | "software" | "reference";
   heading: string;
   note: string | null;
+  /**
+   * Where its tests run, in one line: "On your server, localhost:8443", "On a copy of acme-sign 1.4.2, on this computer".
+   */
+  runs_on?: string | null;
 }
 /**
  * The "Not tested, and why" box: every target or test the plan leaves out, one line each.

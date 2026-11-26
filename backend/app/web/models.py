@@ -325,6 +325,11 @@ class PlanGroup(Shape):
     kind: Literal["server", "software", "reference"]
     heading: str
     note: str | None
+    runs_on: str | None = Field(
+        default=None,
+        description='Where its tests run, in one line: "On your server, localhost:8443", '
+        '"On a copy of acme-sign 1.4.2, on this computer".',
+    )
 
 
 class NotTested(Shape):
