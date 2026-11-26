@@ -383,6 +383,64 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
 .locator{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--slate-400);margin-top:10px}
 .locator .ic{color:var(--slate-400)}
 .locator b{color:var(--slate-200);font-weight:500}
+
+/* ---- Evidence: the timeline, histories and decisions ---- */
+.chips-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.fchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--slate-700);border-radius:999px;padding:3px 10px;font-size:12.5px;color:var(--slate-300);background:transparent;white-space:nowrap}
+.fchip.on{background:var(--slate-800);border-color:var(--slate-600);color:var(--slate-50);font-weight:600}
+.fchip .n{font-size:11.5px;color:var(--slate-400);font-variant-numeric:tabular-nums}
+.filters{display:grid;gap:8px;margin-bottom:14px}
+.filters .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filters .lbl{font-size:12px;color:var(--slate-400);width:44px}
+.tl{border:1px solid var(--slate-800);border-radius:12px;background:color-mix(in oklab,var(--slate-900) 40%,transparent);overflow:hidden}
+.tlday{display:flex;align-items:center;gap:10px;padding:9px 16px;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-400);font-weight:600;background:color-mix(in oklab,var(--slate-800) 40%,transparent);border-bottom:1px solid var(--slate-800)}
+.tlday .n{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500}
+.tle{position:relative;display:grid;grid-template-columns:70px 30px minmax(0,1fr) auto;gap:0 12px;padding:12px 16px;border-bottom:1px solid var(--slate-800);align-items:start}
+.tle:last-child{border-bottom:0}
+.tle::before{content:"";position:absolute;left:calc(16px + 70px + 12px + 15px);top:0;bottom:0;width:1px;background:var(--slate-800)}
+.tle .t{font-size:12.5px;color:var(--slate-400);font-variant-numeric:tabular-nums;padding-top:5px;white-space:nowrap}
+.tle .dot{position:relative;z-index:1;width:30px;height:30px;border-radius:999px;border:1px solid var(--slate-700);display:grid;place-items:center;background:var(--slate-950);color:var(--slate-300)}
+.tle .dot.live{color:var(--sky-300);border-color:color-mix(in oklab,var(--sky-400) 50%,transparent)}
+.tle .dot.lab{color:var(--indigo-300);border-color:color-mix(in oklab,var(--indigo-400) 50%,transparent)}
+.tle .s{font-size:14px;color:var(--slate-100);line-height:1.4;padding-top:4px}
+.tle .s b{color:var(--slate-50);font-weight:600}
+.tle .m{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:5px;font-size:12.5px;color:var(--slate-400)}
+.tle .m .who{display:inline-flex;align-items:center;gap:5px;color:var(--slate-300)}
+.tle .m .who .ic{width:13px;height:13px;color:var(--slate-500)}
+.tle .m .area{border:1px solid var(--slate-700);border-radius:5px;padding:0 6px;font-size:11.5px;color:var(--slate-300)}
+.tle .r{display:flex;align-items:center;gap:6px;padding-top:3px}
+.tle .r .open{color:var(--slate-500)}
+.tle.sel{background:color-mix(in oklab,var(--sky-400) 8%,transparent)}
+.tle.sel .t{color:var(--sky-300)}
+.kids{grid-column:3/-1;margin-top:10px;border:1px solid var(--slate-800);border-radius:10px;overflow:hidden}
+.kid{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 12px;align-items:center;padding:7px 12px;border-top:1px solid var(--slate-800);font-size:13px;color:var(--slate-200)}
+.kid:first-child{border-top:0}
+.kid .on{font-size:12px;color:var(--slate-400)}
+.kid .by{font-size:12px;color:var(--slate-400);white-space:nowrap}
+.hist{position:relative;display:grid;gap:0;margin-top:4px}
+.hist li{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr);gap:0 10px;padding:0 0 14px}
+.hist li::before{content:"";position:absolute;left:10px;top:20px;bottom:0;width:1px;background:var(--slate-800)}
+.hist li:last-child::before{display:none}
+.hist .d{width:21px;height:21px;border-radius:999px;border:1px solid var(--slate-600);display:grid;place-items:center;background:var(--slate-950);color:var(--slate-300)}
+.hist .d .ic{width:12px;height:12px}
+.hist .d.live{color:var(--sky-300);border-color:color-mix(in oklab,var(--sky-400) 50%,transparent)}
+.hist .d.lab{color:var(--indigo-300);border-color:color-mix(in oklab,var(--indigo-400) 50%,transparent)}
+.hist .hs{font-size:13.5px;color:var(--slate-100);line-height:1.4}
+.hist .hm{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:3px;font-size:12px;color:var(--slate-400)}
+.hist .hm .ic{width:12px;height:12px;color:var(--slate-500);vertical-align:-2px}
+.decided{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--slate-700);border-radius:10px;padding:10px 12px;background:var(--slate-900);font-size:13px;color:var(--slate-200)}
+.decided .ic{margin-top:2px;color:var(--slate-400)}
+.decided b{color:var(--slate-50);font-weight:600}
+.vtable{table-layout:fixed}
+.vtable th{white-space:normal}
+.vtable th small{display:block;text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--slate-500);font-weight:400;margin-top:2px}
+.vtable td .plain{font-size:12.5px}
+.vtable td .again{font-size:12px;color:var(--slate-500);margin-top:4px}
+.wholine{display:inline-flex;align-items:center;gap:6px;color:var(--slate-200)}
+.wholine .ic{width:14px;height:14px;color:var(--slate-500)}
+.dtable td{vertical-align:middle}
+.dtable .dec{font-weight:600;color:var(--slate-50);white-space:nowrap}
+.dtable .on2{font-size:13px;color:var(--slate-300)}
 </style>
 </head>
 <body>
@@ -412,6 +470,9 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
   <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.4M8 5.2v.2"/></symbol>
   <symbol id="i-grip" viewBox="0 0 16 16"><path d="M6 4v.01M10 4v.01M6 8v.01M10 8v.01M6 12v.01M10 12v.01" stroke-width="2.2"/></symbol>
   <symbol id="i-map" viewBox="0 0 16 16"><path d="M1.8 4.2l4.1-1.6 4.2 1.6 4.1-1.6v9.2l-4.1 1.6-4.2-1.6-4.1 1.6z"/><path d="M5.9 2.6v9.2M10.1 4.2v9.2"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.6V8l2.4 1.6"/></symbol>
+  <symbol id="i-person" viewBox="0 0 16 16"><circle cx="8" cy="5.4" r="2.6"/><path d="M3 13.6c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/></symbol>
+  <symbol id="i-merge" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="8" r="1.6"/><path d="M4.5 5.1v5.8M4.5 6.5c0 1.5 1.5 1.5 3 1.5h2.4"/></symbol>
   <symbol id="i-ring" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.6"/></symbol>
 </svg>
 
@@ -424,6 +485,11 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
   <button data-screen="system">A system</button>
   <button data-screen="checks">Checks</button>
   <button data-screen="evidence">Evidence</button>
+  <button data-screen="timeline">Timeline</button>
+  <button data-screen="timelineopen">An entry open</button>
+  <button data-screen="byversion">Results by version</button>
+  <button data-screen="decisions">Decisions</button>
+  <button data-screen="fixhistory">A fix's history</button>
   <button data-screen="observed">An observed result</button>
   <button data-screen="result">A tested result</button>
   <button data-screen="advisory">A proposed check</button>
@@ -599,8 +665,8 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
 <!-- =============================== EVIDENCE (the tab structure) =============================== -->
 <template id="t-evidence">
   <div class="pagehead">
-    <div><h1>Evidence <span class="mark demo">Demo data</span></h1><p>What every check found, and the record behind it. Results for server <span class="mono">localhost:8450</span> and signing program <span class="mono">acme-sign 1.4.2</span>.</p></div>
-    <div class="actions"><button class="btn">Retest new version</button><button class="btn">Download evidence</button></div>
+    <div><h1>Results <span class="mark demo">Demo data</span></h1><p>What each check shows now, for server <span class="mono">localhost:8450</span> and signing program <span class="mono">acme-sign 1.4.2</span>. Every earlier run is kept: see By version, or a check's history.</p></div>
+    <div class="actions"><span class="seg" style="align-self:center"><span class="on">Now</span><span>By version</span></span><button class="btn">Retest new version</button></div>
   </div>
   <div data-slot="tabs" data-active="encryption"></div>
   <div class="band">
@@ -652,8 +718,8 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
 <!-- =============================== A RESULT (Evidence, panel open) =============================== -->
 <template id="t-result">
   <div class="pagehead">
-    <div><h1>Evidence <span class="mark demo">Demo data</span></h1><p>What every check found, and the record behind it. Results for server <span class="mono">localhost:8450</span> and signing program <span class="mono">acme-sign 1.4.2</span>.</p></div>
-    <div class="actions"><button class="btn">Retest new version</button><button class="btn">Download evidence</button></div>
+    <div><h1>Results <span class="mark demo">Demo data</span></h1><p>What each check shows now, for server <span class="mono">localhost:8450</span> and signing program <span class="mono">acme-sign 1.4.2</span>. Every earlier run is kept: see By version, or a check's history.</p></div>
+    <div class="actions"><span class="seg" style="align-self:center"><span class="on">Now</span><span>By version</span></span><button class="btn">Retest new version</button></div>
   </div>
   <div data-slot="tabs" data-active="encryption"></div>
   <div style="height:14px"></div>
@@ -1264,8 +1330,8 @@ def check_signature(public_key, message, signature):
 <!-- =============================== AN OBSERVED RESULT (Evidence, panel open) =============================== -->
 <template id="t-observed">
   <div class="pagehead">
-    <div><h1>Evidence <span class="mark demo">Demo data</span></h1><p>What every check found, and the record behind it. Results for server <span class="mono">localhost:8450</span> and signing program <span class="mono">acme-sign 1.4.2</span>.</p></div>
-    <div class="actions"><button class="btn">Retest new version</button><button class="btn">Download evidence</button></div>
+    <div><h1>Results <span class="mark demo">Demo data</span></h1><p>What each check shows now, for server <span class="mono">localhost:8450</span> and signing program <span class="mono">acme-sign 1.4.2</span>. Every earlier run is kept: see By version, or a check's history.</p></div>
+    <div class="actions"><span class="seg" style="align-self:center"><span class="on">Now</span><span>By version</span></span><button class="btn">Retest new version</button></div>
   </div>
   <div data-slot="tabs" data-active="encryption"></div>
   <div style="height:14px"></div>
@@ -1369,17 +1435,359 @@ def check_signature(public_key, message, signature):
   </div>
   <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
 </template>
+<!-- =============================== EVIDENCE: THE TIMELINE =============================== -->
+<template id="t-timeline">
+  <div class="pagehead">
+    <div><h1>Timeline <span class="mark demo">Demo data</span></h1><p>Everything that happened in this assessment, newest first: every run and what it found, every decision with who made it, every change to a system, and every file in and out. Reading it runs nothing.</p></div>
+    <div class="actions"><button class="btn">Download evidence</button></div>
+  </div>
+  <div class="filters">
+    <div class="row"><span class="lbl">Where</span><div class="chips-row"><span class="fchip on">All</span><span class="fchip">Observatory and Verify</span><span class="fchip">Advisories</span><span class="fchip">Checks</span><span class="fchip">Fixes</span><span class="fchip">Migration plan</span><span class="fchip">Dependencies</span><span class="fchip">Change watch</span><span class="fchip">The assessment</span></div></div>
+    <div class="row"><span class="lbl">What</span><div class="chips-row"><span class="fchip on">Everything <span class="n">14</span></span><span class="fchip">Runs and results <span class="n">5</span></span><span class="fchip">What people did <span class="n">6</span></span><span class="fchip">Changes to a system <span class="n">0</span></span><span class="fchip">Files in and out <span class="n">3</span></span></div><div class="search" style="margin-left:auto;width:240px"><svg class="ic"><use href="#i-search"/></svg>Search the timeline</div></div>
+  </div>
+  <div class="tl">
+    <div class="tlday">Wednesday 18 November 2026<span class="n">14 entries</span></div>
+      <div class="tle">
+        <span class="t">7:20 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-import"/></svg></span>
+        <div><div class="s"><b>Evidence file downloaded.</b> Fingerprint <span class="mono xs">3f9a2c71e0b4</span>.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">The assessment</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:19 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-file"/></svg></span>
+        <div><div class="s"><b>Dependency list added:</b> <span class="mono">dependencies-demo.cdx.json</span>, 10 libraries. 4 answered from the knowledge base.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">Dependencies</span><span class="tag published"><svg class="ic sm"><use href="#i-quote"/></svg>Published</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:18 am</span>
+        <span class="dot lab"><svg class="ic"><use href="#i-flask"/></svg></span>
+        <div><div class="s"><b>Retest on acme-sign 1.4.3-otto:</b> the 6 tests in the plan, on the merged fix.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You · Retest now, on Fixes</span><span class="area">Checks</span><span>decided by the separate reviewer</span></div></div>
+        <div class="r"><span class="chips-row"><span class="chip sm fail"><span class="sym">✕</span>1 Failed</span><span class="chip sm pass"><span class="sym">✓</span>4 Passed</span><span class="chip sm neutral"><span class="sym">•</span>1 Measured</span></span><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:18 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-merge"/></svg></span>
+        <div><div class="s"><b>Merged pull request #1</b> into main, commit <span class="mono xs">c07b369</span>.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">Fixes</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:18 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-verify"/></svg></span>
+        <div><div class="s"><b>Approved pull request #1.</b></div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="who"><svg class="ic"><use href="#i-person"/></svg>Demo reviewer A <span class="mark demo">Demo data</span></span><span class="area">Fixes</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:18 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-person"/></svg></span>
+        <div><div class="s"><b>Opened pull request #1</b> for acme-sign: Reject signatures with r or s out of range. Reviewers: You, Demo reviewer A.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">Fixes</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:17 am</span>
+        <span class="dot lab"><svg class="ic"><use href="#i-flask"/></svg></span>
+        <div><div class="s"><b>Proof on acme-sign 1.4.3-otto:</b> every locked test reran on the changed code.</div><div class="m"><span class="area">Fixes</span><span>decided by the separate reviewer</span></div></div>
+        <div class="r"><span class="chips-row"><span class="chip sm pass"><span class="sym">✓</span>Proof passed</span></span><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:17 am</span>
+        <span class="dot live"><svg class="ic"><use href="#i-live"/></svg></span>
+        <div><div class="s"><b>Measure status:</b> the post-quantum status of 2 systems.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">Migration plan</span><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></div>
+        <div class="r"><span class="chips-row"><span class="chip sm neutral"><span class="sym">○</span>2 Classical</span></span><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:16 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-person"/></svg></span>
+        <div><div class="s"><b>Accepted</b> Otto's change: acme-sign: Reject signatures with r or s out of range. <span class="mark">From Otto</span></div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">Fixes</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:16 am</span>
+        <span class="dot lab"><svg class="ic"><use href="#i-flask"/></svg></span>
+        <div><div class="s"><b>Run all:</b> the 6 tests in the plan, on acme-sign 1.4.2 and localhost:8450.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">Checks</span><span>decided by the separate reviewer</span></div></div>
+        <div class="r"><span class="chips-row"><span class="chip sm fail"><span class="sym">✕</span>4 Failed</span><span class="chip sm pass"><span class="sym">✓</span>1 Passed</span><span class="chip sm neutral"><span class="sym">•</span>1 Measured</span></span><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+        <div class="kids">
+          <div class="kid"><span>Old TLS versions <span class="on">· localhost:8450</span></span><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="chip sm fail"><span class="sym">✕</span>Failed</span></div>
+          <div class="kid"><span>Certificate strength <span class="on">· localhost:8450</span></span><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="chip sm pass"><span class="sym">✓</span>Passed</span></div>
+          <div class="kid"><span>Independent exam (Wycheproof) <span class="on">· acme-sign 1.4.2</span></span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="chip sm fail"><span class="sym">✕</span>Failed</span></div>
+          <div class="kid"><span>Attacker tricks (our short list) <span class="on">· acme-sign 1.4.2</span></span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="chip sm fail"><span class="sym">✕</span>Failed</span></div>
+          <div class="kid"><span>Speed and size <span class="on">· acme-sign 1.4.2</span></span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="chip sm neutral"><span class="sym">•</span>Measured</span></div>
+          <div class="kid"><span>Advisory check: Missing ECDSA signature range check <span class="on">· acme-sign 1.4.2</span></span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="chip sm fail"><span class="sym">✕</span>Failed</span></div>
+        </div>
+      </div>
+      <div class="tle">
+        <span class="t">7:15 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-person"/></svg></span>
+        <div><div class="s"><b>Accepted</b> Otto's proposed check: Missing ECDSA signature range check (CVE-2022-21449), for acme-sign 1.4.2. <span class="mark">From Otto</span></div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">Advisories</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:13 am</span>
+        <span class="dot live"><svg class="ic"><use href="#i-live"/></svg></span>
+        <div><div class="s"><b>Verify:</b> the 3 claims of your file, checked against your systems.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">Observatory and Verify</span><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span>decided by fixed rules</span></div></div>
+        <div class="r"><span class="chips-row"><span class="chip sm fail"><span class="sym">✕</span>1 False</span><span class="chip sm pass"><span class="sym">✓</span>2 True</span></span><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:12 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-file"/></svg></span>
+        <div><div class="s"><b>Brought in</b> <span class="mono">acme-pay-cbom.json</span>: 3 claims, 1 server and 1 signing program. <span class="mark demo">Demo data</span></div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">The assessment</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:12 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-grid"/></svg></span>
+        <div><div class="s"><b>Assessment 1 started</b> (Full review).</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="area">The assessment</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+  </div>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
+</template>
+<template id="t-timelineopen">
+  <div class="pagehead">
+    <div><h1>Timeline <span class="mark demo">Demo data</span></h1><p>Everything that happened in this assessment, newest first: every run and what it found, every decision with who made it, every change to a system, and every file in and out. Reading it runs nothing.</p></div>
+    <div class="actions"><button class="btn">Download evidence</button></div>
+  </div>
+  <div class="filters">
+    <div class="row"><span class="lbl">Where</span><div class="chips-row"><span class="fchip">All</span><span class="fchip">Observatory and Verify</span><span class="fchip">Advisories</span><span class="fchip">Checks</span><span class="fchip on">Fixes</span><span class="fchip">Migration plan</span><span class="fchip">Dependencies</span><span class="fchip">Change watch</span><span class="fchip">The assessment</span></div></div>
+    <div class="row"><span class="lbl">What</span><div class="chips-row"><span class="fchip on">Everything</span><span class="fchip">Runs and results</span><span class="fchip">What people did</span><span class="fchip">Changes to a system</span><span class="fchip">Files in and out</span></div><div class="search" style="margin-left:auto;width:240px"><svg class="ic"><use href="#i-search"/></svg>Search the timeline</div></div>
+  </div>
+  <div class="split" style="grid-template-columns:minmax(0,1fr) minmax(0,44%)">
+    <div class="tl">
+      <div class="tlday">Wednesday 18 November 2026<span class="n">6 entries in Fixes</span></div>
+      <div class="tle sel">
+        <span class="t">7:18 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-merge"/></svg></span>
+        <div><div class="s"><b>Merged pull request #1</b> into main, commit <span class="mono xs">c07b369</span>.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:18 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-verify"/></svg></span>
+        <div><div class="s"><b>Approved pull request #1.</b></div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span><span class="who"><svg class="ic"><use href="#i-person"/></svg>Demo reviewer A</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:18 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-person"/></svg></span>
+        <div><div class="s"><b>Opened pull request #1.</b> Reviewers: You, Demo reviewer A.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:17 am</span>
+        <span class="dot lab"><svg class="ic"><use href="#i-flask"/></svg></span>
+        <div><div class="s"><b>Proof on acme-sign 1.4.3-otto.</b></div><div class="m"><span>decided by the separate reviewer</span></div></div>
+        <div class="r"><span class="chip sm pass"><span class="sym">✓</span>Proof passed</span><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:17 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-person"/></svg></span>
+        <div><div class="s"><b>Connected demo code</b> for the change.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tle">
+        <span class="t">7:16 am</span>
+        <span class="dot "><svg class="ic"><use href="#i-person"/></svg></span>
+        <div><div class="s"><b>Accepted</b> Otto's change.</div><div class="m"><span class="who"><svg class="ic"><use href="#i-person"/></svg>You</span></div></div>
+        <div class="r"><svg class="ic sm open"><use href="#i-chev"/></svg></div>
+      </div>
+    </div>
+    <section class="panel">
+      <div class="phead">
+        <div class="ptools"><span class="where">Timeline · Fixes</span>
+          <button class="btn sm ghost">Open in new tab <svg class="ic sm"><use href="#i-ext"/></svg></button><button class="btn sm ghost">Wider</button><button class="btn sm ghost">Narrower</button><button class="btn sm ghost icon" title="Close details"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
+        <h2>Merged pull request #1</h2>
+        <div class="sub">18 November 2026, 7:18 am EST · by You</div>
+      </div>
+      <div class="pbody">
+        <div class="glance">
+          <p class="lead" style="margin-top:0">The change "acme-sign: Reject signatures with r or s out of range" went into the main copy of the code: branch main, commit <span class="mono">c07b369</span>.</p>
+          <div class="eyebrow" style="margin-top:4px">Who</div>
+          <ul class="hist">
+            <li><span class="d"><svg class="ic"><use href="#i-merge"/></svg></span><div><div class="hs">Merged by You</div><div class="hm">7:18 am, after the box "Merge pull request?" was confirmed</div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-verify"/></svg></span><div><div class="hs">Approved by You</div><div class="hm">7:18 am</div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-verify"/></svg></span><div><div class="hs">Approved as Demo reviewer A <span class="mark demo">Demo data</span></div><div class="hm">7:18 am</div></div></li>
+          </ul>
+          <p class="xs muted">This version has one login and no separate accounts. Whoever is at the keyboard records each approval, under the name shown.</p>
+        </div>
+        <div>
+          <div class="eyebrow">What it rested on</div>
+          <ul class="spotlist" style="margin-top:0">
+            <li><span class="k">Proof on acme-sign 1.4.3-otto</span><span class="chips"><span class="chip xs pass"><span class="sym">✓</span>Proof passed</span></span><span class="p">Every locked test reran on the changed code, 7:17 am. Decided by the separate reviewer.</span><span class="lk"><a href="#">Open the proof</a></span></li>
+            <li><span class="k">The 3 findings it answers, on acme-sign 1.4.2</span><span class="chips"><span class="chip xs fail"><span class="sym">✕</span>Failed</span><span class="chip xs fail"><span class="sym">✕</span>Failed</span><span class="chip xs fail"><span class="sym">✕</span>Failed</span></span><span class="p">Independent exam, Attacker tricks, Advisory check: Missing ECDSA signature range check. 7:16 am.</span><span class="lk"><a href="#">Open in Results</a></span></li>
+          </ul>
+        </div>
+        <div>
+          <div class="eyebrow">What came after</div>
+          <ul class="spotlist" style="margin-top:0">
+            <li><span class="k">Retest on acme-sign 1.4.3-otto</span><span class="chips"><span class="chip xs pass"><span class="sym">✓</span>Passed</span><span class="chip xs pass"><span class="sym">✓</span>Passed</span><span class="chip xs pass"><span class="sym">✓</span>Passed</span></span><span class="p">The same 3 tests, 7:18 am. Decided by the separate reviewer.</span><span class="lk"><a href="#">Results by version</a></span></li>
+          </ul>
+        </div>
+        <details class="proof">
+          <summary><span class="badge"><svg class="ic"><use href="#i-layers"/></svg></span><span><span class="t">Technical record</span><br><span class="d">The repository, the branches, the commits and their fingerprints.</span></span><span class="act"><span class="show">Show</span><span class="hide">Hide</span></span><svg class="ic chev"><use href="#i-chev"/></svg></summary>
+        </details>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Open in Fixes</div>
+      </div>
+    </section>
+  </div>
+</template>
+<!-- =============================== EVIDENCE: RESULTS BY VERSION, AND ONE CHECK'S HISTORY =============================== -->
+<template id="t-byversion">
+  <div class="pagehead">
+    <div><h1>Results <span class="mark demo">Demo data</span></h1><p>Every check of the plan, on every version it ran on, side by side. Each result is the separate reviewer's.</p></div>
+    <div class="actions"><span class="seg" style="align-self:center"><span>Now</span><span class="on">By version</span></span><button class="btn">Retest new version</button></div>
+  </div>
+  <div data-slot="tabs" data-active="encryption"></div>
+  <div style="height:14px"></div>
+  <div class="split" style="grid-template-columns:minmax(0,1fr) minmax(0,40%)">
+    <table class="table vtable">
+      <thead><tr><th style="width:34%">Test</th><th>acme-sign 1.4.2<small>First runs · 18 Nov, 7:16 am</small></th><th>acme-sign 1.4.3-otto<small>Retest · 18 Nov, 7:18 am · the merged fix, commit c07b369</small></th></tr></thead>
+      <tbody>
+        <tr class="part"><td colspan="3"><div><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="pt">On your systems</span><span class="pm"></span><span class="pn">2</span></div></td></tr>
+      <tr><td><div class="name">Old TLS versions</div><div class="on mono">localhost:8450</div></td>
+        <td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td>
+        <td><span class="chip sm fail"><span class="sym">✕</span>Failed</span><div class="again">Tested again as it is: the server was not changed.</div></td></tr>
+      <tr><td><div class="name">Certificate strength</div><div class="on mono">localhost:8450</div></td>
+        <td><span class="chip sm pass"><span class="sym">✓</span>Passed</span></td>
+        <td><span class="chip sm pass"><span class="sym">✓</span>Passed</span><div class="again">Tested again as it is: the server was not changed.</div></td></tr>
+        <tr class="part"><td colspan="3"><div><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="pt">On copies on this computer</span><span class="pm"></span><span class="pn">4</span></div></td></tr>
+      <tr class="sel"><td><div class="name">Independent exam (Wycheproof)</div><div class="on mono">acme-sign</div></td>
+        <td><span class="chip sm fail"><span class="sym">✕</span>Failed</span><div class="plain">3 of 484 cases wrong.</div></td>
+        <td><span class="chip sm pass"><span class="sym">✓</span>Passed</span><div class="plain">All 484 cases right.</div></td></tr>
+      <tr><td><div class="name">Attacker tricks (our short list)</div><div class="on mono">acme-sign</div></td>
+        <td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td>
+        <td><span class="chip sm pass"><span class="sym">✓</span>Passed</span></td></tr>
+      <tr><td><div class="name">Speed and size</div><div class="on mono">acme-sign</div></td>
+        <td><span class="chip sm neutral"><span class="sym">•</span>Measured</span></td>
+        <td><span class="chip sm neutral"><span class="sym">•</span>Measured</span></td></tr>
+      <tr><td><div class="name">Advisory check: Missing ECDSA signature range check</div><div class="on mono">acme-sign · CVE-2022-21449</div></td>
+        <td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td>
+        <td><span class="chip sm pass"><span class="sym">✓</span>Passed</span></td></tr>
+      </tbody>
+    </table>
+
+    <section class="panel">
+      <div class="phead">
+        <div class="ptools"><span class="where">Check · Crypto tests</span>
+          <button class="btn sm ghost">Open in new tab <svg class="ic sm"><use href="#i-ext"/></svg></button><button class="btn sm ghost">Wider</button><button class="btn sm ghost icon" title="Close details"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
+        <h2>Independent exam (Wycheproof)</h2>
+        <div class="sub">On acme-sign · 2 runs</div>
+      </div>
+      <div class="pbody">
+        <div class="decided"><svg class="ic"><use href="#i-info"/></svg><span><b>Who decides a result:</b> the separate reviewer, by fixed rules, on every run. No person approves a result. What people did about it is in this history too.</span></div>
+        <div>
+          <div class="eyebrow">History of this check</div>
+          <ul class="hist">
+            <li><span class="d lab"><svg class="ic"><use href="#i-flask"/></svg></span><div><div class="hs">Retest on acme-sign 1.4.3-otto <span class="chip xs pass"><span class="sym">✓</span>Passed</span></div><div class="hm">18 Nov, 7:18 am · started by You, with Retest now on Fixes · decided by the reviewer · <span class="mono">9b1e40c2d7aa</span></div><div class="hm"><a href="#">Cryptanalysis proof</a></div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-merge"/></svg></span><div><div class="hs">The fix it answers was merged</div><div class="hm">18 Nov, 7:18 am · by You · <a href="#">Open in Fixes</a></div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-person"/></svg></span><div><div class="hs">Marked reviewed</div><div class="hm">18 Nov, 7:17 am · by You, on the result on acme-sign 1.4.2</div></div></li>
+            <li><span class="d lab"><svg class="ic"><use href="#i-flask"/></svg></span><div><div class="hs">First run on acme-sign 1.4.2 <span class="chip xs fail"><span class="sym">✕</span>Failed</span></div><div class="hm">18 Nov, 7:16 am · started by You, with Run all · decided by the reviewer · <span class="mono">4cc6a38e4bfc</span></div><div class="hm"><a href="#">Cryptanalysis proof</a></div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-clock"/></svg></span><div><div class="hs">Test locked</div><div class="hm">18 Nov, 7:15 am · its details can't change after this · fingerprint <span class="mono">a71c09e2f3b5</span></div></div></li>
+          </ul>
+          <p class="xs muted">The proof's run of this test, on the changed code, is a check of its own, under Fix proofs on Checks.</p>
+        </div>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Related <span class="n">(4)</span></div>
+      </div>
+    </section>
+  </div>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
+</template>
+<!-- =============================== EVIDENCE: APPROVALS AND DECISIONS =============================== -->
+<template id="t-decisions">
+  <div class="pagehead">
+    <div><h1>Approvals and decisions <span class="mark demo">Demo data</span></h1><p>Every decision a person made in this assessment, with who and when. No person approves a result: the separate reviewer decides each one by fixed rules, and Results shows them.</p></div>
+  </div>
+  <dl class="statcards">
+    <div class="card"><dt>Decisions</dt><dd>8</dd><small>by people, in this assessment</small></div>
+    <div class="card"><dt>Approvals</dt><dd>2</dd><small>of pull request #1</small></div>
+    <div class="card"><dt>Otto's proposals decided</dt><dd>3</dd><small>2 accepted, 1 not added</small></div>
+    <div class="card"><dt>Sign-off</dt><dd style="font-size:16px;padding-top:6px">Not yet</dd><small>Close assessment records who and when</small></div>
+  </dl>
+  <div class="strip"><svg class="ic sm"><use href="#i-info"/></svg><b>Who:</b> this version has one login. A decision is recorded under the name typed once in Settings (Who decides), or "You" until then. The app does not check who is at the keyboard, and says so.</div>
+  <div class="filters"><div class="row"><span class="lbl">Where</span><div class="chips-row"><span class="fchip on">All</span><span class="fchip">Observatory and Verify</span><span class="fchip">Advisories</span><span class="fchip">Checks</span><span class="fchip">Fixes</span><span class="fchip">Migration plan</span><span class="fchip">Dependencies</span><span class="fchip">Change watch</span><span class="fchip">The assessment</span></div></div></div>
+  <table class="table dtable">
+    <thead><tr><th style="width:96px">When</th><th style="width:150px">Decision</th><th>On</th><th style="width:190px">By</th><th style="width:150px">Where</th></tr></thead>
+    <tbody>
+      <tr class="sub"><td colspan="5">Wednesday 18 November 2026</td></tr>
+      <tr><td class="when">7:18 am</td><td><span class="dec">Merged</span></td><td class="on2">Pull request #1: acme-sign: Reject signatures with r or s out of range</td><td><span class="wholine"><svg class="ic"><use href="#i-person"/></svg>You</span></td><td><span class="mini">Fixes</span></td></tr>
+      <tr><td class="when">7:18 am</td><td><span class="dec">Approved</span></td><td class="on2">Pull request #1 <span class="mark demo">Demo data</span></td><td><span class="wholine"><svg class="ic"><use href="#i-person"/></svg>Demo reviewer A</span></td><td><span class="mini">Fixes</span></td></tr>
+      <tr><td class="when">7:18 am</td><td><span class="dec">Approved</span></td><td class="on2">Pull request #1</td><td><span class="wholine"><svg class="ic"><use href="#i-person"/></svg>You</span></td><td><span class="mini">Fixes</span></td></tr>
+      <tr><td class="when">7:17 am</td><td><span class="dec">Marked reviewed</span></td><td class="on2">Independent exam (Wycheproof) on acme-sign 1.4.2: Failed</td><td><span class="wholine"><svg class="ic"><use href="#i-person"/></svg>You</span></td><td><span class="mini">Checks</span></td></tr>
+      <tr><td class="when">7:16 am</td><td><span class="dec">Accepted</span></td><td class="on2">Otto's change: acme-sign: Reject signatures with r or s out of range <span class="mark">From Otto</span></td><td><span class="wholine"><svg class="ic"><use href="#i-person"/></svg>You</span></td><td><span class="mini">Fixes</span></td></tr>
+      <tr><td class="when">7:15 am</td><td><span class="dec">Not added</span></td><td class="on2">Otto's proposed check: Badly encoded signature accepted (CVE-2019-14859), for acme-sign 1.4.2. No reason given. <span class="mark">From Otto</span></td><td><span class="wholine"><svg class="ic"><use href="#i-person"/></svg>You</span></td><td><span class="mini">Advisories</span></td></tr>
+      <tr><td class="when">7:15 am</td><td><span class="dec">Accepted</span></td><td class="on2">Otto's proposed check: Missing ECDSA signature range check (CVE-2022-21449), for acme-sign 1.4.2 <span class="mark">From Otto</span></td><td><span class="wholine"><svg class="ic"><use href="#i-person"/></svg>You</span></td><td><span class="mini">Advisories</span></td></tr>
+      <tr><td class="when">7:13 am</td><td><span class="dec">Confirmed</span></td><td class="on2">"I own this system" for localhost:8450, before Verify connected to it</td><td><span class="wholine"><svg class="ic"><use href="#i-person"/></svg>You</span></td><td><span class="mini">Verify</span></td></tr>
+    </tbody>
+  </table>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
+</template>
+<!-- =============================== FIXES: ONE FIX'S HISTORY =============================== -->
+<template id="t-fixhistory">
+  <div class="pagehead">
+    <div><h1>Fixes <span class="mark demo">Demo data</span></h1><p>The fix for each finding. A code change is ready for review only after its proof has passed.</p></div>
+    <div class="actions"><a class="btn" href="#"><svg class="ic sm"><use href="#i-clock"/></svg>History of Fixes</a></div>
+  </div>
+  <div data-slot="tabs" data-active="encryption" data-page="fixes"></div>
+  <div style="height:14px"></div>
+  <div class="split">
+    <table class="table compact">
+      <thead><tr><th>Fix</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr class="part"><td colspan="2"><div><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="pt">On copies on this computer</span><span class="pm"></span><span class="pn">1</span></div></td></tr>
+        <tr class="sel"><td><div class="name">acme-sign: Reject signatures with r or s out of range (CVE-2022-21449)</div><div class="on"><span class="mark">From Otto</span></div></td><td><span class="chip sm neutral"><span class="sym">•</span>Merged</span></td></tr>
+        <tr class="part"><td colspan="2"><div><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="pt">On your systems</span><span class="pm"></span><span class="pn">1</span></div></td></tr>
+        <tr><td><div class="name">Server accepts TLS 1.2</div><div class="on mono">localhost:8450</div></td><td><span class="chip sm warn"><span class="sym">?</span>Ready to try</span></td></tr>
+      </tbody>
+    </table>
+    <section class="panel">
+      <div class="phead">
+        <div class="ptools"><span class="where">Fix · Crypto tests</span>
+          <button class="btn sm ghost">Open in new tab <svg class="ic sm"><use href="#i-ext"/></svg></button><button class="btn sm ghost">Wider</button><button class="btn sm ghost">Narrower</button><button class="btn sm ghost icon" title="Close details"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
+        <h2>acme-sign: Reject signatures with r or s out of range (CVE-2022-21449) <span class="mark">From Otto</span></h2>
+        <div class="sub">Came from 3 failed tests on signing component <span class="mono">acme-sign 1.4.2</span>. Written by Otto.</div>
+      </div>
+      <div class="pbody">
+        <div class="glance">
+          <div class="top"><span class="chip neutral"><span class="sym">•</span>Merged</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="when">Merged 18 November 2026, 7:18 am EST</span></div>
+          <p class="lead">The change is merged, and the retest on the merged code passed the 3 tests it answers.</p>
+          <div class="next"><span class="say">Next: nothing waits on this fix.</span></div>
+        </div>
+        <div>
+          <div class="eyebrow" style="display:flex;align-items:center">History of this fix <a href="#" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500;font-size:12.5px">Open in the timeline →</a></div>
+          <ul class="hist">
+            <li><span class="d lab"><svg class="ic"><use href="#i-flask"/></svg></span><div><div class="hs">Retest on acme-sign 1.4.3-otto: the 3 tests it answers <span class="chip xs pass"><span class="sym">✓</span>Passed</span></div><div class="hm">7:18 am · started by You, with Retest now · decided by the reviewer · <a href="#">Results by version</a></div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-merge"/></svg></span><div><div class="hs">Merged pull request #1 into main</div><div class="hm">7:18 am · by You · commit <span class="mono">c07b369</span></div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-verify"/></svg></span><div><div class="hs">Approved</div><div class="hm">7:18 am · by You · by Demo reviewer A <span class="mark demo">Demo data</span></div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-person"/></svg></span><div><div class="hs">Pull request #1 opened</div><div class="hm">7:18 am · by You · reviewers: You, Demo reviewer A</div></div></li>
+            <li><span class="d lab"><svg class="ic"><use href="#i-flask"/></svg></span><div><div class="hs">Proof on acme-sign 1.4.3-otto <span class="chip xs pass"><span class="sym">✓</span>Proof passed</span></div><div class="hm">7:17 am · decided by the reviewer · <a href="#">Cryptanalysis proof</a></div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-person"/></svg></span><div><div class="hs">Demo code connected</div><div class="hm">7:17 am · by You</div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-person"/></svg></span><div><div class="hs">Accepted Otto's proposal</div><div class="hm">7:16 am · by You</div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-clock"/></svg></span><div><div class="hs">Proposed by Otto</div><div class="hm">7:16 am · after the advisory check failed on acme-sign 1.4.2</div></div></li>
+          </ul>
+        </div>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>The change <span class="n">(3 lines added, 1 removed)</span></div>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>What this change touches</div>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Related <span class="n">(4)</span></div>
+      </div>
+    </section>
+  </div>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
+</template>
 <script>
 // Throwaway: a few lines that put the chosen screen into the shell. Nothing here is the app's code.
 const SCREENS = {
   overview: { nav: "overview", crumb: "Overview", project: "Otto walk" },
+  timeline: { nav: "timeline", crumb: "Evidence / Timeline", project: "Otto walk", fixes: 1 },
+  timelineopen: { nav: "timeline", crumb: "Evidence / Timeline", project: "Otto walk", fixes: 1 },
+  byversion: { nav: "results", crumb: "Evidence / Results", project: "Otto walk", fixes: 1 },
+  decisions: { nav: "decisions", crumb: "Evidence / Approvals and decisions", project: "Otto walk", fixes: 1 },
+  fixhistory: { nav: "fixes", crumb: "Fixes", project: "Otto walk", fixes: 1 },
   observatory: { nav: "observatory", crumb: "Observatory", project: "Otto walk" },
   observatorynew: { nav: "observatory", crumb: "Observatory", project: "Otto walk", fixes: 0 },
   system: { nav: "observatory", crumb: "Observatory", project: "Otto walk" },
-  observed: { nav: "evidence", crumb: "Evidence", project: "Otto walk" },
+  observed: { nav: "results", crumb: "Evidence / Results", project: "Otto walk" },
   checks: { nav: "checks", crumb: "Checks", project: "Otto walk" },
-  evidence: { nav: "evidence", crumb: "Evidence", project: "Otto walk" },
-  result: { nav: "evidence", crumb: "Evidence", project: "Otto walk" },
+  evidence: { nav: "results", crumb: "Evidence / Results", project: "Otto walk" },
+  result: { nav: "results", crumb: "Evidence / Results", project: "Otto walk" },
   advisory: { nav: "advisories", crumb: "Advisories", project: "Sandbox research walk", mode: "Isolated mode", waiting: 4, fixes: 0 },
   fix: { nav: "fixes", crumb: "Fixes", project: "Otto walk, a real library", mode: "Isolated mode", waiting: 1, fixes: 2 },
 };
@@ -1404,13 +1812,17 @@ function sidebar(s) {
     <div class="navsec"><b>3</b>Test</div>
     ${item("advisories", "horn", "Advisories", waiting ? [waiting, waiting + " proposed checks wait for your decision"] : null)}
     ${item("checks", "flask", "Checks")}
-    ${item("evidence", "doc", "Evidence")}
     <div class="navsec"><b>4</b>Fix</div>
     ${item("fixes", "wrench", "Fixes", fixes ? [fixes, fixes + " open findings with a fix"] : null)}
     <div class="navsec"><b>5</b>Plan the move</div>
     ${item("migration", "route", "Migration plan")}
     <div class="navsec"><b>6</b>Keep watching</div>
     ${item("watch", "eye", "Change watch")}
+    <div class="navsec">${ic("doc").replace('class="ic"', 'class="ic sm"')}Evidence</div>
+    ${item("timeline", "clock", "Timeline")}
+    ${item("results", "doc", "Results")}
+    ${item("decisions", "person", "Approvals and decisions")}
+    ${item("files", "import", "Evidence files")}
     <div class="sidefoot">
       ${item("projects", "folder", "Projects")}
       ${item("settings", "gear", "Settings")}

@@ -44,6 +44,11 @@ const SHOTS = [
   ["12-observatory-a-system-open", "system", "closed"],
   ["13-observed-result-record-collapsed", "observed", "closed"],
   ["14-observed-result-record-expanded", "observed", "open"],
+  ["15-evidence-timeline", "timeline", "closed"],
+  ["16-evidence-timeline-an-entry-open", "timelineopen", "closed"],
+  ["17-evidence-results-by-version", "byversion", "closed"],
+  ["18-evidence-approvals-and-decisions", "decisions", "closed"],
+  ["19-fixes-a-fix-history", "fixhistory", "closed"],
 ];
 
 // [name, the picture of today's screen, the mockup it is set beside, what each side is called]
