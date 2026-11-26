@@ -64,7 +64,9 @@ describe("Evidence Lab, results view", () => {
   it("shows the heading, Demo data, subline, the disclaimer line and the two buttons", async () => {
     const fetchMock = await open();
     expect(labCalls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
-    expect(screen.getByRole("heading", { name: "Evidence" })).not.toBeNull();
+    // The Results view of the Evidence section (26 November 2026): the section's name stands over the page's own.
+    expect(screen.getByRole("heading", { level: 1, name: "Results" })).not.toBeNull();
+    expect(text(screen.getByTestId("page-header"))).toMatch(/^Evidence Demo data\s*Results/);
     expect(screen.getByText("Demo data")).not.toBeNull();
     expect(text(screen.getByTestId("lab-subline"))).toMatch(
       /^Results by test for server localhost:8443 and signing component acme-sign 1\.4\.2\. Run finished .+\.$/,

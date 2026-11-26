@@ -17,7 +17,7 @@ import {
   type GroupNav,
 } from "./layout";
 import { LedgerView } from "./advisories/parts";
-import { HistoryFold } from "./evidence/HistoryFold";
+import { HistoryFold, HistoryOfPage } from "./evidence/HistoryFold";
 import { FoldLine, ProofFold, Trail, proofKindOf } from "./proof";
 import { RelatedFold, WithRelated } from "./related";
 import { DemoDataLabel, ErrorBox } from "./ui";
@@ -278,6 +278,7 @@ export function FixesScreen({
         eyebrow={current.is_demo ? <DemoDataLabel /> : undefined}
         title={current.title}
         description={<span data-testid="fixes-subline">{current.subline}</span>}
+        actions={<HistoryOfPage area="fixes" page="Fixes" />}
       />
 
       {error ? (

@@ -546,11 +546,13 @@ export function DetailPanel({
         {/* The design refactor (26 November 2026): a slim tool row, then the title on a line of its own at the panel's
             full width, so a long name is never squeezed beside the buttons. */}
         <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 px-5 pb-3.5 pt-3 backdrop-blur">
-          <div data-testid="panel-tools" className="mb-2 flex flex-wrap items-center justify-end gap-1">
+          <div data-testid="panel-tools" className="mb-2 flex items-center justify-end gap-1">
             {kicker ? (
+              // (one line, whatever the panel's width: a long kicker is cut short, the tools never wrap under it)
               <span
                 data-testid="panel-kicker"
-                className="mr-auto text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                title={typeof kicker === "string" ? kicker : undefined}
+                className="mr-auto min-w-0 truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500"
               >
                 {kicker}
               </span>
@@ -567,7 +569,7 @@ export function DetailPanel({
                 href={itemPage.hrefFor(item)}
                 target="_blank"
                 rel="noopener"
-                className="whitespace-nowrap rounded-md border border-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                className="shrink-0 whitespace-nowrap rounded-md border border-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800"
               >
                 Open in new tab <span aria-hidden="true">↗</span>
               </a>
@@ -578,7 +580,7 @@ export function DetailPanel({
                   type="button"
                   onClick={() => panel.setWidth(panel.width + PANEL_STEP)}
                   disabled={panel.width >= PANEL_MAX}
-                  className="hidden rounded-md border border-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
+                  className="hidden shrink-0 rounded-md border border-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
                 >
                   Wider
                 </button>
@@ -586,7 +588,7 @@ export function DetailPanel({
                   type="button"
                   onClick={() => panel.setWidth(panel.width - PANEL_STEP)}
                   disabled={panel.width <= PANEL_MIN}
-                  className="hidden rounded-md border border-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
+                  className="hidden shrink-0 rounded-md border border-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
                 >
                   Narrower
                 </button>
@@ -596,7 +598,7 @@ export function DetailPanel({
               type="button"
               onClick={onClose}
               aria-label="Close details"
-              className="rounded-md px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+              className="shrink-0 rounded-md px-1.5 py-0.5 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
             >
               ×
             </button>

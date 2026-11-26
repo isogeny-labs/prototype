@@ -45,8 +45,7 @@ function EntryRow({ entry, open, onOpen }: { entry: TimelineEntry; open: boolean
               {entry.outcome ? <ResultWord result={entry.outcome} testId="timeline-outcome" /> : null}
               {entry.counts.map((c) => (
                 <span key={c.label} data-testid="timeline-count" className="inline-flex items-center gap-1">
-                  <ResultWord result={c} />
-                  <span className="text-xs tabular-nums text-slate-400">{c.count}</span>
+                  <ResultWord result={c} /> <span className="text-xs tabular-nums text-slate-400">{c.count}</span>
                 </span>
               ))}
               {entry.pending > 0 ? (

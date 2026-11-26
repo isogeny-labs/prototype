@@ -38,6 +38,7 @@ import { HistoryFold } from "./evidence/HistoryFold";
 import { ItemLinkView, RelatedFold, WithRelated } from "./related";
 import { VerifyResultDetails } from "./VerifyScreen";
 import type { CheckDetail, ChecksView } from "../api";
+import { ByVersion } from "./lab/ByVersion";
 import { ResultDetail } from "./lab/ResultDetail";
 import { RetestMenu } from "./lab/RetestMenu";
 import {
@@ -216,6 +217,8 @@ export function EvidenceLabScreen({
   };
   useEffect(() => setStatusFilterState((result as StatusFilter | null) ?? "all"), [result]);
   const [exported, setExported] = useState<EvidenceExport | null>(null);
+  // Results, the Crypto tests tab: what each check shows now, or every version side by side.
+  const [resultsView, setResultsView] = useState<"now" | "versions">("now");
   const [pollTick, setPollTick] = useState(0);
   // Phase 5b: every other kind of check, in the four groups.
   const [checks, setChecks] = useState<ChecksView | null>(null);
@@ -726,7 +729,33 @@ export function EvidenceLabScreen({
           const extra = extraOf(g).filter(keepCheck);
           return (
             <GroupSection key={g.key} group={g} counts={counts} tabbed={tabbed}>
-              {listing}
+              {/* Now: what each check shows today. By version: every check on every version it ran on, side by side. */}
+              <div
+                role="group"
+                aria-label="Results view"
+                data-testid="results-view"
+                className="mb-3 inline-flex gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1"
+              >
+                {(
+                  [
+                    ["now", "Now"],
+                    ["versions", "By version"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={resultsView === key}
+                    onClick={() => setResultsView(key)}
+                    className={`rounded-md px-3 py-1 text-[13px] font-medium transition-colors ${
+                      resultsView === key ? "bg-slate-800 text-slate-50" : "text-slate-400 hover:text-slate-100"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {resultsView === "versions" ? <ByVersion group={g} /> : listing}
               {extra.length > 0 ? (
                 <div className="mt-4">
                   <h3 className="mb-2 text-sm font-semibold text-slate-200">Fix proofs and changes</h3>
@@ -800,10 +829,22 @@ export function EvidenceLabScreen({
   );
 
   return (
-    <section aria-label="Evidence">
+    <section aria-label="Results">
+      {/* The design refactor (26 November 2026): this is the Results view of the Evidence section: what each check shows
+          now. What happened in order, who decided what and the files are its other three views. */}
       <PageHeader
-        eyebrow={current.is_demo ? <DemoDataLabel /> : undefined}
-        title="Evidence"
+        eyebrow={
+          <>
+            Evidence
+            {current.is_demo ? (
+              <>
+                {" "}
+                <DemoDataLabel />
+              </>
+            ) : null}
+          </>
+        }
+        title="Results"
         description={
           <>
             <p data-testid="lab-subline">

@@ -31,6 +31,7 @@ import {
 import { AlsoChecks } from "./checks/CheckPanel";
 import { RetestMenu, RetestStatus } from "./lab/RetestMenu";
 import { ItemLinkView } from "./related";
+import { HistoryOfPage } from "./evidence/HistoryFold";
 import { TestsScreen } from "./TestsScreen";
 import { ErrorBox } from "./ui";
 
@@ -437,7 +438,7 @@ export function ChecksScreen({
   return (
     <section aria-label="Checks">
       {thePlan}
-      <PageHeader title="Checks" description={view.subline} />
+      <PageHeader title="Checks" description={view.subline} actions={<HistoryOfPage area="checks" page="Checks" />} />
       {active !== null ? (
         <GroupTabs
           groups={view.groups}

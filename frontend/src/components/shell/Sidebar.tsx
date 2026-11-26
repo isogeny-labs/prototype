@@ -91,6 +91,7 @@ function NavLink({
   onNavigate,
   ariaLabel,
   currentKind = "page",
+  dense = false,
 }: {
   href: string;
   label: string;
@@ -105,8 +106,11 @@ function NavLink({
   ariaLabel?: string;
   /** What `current` means: the page (the default), or the open tab of a page. */
   currentKind?: "page" | "true";
+  dense?: boolean;
 }) {
-  const base = `flex items-center gap-2.5 rounded-md text-sm transition-colors ${collapsed ? "justify-center p-2" : nested ? "py-1.5 pl-9 pr-2" : "px-2.5 py-1.5"}`;
+  // (`dense`: the assessment's pages, which are many: a row is a little lower, so the whole path and Evidence under it
+  // fit a laptop screen without scrolling)
+  const base = `flex items-center gap-2.5 rounded-md text-sm transition-colors ${collapsed ? (dense ? "justify-center p-1.5" : "justify-center p-2") : nested ? (dense ? "py-1 pl-9 pr-2" : "py-1.5 pl-9 pr-2") : dense ? "px-2.5 py-1" : "px-2.5 py-1.5"}`;
   if (disabled) {
     return (
       <a
@@ -248,7 +252,7 @@ export function Sidebar({
     <div
       data-testid="sidebar"
       data-collapsed={collapsed || undefined}
-      className={`flex h-full flex-col gap-4 ${collapsed ? "w-16 px-2" : "w-64 px-3"} py-4`}
+      className={`flex h-full flex-col gap-3 ${collapsed ? "w-16 px-2" : "w-64 px-3"} py-3.5`}
     >
       <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} gap-2`}>
         {collapsed ? (
@@ -307,7 +311,7 @@ export function Sidebar({
                     {step.label && !collapsed ? (
                       <p
                         data-testid="sidebar-step-name"
-                        className="flex items-center gap-2 px-2.5 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+                        className="flex items-center gap-2 px-2.5 pb-0.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wide text-slate-500"
                       >
                         {step.n ? (
                           <span
@@ -342,6 +346,7 @@ export function Sidebar({
                               reason={access[item.page].reason}
                               collapsed={collapsed}
                               onNavigate={onNavigate}
+                              dense
                             />
                             {/* A page's own views, while one of them is open: the page then has no second strip. */}
                             {item.views && inside && !collapsed && access[item.page].open ? (
@@ -362,6 +367,7 @@ export function Sidebar({
                                       collapsed={collapsed}
                                       nested
                                       onNavigate={onNavigate}
+                                      dense
                                     />
                                   </li>
                                 ))}

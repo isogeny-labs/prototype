@@ -45,25 +45,28 @@ export function EntryPanel({
   entryId: string | null;
   onClose: () => void;
 }) {
-  const [detail, setDetail] = useState<TimelineEntryDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // What was read, with the entry it was read for: another entry's story is never shown under this one's name.
+  const [read, setRead] = useState<{ id: string; detail: TimelineEntryDetail | null; error: string | null } | null>(
+    null,
+  );
   useEffect(() => {
-    setDetail(null);
-    setError(null);
     if (entryId === null) return;
     let live = true;
     api
       .getTimelineEntry(planId, entryId)
       .then((next) => {
-        if (live) setDetail(next);
+        if (live) setRead({ id: entryId, detail: next, error: null });
       })
       .catch((e: unknown) => {
-        if (live) setError(errorMessage(e));
+        if (live) setRead({ id: entryId, detail: null, error: errorMessage(e) });
       });
     return () => {
       live = false;
     };
   }, [planId, entryId]);
+  const mine = read && read.id === entryId ? read : null;
+  const detail = mine?.detail ?? null;
+  const error = mine?.error ?? null;
 
   const entry = detail?.entry ?? null;
   return (
@@ -86,8 +89,7 @@ export function EntryPanel({
               {entry.outcome ? <ResultWord result={entry.outcome} testId="entry-outcome" /> : null}
               {entry.counts.map((c) => (
                 <span key={c.label} data-testid="entry-count" className="inline-flex items-center gap-1.5">
-                  <ResultWord result={c} />
-                  <span className="tabular-nums text-slate-400">{c.count}</span>
+                  <ResultWord result={c} /> <span className="tabular-nums text-slate-400">{c.count}</span>
                 </span>
               ))}
               {entry.marks.map((mark) => (

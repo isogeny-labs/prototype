@@ -6,6 +6,7 @@ import { AdvisoryPanel } from "./advisories/AdvisoryPanel";
 import { AdvisoryTable } from "./advisories/AdvisoryTable";
 import { FilterSelect, PageHeader, SearchInput, TableWithPanel, Toolbar } from "./layout";
 import { ItemLinkView } from "./related";
+import { HistoryOfPage } from "./evidence/HistoryFold";
 import { ErrorBox } from "./ui";
 
 interface Props {
@@ -146,7 +147,11 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
 
   return (
     <section data-testid="advisories-page" aria-label={view.title}>
-      <PageHeader title={view.title} description={view.subline} />
+      <PageHeader
+        title={view.title}
+        description={view.subline}
+        actions={<HistoryOfPage area="advisories" page="Advisories" />}
+      />
 
       <p
         data-testid="advisories-standing"

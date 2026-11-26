@@ -49,9 +49,13 @@ export function Who({ who, testId = "record-who" }: { who: RecordWho; testId?: s
       </span>
       {who.demo ? <DemoDataLabel /> : null}
       {who.button ? (
-        <span data-testid="record-button" className="text-slate-400">
-          with {who.button}
-        </span>
+        // (the space is for a screen reader and a copy; a flex box draws only its gap)
+        <>
+          {" "}
+          <span data-testid="record-button" className="text-slate-400">
+            with {who.button}
+          </span>
+        </>
       ) : null}
     </span>
   );
@@ -65,7 +69,7 @@ export function DayHeading({ date, count, noun }: { date: string; count: number;
       data-date={date}
       className="mb-2 flex items-baseline gap-2 text-sm font-semibold text-slate-200"
     >
-      <time dateTime={date}>{dayWords(date)}</time>
+      <time dateTime={date}>{dayWords(date)}</time>{" "}
       <span className="text-xs font-normal tabular-nums text-slate-500">
         {count} {count === 1 ? noun[0] : noun[1]}
       </span>
@@ -129,8 +133,7 @@ export function FilterChips({
                   : "border-slate-700 text-slate-300 hover:border-slate-500 hover:text-slate-100"
             }`}
           >
-            {f.label}
-            <span className="tabular-nums text-slate-500">{f.count}</span>
+            {f.label} <span className="tabular-nums text-slate-500">{f.count}</span>
           </button>
         );
       })}

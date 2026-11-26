@@ -12,7 +12,7 @@ import {
 } from "../api";
 import { DependenciesView } from "./dependencies/DependenciesView";
 import { RelatedFor } from "./related";
-import { HistoryFold } from "./evidence/HistoryFold";
+import { HistoryFold, HistoryOfPage } from "./evidence/HistoryFold";
 import { downloadEvidence } from "./evidenceDownload";
 import { Roadmap } from "./migration/Roadmap";
 import { SystemDetail } from "./migration/SystemDetail";
@@ -403,6 +403,12 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged, tab: shown
         }
         actions={
           <div className="flex max-w-xs flex-col items-end gap-1.5">
+            {/* The record of this page, one click away: the timeline with this page's entries chosen. */}
+            {tab === "dependencies" ? (
+              <HistoryOfPage area="dependencies" page="Dependencies" />
+            ) : (
+              <HistoryOfPage area="migration" page="Migration plan" />
+            )}
             <SecondaryButton
               disabled={acting || !measure.enabled}
               onClick={() => void act(() => api.measureMigration(current.plan_id), false)}
