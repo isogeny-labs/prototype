@@ -829,7 +829,9 @@ describe("Advisories, an advisory's panel", () => {
     const trial = within(inFold.getByTestId("advisory-trial"));
     expect(trial.getAllByRole("listitem").map((li) => li.textContent)).toEqual(test.trial.lines);
 
-    const ledger = within(inFold.getByTestId("proof-part-records")).getByTestId("advisory-ledger") as HTMLDetailsElement;
+    const ledger = within(inFold.getByTestId("proof-part-records")).getByTestId(
+      "advisory-ledger",
+    ) as HTMLDetailsElement;
     expect(ledger.tagName).toBe("DETAILS");
     expect(ledger.open).toBe(false);
     expect(text(ledger.querySelector("summary"))).toBe(`${test.ledger.title} (${test.ledger.count})`);

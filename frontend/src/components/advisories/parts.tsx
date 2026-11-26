@@ -92,9 +92,7 @@ export function TrialView({ trial, bare = false }: { trial: AdvisoryTrial; bare?
   return (
     <div data-testid="advisory-trial">
       {bare ? null : <h4 className="text-[13px] font-semibold text-slate-100">{trial.title}</h4>}
-      <ul
-        className={`${bare ? "" : "mt-1 "}list-disc space-y-1 pl-5 text-[13px] text-slate-300 marker:text-slate-500`}
-      >
+      <ul className={`${bare ? "" : "mt-1 "}list-disc space-y-1 pl-5 text-[13px] text-slate-300 marker:text-slate-500`}>
         {trial.lines.map((line, i) => (
           <li key={i} className="break-words">
             {line}

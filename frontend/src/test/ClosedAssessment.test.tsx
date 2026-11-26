@@ -117,7 +117,7 @@ describe("closed assessment is read-only", () => {
   it("keeps the navigation on: every open page can still be looked at", async () => {
     await openClosed("overview");
     const nav = within(screen.getByRole("navigation", { name: "Assessment" }));
-    for (const name of ["Overview", "Import", "Checks", "Evidence"]) {
+    for (const name of ["Overview", "Import", "Checks", "Results"]) {
       expect(nav.getByRole("link", { name }).getAttribute("aria-disabled"), name).toBeNull();
     }
     fireEvent.click(nav.getByRole("link", { name: "Checks" }));

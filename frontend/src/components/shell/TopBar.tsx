@@ -1,5 +1,5 @@
 import type { AssessmentView, Session } from "../../api";
-import { PAGE_NAMES, type Route } from "../../router";
+import { PAGE_NAMES, sectionOf, type Route } from "../../router";
 import { StatusChip } from "../ui";
 import { Icon } from "./icons";
 
@@ -24,11 +24,7 @@ function Breadcrumbs({
     for (const f of assessment.path) crumbs.push({ label: f.name });
     crumbs.push({ label: assessment.project.name, href: `#/p/${assessment.project.id}` });
     crumbs.push({ label: assessment.title, href: `#/a/${assessment.id}/overview` });
-    const section = route.page.startsWith("inventory/")
-      ? "Inventory"
-      : route.page.startsWith("migration/")
-        ? "Migration"
-        : null;
+    const section = sectionOf(route.page);
     if (section) crumbs.push({ label: section });
     crumbs.push({ label: PAGE_TITLES[route.page] ?? "" });
   }

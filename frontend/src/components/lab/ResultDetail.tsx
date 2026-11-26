@@ -363,7 +363,10 @@ export function ResultDetail({
         ) : null}
         <div className="mt-3 space-y-1.5">
           {tag ? (
-            <GlanceFact icon={tag.key === "lab" ? "tests" : tag.key === "live" ? "signal" : "file"} testId="source-line">
+            <GlanceFact
+              icon={tag.key === "lab" ? "tests" : tag.key === "live" ? "signal" : "file"}
+              testId="source-line"
+            >
               <span data-testid="source-note" data-source={tag.key}>
                 {tag.note ?? tag.meaning}
               </span>

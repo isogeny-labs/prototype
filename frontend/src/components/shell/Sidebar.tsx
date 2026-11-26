@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import type { AssessmentBrief, AssessmentView, Workspace, WorkspaceProject } from "../../api";
-import type { GroupNav } from "../layout";
 import { pageHref, type Page, type Route } from "../../router";
 import { StatusChip, useDismiss, Wordmark } from "../ui";
 import { Icon } from "./icons";
@@ -12,39 +11,73 @@ interface Item {
   page: Page;
   label: string;
   icon: string;
-  children?: { page: Page; label: string; icon: string }[];
+  /** The views of a page that has several (Migration plan): listed under it while one of them is open. */
+  views?: { page: Page; label: string; icon: string }[];
 }
 
-// The pages of an open assessment, in today's order. Inventory holds today's Import and Verify, Evidence today's
-// Evidence Lab; Migration keeps its three views as sub-items. Phase 5c: Advisories sits between Inventory and Checks.
-export const ASSESSMENT_ITEMS: Item[] = [
-  { page: "overview", label: "Overview", icon: "overview" },
+interface Step {
+  /** The step's number on the path, 1 to 6. Evidence has none: it is kept all along. */
+  n?: number;
+  /** What the step is called. The Overview stands alone, above the path, and has none. */
+  label?: string;
+  items: Item[];
+}
+
+// The design refactor (26 November 2026): the pages of an open assessment as a path of six steps, in the order the
+// work goes, and then Evidence, the record kept all along, with its four views. A page is listed once. The four work
+// groups are tabs on their pages and are not repeated here; "Migration plan" is the page (its three views are listed
+// under it while it is open), and "Migration" is the work group.
+export const ASSESSMENT_STEPS: Step[] = [
+  { items: [{ page: "overview", label: "Overview", icon: "overview" }] },
+  { n: 1, label: "Bring in", items: [{ page: "inventory/import", label: "Import", icon: "import" }] },
   {
-    page: "inventory/import",
-    label: "Inventory",
-    icon: "inventory",
-    children: [
-      { page: "inventory/import", label: "Import", icon: "import" },
+    n: 2,
+    label: "Observe",
+    items: [
+      { page: "observatory", label: "Observatory", icon: "map" },
       { page: "inventory/verify", label: "Verify", icon: "verify" },
     ],
   },
-  { page: "advisories", label: "Advisories", icon: "advisories" },
-  { page: "checks", label: "Checks", icon: "tests" },
-  { page: "evidence", label: "Evidence", icon: "evidence" },
-  { page: "fixes", label: "Fixes", icon: "fixes" },
-  // Phase 6d: a developer's change in the connected demo repository, and the tests picked for it.
-  { page: "change-watch", label: "Change watch", icon: "watch" },
   {
-    page: "migration/systems",
-    label: "Migration",
-    icon: "migration",
-    children: [
-      { page: "migration/systems", label: "Systems", icon: "systems" },
-      { page: "migration/roadmap", label: "Roadmap", icon: "roadmap" },
-      { page: "migration/dependencies", label: "Dependencies", icon: "dependencies" },
+    n: 3,
+    label: "Test",
+    items: [
+      { page: "advisories", label: "Advisories", icon: "advisories" },
+      { page: "checks", label: "Checks", icon: "tests" },
+    ],
+  },
+  { n: 4, label: "Fix", items: [{ page: "fixes", label: "Fixes", icon: "fixes" }] },
+  {
+    n: 5,
+    label: "Plan the move",
+    items: [
+      {
+        page: "migration/systems",
+        label: "Migration plan",
+        icon: "migration",
+        views: [
+          { page: "migration/systems", label: "Systems", icon: "systems" },
+          { page: "migration/roadmap", label: "Roadmap", icon: "roadmap" },
+          { page: "migration/dependencies", label: "Dependencies", icon: "dependencies" },
+        ],
+      },
+    ],
+  },
+  // Phase 6d: a developer's change in the connected demo repository, and the tests picked for it.
+  { n: 6, label: "Keep watching", items: [{ page: "change-watch", label: "Change watch", icon: "watch" }] },
+  {
+    label: "Evidence",
+    items: [
+      { page: "evidence/timeline", label: "Timeline", icon: "clock" },
+      { page: "evidence", label: "Results", icon: "evidence" },
+      { page: "evidence/decisions", label: "Approvals and decisions", icon: "person" },
+      { page: "evidence/files", label: "Evidence files", icon: "file" },
     ],
   },
 ];
+
+/** Every page of an assessment as the sidebar lists it, in order (a page with views counts once, with its views). */
+export const ASSESSMENT_ITEMS: Item[] = ASSESSMENT_STEPS.flatMap((step) => step.items);
 
 function NavLink({
   href,
@@ -180,7 +213,7 @@ function AssessmentPicker({
 }
 
 /** The left sidebar: organization and project switcher on top, the project's overview and the assessment picker, the
- * open assessment's pages, Projects and Settings at the bottom. Collapses to icons; on a narrow screen it is shown as a
+ * open assessment's pages as six numbered steps and then Evidence, Projects and Settings at the bottom. Collapses to icons; on a narrow screen it is shown as a
  * menu by the top bar's Menu button. */
 export function Sidebar({
   workspace,
@@ -194,7 +227,6 @@ export function Sidebar({
   projectId,
   assessments,
   onNewAssessment,
-  groups = null,
 }: {
   workspace: Workspace | null;
   assessment: AssessmentView | null;
@@ -209,8 +241,6 @@ export function Sidebar({
   onNewAssessment: () => void;
   /** Called after a link is followed (the narrow-screen menu closes itself). */
   onNavigate?: () => void;
-  /** 20 November 2026: the work groups of the open page (Checks, Evidence or Fixes) and its open tab, listed under it. */
-  groups?: GroupNav | null;
 }) {
   const page = route.kind === "assessment" ? route.page : null;
   const id = assessment?.id ?? null;
@@ -269,69 +299,82 @@ export function Sidebar({
                 onNavigate={onNavigate}
               />
             )}
-            <ul className="space-y-0.5">
-              {ASSESSMENT_ITEMS.map((item) => {
-                const inside = item.children?.some((c) => c.page === page) ?? false;
+            <ol data-testid="sidebar-steps" className="space-y-0.5">
+              {ASSESSMENT_STEPS.map((step, at) => {
+                const headingId = step.label ? `sidebar-step-${at}` : undefined;
                 return (
-                  <li key={item.label}>
-                    <NavLink
-                      href={pageHref(id, item.page)}
-                      label={item.label}
-                      icon={item.icon}
-                      current={item.children ? inside && collapsed : page === item.page}
-                      disabled={!access[item.page].open}
-                      reason={access[item.page].reason}
-                      collapsed={collapsed}
-                      onNavigate={onNavigate}
-                    />
-                    {/* The four work groups of the open page, each opening its tab (named with the page for a screen
-                        reader: "Migration" and "Dependencies" are pages of their own too). */}
-                    {!item.children && groups && page === item.page && !collapsed && access[item.page].open ? (
-                      <ul
-                        data-testid="sidebar-groups"
-                        aria-label={`${item.label} groups`}
-                        className="mt-0.5 space-y-0.5"
+                  <li key={step.label ?? "overview"} data-testid="sidebar-step" data-step={step.n ?? undefined}>
+                    {step.label && !collapsed ? (
+                      <p
+                        data-testid="sidebar-step-name"
+                        className="flex items-center gap-2 px-2.5 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
                       >
-                        {groups.groups.map((g) => (
-                          <li key={g.key}>
+                        {step.n ? (
+                          <span
+                            aria-hidden="true"
+                            className="grid h-4 w-4 place-items-center rounded-full border border-slate-700 text-[10px] tabular-nums text-slate-400"
+                          >
+                            {step.n}
+                          </span>
+                        ) : (
+                          <Icon name="evidence" className="h-3.5 w-3.5 text-slate-500" />
+                        )}
+                        {/* (read out as "Step 2: Observe"; the list under it takes this as its name) */}
+                        <span id={headingId}>
+                          {step.n ? <span className="sr-only">Step {step.n}: </span> : null}
+                          {step.label}
+                        </span>
+                      </p>
+                    ) : step.label && collapsed ? (
+                      <div aria-hidden="true" className="mx-2 my-1.5 border-t border-slate-800" />
+                    ) : null}
+                    <ul aria-labelledby={collapsed ? undefined : headingId} className="space-y-0.5">
+                      {step.items.map((item) => {
+                        const inside = item.views?.some((v) => v.page === page) ?? false;
+                        return (
+                          <li key={item.label}>
                             <NavLink
-                              href={pageHref(id, item.page, null, g.key)}
-                              label={g.label}
-                              ariaLabel={`${g.label} on ${item.label}`}
+                              href={pageHref(id, item.page)}
+                              label={item.label}
                               icon={item.icon}
-                              current={groups.active === g.key}
-                              currentKind="true"
+                              current={item.views ? inside && collapsed : page === item.page}
+                              disabled={!access[item.page].open}
+                              reason={access[item.page].reason}
                               collapsed={collapsed}
-                              nested
                               onNavigate={onNavigate}
                             />
+                            {/* A page's own views, while one of them is open: the page then has no second strip. */}
+                            {item.views && inside && !collapsed && access[item.page].open ? (
+                              <ul
+                                data-testid="sidebar-views"
+                                aria-label={`${item.label} views`}
+                                className="mt-0.5 space-y-0.5"
+                              >
+                                {item.views.map((v) => (
+                                  <li key={v.page}>
+                                    <NavLink
+                                      href={pageHref(id, v.page)}
+                                      label={v.label}
+                                      icon={v.icon}
+                                      current={page === v.page}
+                                      disabled={!access[v.page].open}
+                                      reason={access[v.page].reason}
+                                      collapsed={collapsed}
+                                      nested
+                                      onNavigate={onNavigate}
+                                    />
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
                           </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    {item.children && !collapsed && access[item.page].open ? (
-                      <ul className="mt-0.5 space-y-0.5">
-                        {item.children.map((c) => (
-                          <li key={c.page}>
-                            <NavLink
-                              href={pageHref(id, c.page)}
-                              label={c.label}
-                              icon={c.icon}
-                              current={page === c.page}
-                              disabled={!access[c.page].open}
-                              reason={access[c.page].reason}
-                              collapsed={collapsed}
-                              nested
-                              onNavigate={onNavigate}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
+                        );
+                      })}
+                    </ul>
                   </li>
                 );
               })}
-            </ul>
+            </ol>
           </>
         ) : collapsed ? null : (
           <p className="px-2.5 text-xs leading-relaxed text-slate-500">

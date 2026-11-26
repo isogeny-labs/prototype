@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "../App";
 import { ItemLinkView } from "../components/related";
@@ -33,24 +33,58 @@ const workspaceNav = () => within(screen.getByRole("navigation", { name: "Worksp
 const labels = (nav: ReturnType<typeof within>) => nav.getAllByRole("link").map((a: HTMLElement) => text(a));
 
 describe("sidebar", () => {
-  it("lists the assessment's pages in order, with Migration's three views, and Projects and Settings at the bottom", async () => {
+  it("lists the assessment's pages as a path of six numbered steps and then Evidence, each page once, with Projects and Settings at the bottom", async () => {
     await openAcme();
-    // Phase 5c: Advisories sits between Inventory and Checks. Phase 6d: Change watch comes after Fixes.
+    // The design refactor (26 November 2026): the pages in the order the work goes. Observing (the map, the claims)
+    // and testing are two steps; Evidence, the record kept all along, comes last with its four views.
     expect(labels(assessmentNav())).toEqual([
       "Overview",
-      "Inventory",
       "Import",
+      "Observatory",
       "Verify",
       "Advisories",
       "Checks",
-      "Evidence",
       "Fixes",
+      "Migration plan",
       "Change watch",
-      "Migration",
-      "Systems",
-      "Roadmap",
-      "Dependencies",
+      "Timeline",
+      "Results",
+      "Approvals and decisions",
+      "Evidence files",
     ]);
+    // The steps, with their numbers (a step's name is a heading of the list under it, not a link).
+    const steps = screen.getAllByTestId("sidebar-step");
+    expect(
+      steps.map((li) => [li.getAttribute("data-step"), text(within(li).queryByTestId("sidebar-step-name"))]),
+    ).toEqual([
+      [null, ""],
+      ["1", "1Step 1: Bring in"],
+      ["2", "2Step 2: Observe"],
+      ["3", "3Step 3: Test"],
+      ["4", "4Step 4: Fix"],
+      ["5", "5Step 5: Plan the move"],
+      ["6", "6Step 6: Keep watching"],
+      [null, "Evidence"],
+    ]);
+    expect(
+      steps.map((li) =>
+        within(li)
+          .getAllByRole("link")
+          .map((a) => text(a)),
+      ),
+    ).toEqual([
+      ["Overview"],
+      ["Import"],
+      ["Observatory", "Verify"],
+      ["Advisories", "Checks"],
+      ["Fixes"],
+      ["Migration plan"],
+      ["Change watch"],
+      ["Timeline", "Results", "Approvals and decisions", "Evidence files"],
+    ]);
+    // Each step's pages are a list named by the step.
+    expect(screen.getByRole("list", { name: /^Step 2:\s*Observe$/ })).not.toBeNull();
+    expect(screen.getByRole("list", { name: /^Evidence$/ })).not.toBeNull();
     expect(labels(workspaceNav())).toEqual(["Projects", "Settings"]);
     expect(screen.getByTestId("organization-name").textContent).toBe(ORG);
     expect(screen.getAllByText("Isogeny Labs").length).toBeGreaterThan(0);
@@ -64,10 +98,19 @@ describe("sidebar", () => {
         .getAllByRole("link")
         .filter((a) => a.getAttribute("aria-current") === "page"),
     ).toHaveLength(1);
-    expect(assessmentNav().getByRole("link", { name: "Evidence" }).getAttribute("href")).toBe("#/a/101/evidence");
-    expect(assessmentNav().getByRole("link", { name: "Dependencies" }).getAttribute("href")).toBe(
-      "#/a/101/migration/dependencies",
-    );
+    // Results keeps the address Evidence always had, so every link ever made to a result still opens it.
+    expect(assessmentNav().getByRole("link", { name: "Results" }).getAttribute("href")).toBe("#/a/101/evidence");
+    expect(
+      ["Observatory", "Timeline", "Approvals and decisions", "Evidence files", "Migration plan"].map((name) =>
+        assessmentNav().getByRole("link", { name }).getAttribute("href"),
+      ),
+    ).toEqual([
+      "#/a/101/observatory",
+      "#/a/101/evidence/timeline",
+      "#/a/101/evidence/decisions",
+      "#/a/101/evidence/files",
+      "#/a/101/migration/systems",
+    ]);
     expect(workspaceNav().getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("#/settings");
   });
 
@@ -92,7 +135,19 @@ describe("sidebar", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "Assessment 1" });
     const nav = assessmentNav();
-    for (const name of ["Verify", "Advisories", "Checks", "Evidence", "Fixes", "Migration"]) {
+    for (const name of [
+      "Observatory",
+      "Verify",
+      "Advisories",
+      "Checks",
+      "Fixes",
+      "Migration plan",
+      "Change watch",
+      "Timeline",
+      "Results",
+      "Approvals and decisions",
+      "Evidence files",
+    ]) {
       const link = nav.getByRole("link", { name });
       expect(link.getAttribute("aria-disabled"), name).toBe("true");
       expect(link.getAttribute("href"), name).toBeNull();
@@ -110,28 +165,40 @@ describe("sidebar", () => {
     expect(workspaceNav().getByRole("link", { name: "Projects" }).getAttribute("aria-current")).toBe("page");
   });
 
-  it("lists the four work groups under the open page only (Checks, Evidence or Fixes), never when collapsed to icons", async () => {
+  it("does not repeat the four work groups: they are the tabs of their page, and a page's own views are listed only while it is open", async () => {
     await openAcme("evidence", {
       "GET /api/plans/1/lab": { body: lab },
       "GET /api/plans/1/checks": { body: checksView },
     });
-    const groups = await screen.findByTestId("sidebar-groups");
-    expect(groups.getAttribute("aria-label")).toBe("Evidence groups");
-    expect(
-      within(groups)
-        .getAllByRole("link")
-        .map((a) => a.getAttribute("aria-label")),
-    ).toEqual([
-      "Verification on Evidence",
-      "Crypto tests on Evidence",
-      "Migration on Evidence",
-      "Dependencies on Evidence",
-    ]);
-    // the page's own link and Migration's own pages keep their names: a link named "Dependencies" is still one
-    expect(assessmentNav().getAllByRole("link", { name: "Dependencies" })).toHaveLength(1);
-    expect(assessmentNav().getByRole("link", { name: "Evidence" }).getAttribute("aria-current")).toBe("page");
-    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    await screen.findByRole("tab", { name: /^Crypto tests/ });
+    // One way to move between groups, not two: no group is a link in the sidebar, so "Migration" and "Dependencies"
+    // are never there twice.
     expect(screen.queryByTestId("sidebar-groups")).toBeNull();
+    expect(
+      assessmentNav().queryByRole("link", { name: /^Verification|^Crypto tests|^Migration$|^Dependencies$/ }),
+    ).toBeNull();
+    expect(assessmentNav().getByRole("link", { name: "Results" }).getAttribute("aria-current")).toBe("page");
+    // Migration plan's three views are not listed while another page is open...
+    expect(screen.queryByTestId("sidebar-views")).toBeNull();
+  });
+
+  it("lists Migration plan's three views under it while one of them is open, and marks the open one", async () => {
+    await openAcme("migration/roadmap");
+    const views = await screen.findByTestId("sidebar-views");
+    expect(views.getAttribute("aria-label")).toBe("Migration plan views");
+    expect(
+      within(views)
+        .getAllByRole("link")
+        .map((a) => [text(a), a.getAttribute("href"), a.getAttribute("aria-current")]),
+    ).toEqual([
+      ["Systems", "#/a/101/migration/systems", null],
+      ["Roadmap", "#/a/101/migration/roadmap", "page"],
+      ["Dependencies", "#/a/101/migration/dependencies", null],
+    ]);
+    // Collapsed to icons the views go, and the page's own icon is the one marked.
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(screen.queryByTestId("sidebar-views")).toBeNull();
+    expect(assessmentNav().getByRole("link", { name: "Migration plan" }).getAttribute("aria-current")).toBe("page");
   });
 
   it("collapses to icons, keeps every accessible name, and remembers it for the next visit", async () => {
@@ -142,7 +209,21 @@ describe("sidebar", () => {
     expect(screen.getByTestId("sidebar").getAttribute("data-collapsed")).toBe("true");
     expect(screen.getByRole("button", { name: "Expand sidebar" }).getAttribute("aria-pressed")).toBe("true");
     // Names stay available to screen readers; the long organization line is gone.
-    for (const name of ["Overview", "Inventory", "Advisories", "Checks", "Evidence", "Fixes", "Migration"]) {
+    for (const name of [
+      "Overview",
+      "Import",
+      "Observatory",
+      "Verify",
+      "Advisories",
+      "Checks",
+      "Fixes",
+      "Migration plan",
+      "Change watch",
+      "Timeline",
+      "Results",
+      "Approvals and decisions",
+      "Evidence files",
+    ]) {
       expect(assessmentNav().getByRole("link", { name }), name).not.toBeNull();
     }
     expect(workspaceNav().getByRole("link", { name: "Projects" })).not.toBeNull();
@@ -166,7 +247,7 @@ describe("sidebar", () => {
     expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const menu = screen.getByRole("dialog", { name: "Menu" });
-    expect(within(menu).getByRole("link", { name: "Evidence" })).not.toBeNull();
+    expect(within(menu).getByRole("link", { name: "Results" })).not.toBeNull();
     expect(within(menu).getByRole("link", { name: "Settings" })).not.toBeNull();
     fireEvent.keyDown(menu, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
@@ -196,14 +277,20 @@ describe("top bar", () => {
     expect(crumbs().getByRole("link", { name: "Acme Pay" }).getAttribute("href")).toBe("#/p/10");
   });
 
-  it("adds the section for pages inside Inventory and Migration", async () => {
-    await openAcme("inventory/verify");
-    expect(
+  it("adds the section for a view of Migration plan or of Evidence, and none for a page that stands alone", async () => {
+    const last = (n: number) =>
       crumbs()
         .getAllByRole("listitem")
         .map((li) => text(li).replace(/^\/\s*/, ""))
-        .slice(-3),
-    ).toEqual(["Assessment 2", "Inventory", "Verify"]);
+        .slice(-n);
+    await openAcme("inventory/verify");
+    expect(last(2)).toEqual(["Assessment 2", "Verify"]);
+    cleanup();
+    await openAcme("migration/roadmap");
+    expect(last(3)).toEqual(["Assessment 2", "Migration plan", "Roadmap"]);
+    cleanup();
+    await openAcme("evidence", { "GET /api/plans/1/lab": { body: lab } });
+    expect(last(3)).toEqual(["Assessment 2", "Evidence", "Results"]);
   });
 
   it("names Advisories as a page of its own, with no section before it (phase 5c)", async () => {

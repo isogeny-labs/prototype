@@ -259,7 +259,7 @@ describe("Overview blocks", () => {
 });
 
 describe("Overview links into a work group (20 November 2026: the groups are tabs)", () => {
-  it("a group's Checks and Fixes counts open that group's tab, and the sidebar marks it", async () => {
+  it("a group's Checks and Fixes counts open that group's tab", async () => {
     await show({
       "GET /api/plans/1/checks": { body: checksView },
       "GET /api/plans/1/lab": { body: lab },
@@ -270,13 +270,8 @@ describe("Overview links into a work group (20 November 2026: the groups are tab
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?group=migration"));
     expect((await screen.findByRole("tab", { name: "Migration" })).getAttribute("aria-selected")).toBe("true");
     expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["migration"]);
-    await waitFor(() =>
-      expect(
-        within(screen.getByTestId("sidebar-groups"))
-          .getByRole("link", { name: "Migration on Checks" })
-          .getAttribute("aria-current"),
-      ).toBe("true"),
-    );
+    // (the groups are the page's tabs; the sidebar does not repeat them)
+    expect(screen.queryByTestId("sidebar-groups")).toBeNull();
     // Crypto tests' fixes: Fixes opens on Crypto tests, with its fixes
     fireEvent.click(
       within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }),

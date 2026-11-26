@@ -434,36 +434,40 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged, tab: shown
         {current.disclaimer}
       </p>
 
-      <div
-        role="group"
-        aria-label="Migration views"
-        className="mt-5 inline-flex gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1"
-      >
-        <button
-          type="button"
-          aria-pressed={tab === "systems"}
-          onClick={() => setTab("systems")}
-          className={tabClass(tab === "systems")}
+      {/* The design refactor (26 November 2026): inside the app the three views are listed in the sidebar under
+          "Migration plan", so the page has no second strip. Where the screen stands alone it keeps its own switch. */}
+      {onTab ? null : (
+        <div
+          role="group"
+          aria-label="Migration views"
+          className="mt-5 inline-flex gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1"
         >
-          {current.tabs.systems}
-        </button>
-        <button
-          type="button"
-          aria-pressed={tab === "roadmap"}
-          onClick={() => setTab("roadmap")}
-          className={tabClass(tab === "roadmap")}
-        >
-          {current.tabs.roadmap}
-        </button>
-        <button
-          type="button"
-          aria-pressed={tab === "dependencies"}
-          onClick={() => setTab("dependencies")}
-          className={tabClass(tab === "dependencies")}
-        >
-          {current.tabs.dependencies}
-        </button>
-      </div>
+          <button
+            type="button"
+            aria-pressed={tab === "systems"}
+            onClick={() => setTab("systems")}
+            className={tabClass(tab === "systems")}
+          >
+            {current.tabs.systems}
+          </button>
+          <button
+            type="button"
+            aria-pressed={tab === "roadmap"}
+            onClick={() => setTab("roadmap")}
+            className={tabClass(tab === "roadmap")}
+          >
+            {current.tabs.roadmap}
+          </button>
+          <button
+            type="button"
+            aria-pressed={tab === "dependencies"}
+            onClick={() => setTab("dependencies")}
+            className={tabClass(tab === "dependencies")}
+          >
+            {current.tabs.dependencies}
+          </button>
+        </div>
+      )}
 
       <div className="mt-5">
         {tab === "dependencies" ? (

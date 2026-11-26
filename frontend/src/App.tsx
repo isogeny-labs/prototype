@@ -38,7 +38,6 @@ import { setAlgorithmNames } from "./plainNames";
 import { applyTheme, prefs, type Theme } from "./prefs";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "./readOnly";
 import {
-  type GroupNav,
   HiddenPageNotesContext,
   ItemMissing,
   ItemPageContext,
@@ -68,8 +67,6 @@ export default function App() {
   const [plan, setPlan] = useState<PlanView | null>(null);
   // The fix that is open in Fixes. "View in Fixes" in Evidence or Migration sets it.
   const [fixId, setFixId] = useState<string | null>(null);
-  // 20 November 2026: the tab Checks, Evidence or Fixes shows, and its groups, for the sidebar (the page says them).
-  const [groupNav, setGroupNav] = useState<{ page: Page; nav: GroupNav } | null>(null);
   const [theme, setTheme] = useState<Theme>(prefs.theme);
   const [collapsed, setCollapsed] = useState(prefs.sidebarCollapsed);
   const [copilotShown, setCopilotShown] = useState(prefs.copilotShown);
@@ -336,15 +333,19 @@ export default function App() {
   const access: PageAccess = {
     overview: { open: true },
     "inventory/import": { open: true },
+    observatory: withFile,
     "inventory/verify": withFile,
     advisories: withFile,
     checks: withFile,
-    evidence: withFile,
     fixes: withFile,
-    "change-watch": withFile,
     "migration/systems": withFile,
     "migration/roadmap": withFile,
     "migration/dependencies": withFile,
+    "change-watch": withFile,
+    "evidence/timeline": withFile,
+    evidence: withFile,
+    "evidence/decisions": withFile,
+    "evidence/files": withFile,
   };
   // A page whose data is not there (yet) falls back to Import, as the step bar did.
   const page: Page | null =
@@ -378,7 +379,6 @@ export default function App() {
     if (route.kind !== "assessment") return;
     navigate({ ...route, group, item: null, view: null });
   }
-  const showGroups = (shownOn: Page) => (nav: GroupNav) => setGroupNav({ page: shownOn, nav });
 
   /** Where an answer of Otto's leads (phase 6b): a page, one item on it, and the filters of its table; or Settings. */
   function goTo(where: {
@@ -564,7 +564,6 @@ export default function App() {
         pickProject(p);
       }}
       onNavigate={() => setMenuOpen(false)}
-      groups={page !== null && groupNav?.page === page ? groupNav.nav : null}
       projectId={projectId}
       assessments={projectView?.id === projectId ? projectView.assessments : []}
       onNewAssessment={() => {
@@ -705,7 +704,6 @@ export default function App() {
         from={filters.from}
         onFilters={setFilters}
         onGroup={setGroup}
-        onGroupShown={showGroups("checks")}
       />
     );
   } else if (page === "evidence" && plan) {
@@ -718,7 +716,6 @@ export default function App() {
         result={filters.result}
         onFilters={setFilters}
         onGroup={setGroup}
-        onGroupShown={showGroups("evidence")}
       />
     );
   } else if (page === "fixes" && plan) {
@@ -731,7 +728,6 @@ export default function App() {
         onPlanChanged={() => void reloadPlan()}
         group={route.kind === "assessment" ? (route.group ?? null) : null}
         onGroup={setGroup}
-        onGroupShown={showGroups("fixes")}
       />
     );
   } else if (page === "change-watch" && plan) {

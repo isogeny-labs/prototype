@@ -6,32 +6,44 @@ import { useCallback, useEffect, useState } from "react";
  * Phase 5c: Advisories is a page of every assessment (between Inventory and Checks), and Settings can open on one of
  * its sections (#/settings?section=test-packs).
  * The 5c fixes: an item can be opened on a page of its own (#/a/<id>/<page>?item=<id>&view=page), from "Open in new
- * tab" in its side panel. The address can be bookmarked and opened again. */
+ * tab" in its side panel. The address can be bookmarked and opened again.
+ * The design refactor (26 November 2026): the Observatory (the map of the systems the files describe) is a page of
+ * every assessment, and Evidence is a section of four views. Its Results view keeps the address Evidence always had
+ * (#/a/<id>/evidence), so every link that was ever made to a result still opens it; the other three are
+ * evidence/timeline, evidence/decisions and evidence/files. */
 export type Page =
   | "overview"
   | "inventory/import"
+  | "observatory"
   | "inventory/verify"
   | "advisories"
   | "checks"
-  | "evidence"
   | "fixes"
-  | "change-watch"
   | "migration/systems"
   | "migration/roadmap"
-  | "migration/dependencies";
+  | "migration/dependencies"
+  | "change-watch"
+  | "evidence/timeline"
+  | "evidence"
+  | "evidence/decisions"
+  | "evidence/files";
 
 export const PAGES: Page[] = [
   "overview",
   "inventory/import",
+  "observatory",
   "inventory/verify",
   "advisories",
   "checks",
-  "evidence",
   "fixes",
-  "change-watch",
   "migration/systems",
   "migration/roadmap",
   "migration/dependencies",
+  "change-watch",
+  "evidence/timeline",
+  "evidence",
+  "evidence/decisions",
+  "evidence/files",
 ];
 
 export type AssessmentRoute = {
@@ -40,7 +52,8 @@ export type AssessmentRoute = {
   page: Page;
   /** One item to open on the page: a claim, check, fix, system or library id. */
   item?: string | null;
-  /** The work group to filter the page to. */
+  /** The work group to filter the page to. On the Evidence timeline and on Approvals and decisions: the area (the
+   * page) whose records to list ("History of Fixes" opens the timeline with Fixes chosen). */
   group?: string | null;
   section?: string | null;
   /** "page": the item named by `item` on a page of its own, in place of the list with its side panel. */
@@ -60,6 +73,7 @@ export type Route = { kind: "projects" } | SettingsRoute | { kind: "project"; id
 
 function pageOf(text: string | undefined): Page {
   if (text === "tests") return "checks"; // the phase 5a address of Tests still opens it
+  if (text === "evidence/results") return "evidence"; // (the Results view of Evidence, under the name the sidebar gives it)
   return (PAGES as string[]).includes(text ?? "") ? (text as Page) : "overview";
 }
 
@@ -136,16 +150,28 @@ export function itemPageHref(id: number, page: Page, item: string): string {
 export const PAGE_NAMES: Record<Page, string> = {
   overview: "Overview",
   "inventory/import": "Import",
+  observatory: "Observatory",
   "inventory/verify": "Verify",
   advisories: "Advisories",
   checks: "Checks",
-  evidence: "Evidence",
   fixes: "Fixes",
-  "change-watch": "Change watch",
   "migration/systems": "Systems",
   "migration/roadmap": "Roadmap",
   "migration/dependencies": "Dependencies",
+  "change-watch": "Change watch",
+  "evidence/timeline": "Timeline",
+  evidence: "Results",
+  "evidence/decisions": "Approvals and decisions",
+  "evidence/files": "Evidence files",
 };
+
+/** The section a page sits in, where the sidebar lists it under one: said before the page's own name in the
+ * breadcrumb ("Evidence / Results", "Migration plan / Roadmap"). */
+export function sectionOf(page: Page): string | null {
+  if (page.startsWith("migration/")) return "Migration plan";
+  if (page === "evidence" || page.startsWith("evidence/")) return "Evidence";
+  return null;
+}
 
 /** A link the backend sent (page and item): where it goes, in this assessment or the one it names. Phase 5c: a link
  * whose page is "settings" opens Settings (on the section it names), which belongs to no assessment. */

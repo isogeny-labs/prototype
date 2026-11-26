@@ -32,10 +32,7 @@ export function ResultOttoBlock({
           <span>{block.title}</span>
         </p>
       )}
-      <p
-        data-testid="result-otto-line"
-        className={`${bare ? "" : "mt-1.5 "}break-words text-[13px] text-slate-300`}
-      >
+      <p data-testid="result-otto-line" className={`${bare ? "" : "mt-1.5 "}break-words text-[13px] text-slate-300`}>
         {block.line}{" "}
         <ItemLinkView link={block.advisory.link} testId="result-otto-advisory">
           {block.advisory.label}
