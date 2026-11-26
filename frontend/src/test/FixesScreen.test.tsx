@@ -203,7 +203,7 @@ describe("Fixes, the page", () => {
     expect(screen.queryByTestId("fix-summary")).toBeNull();
     // Nothing to press but the four tabs.
     expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+    expect(screen.getAllByRole("tab").map((t) => t.firstChild!.textContent)).toEqual([
       "Verification",
       "Crypto tests",
       "Migration",
@@ -1159,7 +1159,7 @@ describe("Fixes, a text-only suggestion", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
     // The only buttons left are the two findings, the fold of the suggestion and the panel's close button (and its
     // width handle); the groups are tabs.
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+    expect(screen.getAllByRole("tab").map((t) => t.firstChild!.textContent)).toEqual([
       "Verification",
       "Crypto tests",
       "Migration",
@@ -1387,12 +1387,15 @@ describe("Fixes, the four work groups", () => {
     mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
     render(<Harness start={null} />);
     await screen.findAllByTestId("fix-row");
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+    expect(screen.getAllByRole("tab").map((t) => t.firstChild!.textContent)).toEqual([
       "Verification",
       "Crypto tests",
       "Migration",
       "Dependencies",
     ]);
+    // Each tab says how many fixes it holds (26 November 2026). A fix is no finding by itself, so no tab counts any.
+    expect(screen.getAllByTestId("group-tab-total").map((n) => n.textContent)).toEqual(["0", "2", "0", "0"]);
+    expect(screen.queryByTestId("group-tab-findings")).toBeNull();
     expect(shownGroups()).toEqual(["encryption"]);
     // The counts are the backend's, word for word: the code fix is in review, the text-only one is open.
     expect(within(groupSection("Crypto tests")).getByTestId("group-counts").textContent).toBe(
@@ -1725,6 +1728,26 @@ describe("Fixes, where each fix came from", () => {
     expect(proofTags.map((t) => t.textContent)).toEqual(["Proven in the lab"]);
     expect(proofTags[0]!.closest("p, div")!.textContent).toContain("Proof passed");
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("lists the fixes in parts, by what the finding of each rests on, and counts a developer's change in none", async () => {
+    await open(fixesViews.ready);
+    const parts = screen.getAllByTestId("table-part");
+    expect(
+      parts.map((p) => [
+        p.getAttribute("data-part"),
+        within(p).getByTestId("table-part-title").textContent,
+        within(p).getByTestId("table-part-tag").textContent,
+        within(p)
+          .getAllByTestId("fix-row")
+          .map((r) => within(r).getAllByRole("button")[0]!.textContent),
+      ]),
+    ).toEqual([
+      ["lab", "On copies on this computer", "Proven in the lab", ["acme-sign accepts out-of-range signatures"]],
+      ["live", "On your systems", "Observed live", ["Server accepts TLS 1.2"]],
+    ]);
+    // Every fix is still on the page, each once.
+    expect(rows()).toHaveLength(2);
   });
 
   it("a proof that has not finished has no tag", async () => {

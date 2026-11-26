@@ -1021,11 +1021,40 @@ async function openGrouped(
 describe("Evidence, the four work groups", () => {
   it("has the four groups as tabs, opens on the first with something in it, and puts today's results under Crypto tests", async () => {
     await openGrouped();
+    const tabs = within(screen.getByRole("tablist", { name: "Work groups" })).getAllByRole("tab");
+    // A tab's name is the group's; beside it, how many rows it holds and how many of them are findings, in the rows'
+    // own word (26 November 2026). The counts are the page's own, from the rows it draws under that tab.
+    expect(tabs.map((t) => t.firstChild!.textContent)).toEqual([
+      "Verification",
+      "Crypto tests",
+      "Migration",
+      "Dependencies",
+    ]);
     expect(
-      within(screen.getByRole("tablist", { name: "Work groups" }))
-        .getAllByRole("tab")
-        .map((t) => t.textContent),
-    ).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
+      tabs.map((t) => [
+        within(t).getByTestId("group-tab-total").textContent,
+        within(t).queryByTestId("group-tab-findings")?.textContent ?? null,
+      ]),
+    ).toEqual(
+      tabs.map((t) => {
+        const key = t.getAttribute("data-group")!;
+        const group = groupedChecks.groups.find((g) => g.key === key)!;
+        const results =
+          key === "encryption"
+            ? lab.rows.map((r) => r.result)
+            : key === "dependencies"
+              ? groupedChecks.libraries.map(() => null)
+              : group.rows.map((r) => r.result);
+        const failed = results.filter((r) => r?.tone === "fail");
+        const words = Array.from(new Set(failed.map((r) => r!.label.toLowerCase())));
+        return [
+          String(results.length),
+          failed.length > 0 ? `✕ ${failed.length} ${words.length === 1 ? words[0] : "findings"}` : null,
+        ];
+      }),
+    );
+    // (the counts are not part of a tab's name: a screen reader hears them as its description)
+    expect(screen.getByRole("tab", { name: "Verification" }).getAttribute("aria-describedby")).toMatch(/-total$/);
     // One group at a time: the first with something in it.
     expect(shownGroups()).toEqual(["verification"]);
     expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
@@ -1182,6 +1211,32 @@ describe("Evidence, where each result came from", () => {
     expect(tagOf("Post-quantum readiness")).toEqual([]);
     expect(within(rowOf("Old TLS versions")).getByTestId("source-tag").textContent).toBe("Observed live");
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("lists the results in parts, by what each rests on: the tag is said once at the head of its part, and every row is still there", async () => {
+    await open();
+    const parts = screen.getAllByTestId("table-part");
+    const titles = (part: HTMLElement) =>
+      within(part)
+        .getAllByTestId("evidence-row")
+        .map((r) => within(r).getByTestId("lab-row-header").firstChild!.textContent);
+    const byKey = Object.fromEntries(parts.map((p) => [p.getAttribute("data-part"), p]));
+    // Observed on the server, and tested on a copy: two parts, each named, with its tag and the tag's own line.
+    expect(within(byKey.live!).getByTestId("table-part-title").textContent).toBe("On your systems");
+    expect(within(byKey.live!).getByTestId("table-part-tag").textContent).toBe("Observed live");
+    expect(titles(byKey.live!)).toEqual(["Old TLS versions", "Certificate strength"]);
+    expect(within(byKey.lab!).getByTestId("table-part-title").textContent).toBe("On copies on this computer");
+    expect(within(byKey.lab!).getByTestId("table-part-tag").textContent).toBe("Proven in the lab");
+    expect(titles(byKey.lab!)).toContain("Official test vectors");
+    // A test that couldn't run rests on nothing: it sits in the last part, which has no tag at its head.
+    expect(parts[parts.length - 1]!.getAttribute("data-part")).toBe("none");
+    expect(within(byKey.none!).getByTestId("table-part-title").textContent).toBe("No result yet");
+    expect(within(byKey.none!).queryByTestId("table-part-tag")).toBeNull();
+    expect(titles(byKey.none!)).toEqual(["Post-quantum readiness"]);
+    // The parts are headings, not a filter: every row of the plan is on the page, once.
+    expect(parts.flatMap(titles)).toHaveLength(lab.rows.length);
+    // On a row the tag is kept for a screen reader, which reads a row by itself; the eye reads it at the head.
+    expect(within(rowOf("Old TLS versions")).getByTestId("source-tag").className).toBe("sr-only");
   });
 });
 

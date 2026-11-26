@@ -1,9 +1,19 @@
 import { useState } from "react";
 import type { FixDetail, FixGroup } from "../../api";
-import { DataTable, FilterSelect, GroupSection, GroupTabs, SearchInput, Toolbar, type Column } from "../layout";
+import {
+  DataTable,
+  FilterSelect,
+  GroupSection,
+  GroupTabs,
+  SearchInput,
+  Toolbar,
+  tabTotal,
+  type Column,
+} from "../layout";
 import { FromOttoTag, ProposalStatusChip } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
 import { StatusChip } from "./parts";
+import { sourceParts } from "../sourceParts";
 import { WhereFromTag } from "../ui";
 
 interface Props {
@@ -41,7 +51,9 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
   // The open fix stays listed whatever the search, as before the panel.
   const keep = (fix: FixDetail) => fix.id === selectedId || fits(fix);
 
-  const columns: Column<FixDetail>[] = [
+  // `quiet`: the fixes of a group come in parts, by what the finding of each rests on, and the part's heading says it;
+  // the entries listed apart (a developer's change) are in no part and keep their tag on the row.
+  const columnsFor = (quiet: boolean): Column<FixDetail>[] => [
     {
       key: "title",
       header: "Fix",
@@ -79,8 +91,8 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
           {fix.list_source}
           {/* 22 November 2026: where that finding came from, right under the sentence that names it (and above its links) */}
           {fix.source_tag ? (
-            <span className="mt-1 block">
-              <WhereFromTag tag={fix.source_tag} />
+            <span className={quiet ? undefined : "mt-1 block"}>
+              <WhereFromTag tag={fix.source_tag} quiet={quiet} />
             </span>
           ) : null}
           {(fix.came_from_links ?? []).length > 0 ? (
@@ -98,20 +110,22 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
     { key: "status", header: "Status", minWidth: 140, render: (fix) => <StatusChip status={fix.status} /> },
   ];
   // Phase 5b: beside an open panel, a row is the fix and its status.
-  const compactColumns: Column<FixDetail>[] = [
-    { ...columns[0]!, minWidth: 150 },
+  const compactFor = (quiet: boolean): Column<FixDetail>[] => [
+    { ...columnsFor(quiet)[0]!, minWidth: 150 },
     {
-      ...columns[2]!,
+      ...columnsFor(quiet)[2]!,
       minWidth: 112,
       // (beside an open panel "Came from" is not drawn: the tag of where the fix came from sits under its status)
       render: (fix) => (
         <span className="flex flex-col items-start gap-1">
           <StatusChip status={fix.status} />
-          <WhereFromTag tag={fix.source_tag} />
+          <WhereFromTag tag={fix.source_tag} quiet={quiet} />
         </span>
       ),
     },
   ];
+  const columns = columnsFor(false);
+  const compactColumns = compactFor(false);
 
   const byId = new Map(fixes.map((f) => [f.id, f]));
   const shownGroups = groups.length > 0 ? groups : [];
@@ -122,6 +136,9 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
     needle || statusFilter !== "all"
       ? Object.fromEntries(shownGroups.map((g) => [g.key, entries(g.fix_ids).filter(fits).length]))
       : null;
+  // How many fixes each tab holds. A fix is no finding by itself, so a tab says a number and nothing more; an entry
+  // listed apart is counted nowhere, so not here either.
+  const totals = Object.fromEntries(shownGroups.map((g) => [g.key, tabTotal(entries(g.fix_ids).map(() => null))]));
   const holderOf = (fixId: string) =>
     shownGroups.find((g) => g.fix_ids.includes(fixId) || (g.apart?.fix_ids ?? []).includes(fixId))?.key;
   return (
@@ -130,7 +147,14 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
         {title}
       </h2>
       {active !== null && shownGroups.length > 0 ? (
-        <GroupTabs groups={shownGroups} active={active} onChoose={onChoose} idBase={idBase} matches={matches} />
+        <GroupTabs
+          groups={shownGroups}
+          active={active}
+          onChoose={onChoose}
+          idBase={idBase}
+          matches={matches}
+          totals={totals}
+        />
       ) : null}
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search fixes" placeholder="Search fixes" />
@@ -179,8 +203,9 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
                 {rows.length > 0 ? (
                   <DataTable
                     label={`${g.label} fixes`}
-                    columns={columns}
-                    compactColumns={compactColumns}
+                    columns={columnsFor(true)}
+                    compactColumns={compactFor(true)}
+                    parts={(all) => sourceParts(all, (fix) => fix.source_tag)}
                     rows={rows}
                     rowKey={(fix) => fix.id}
                     rowTestId="fix-row"

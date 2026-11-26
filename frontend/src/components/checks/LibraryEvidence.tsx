@@ -2,6 +2,7 @@ import type { LibraryEvidenceRow } from "../../api";
 import { AlgoName } from "../plainName";
 import { DataTable, DetailPanel, type Column } from "../layout";
 import { ItemLinkView, RelatedFor } from "../related";
+import { sourceParts } from "../sourceParts";
 import { NameText, ProofChip, ResultBadge, SourceTag, WhereFromTag } from "../ui";
 
 function Blocks({ library }: { library: LibraryEvidenceRow }) {
@@ -43,7 +44,8 @@ const columns: Column<LibraryEvidenceRow>[] = [
       // (22 November 2026: where its answers came from, taken together)
       <span className="flex flex-col items-start gap-1">
         <span className="text-sm text-slate-200">{l.answers_short}</span>
-        <WhereFromTag tag={l.source_tag} />
+        {/* (said once, at the head of its part; kept on the row for a screen reader) */}
+        <WhereFromTag tag={l.source_tag} quiet />
       </span>
     ),
   },
@@ -72,6 +74,7 @@ export function LibraryTable({
       rows={libraries}
       rowKey={(l) => l.id}
       rowTestId="library-row"
+      parts={(all) => sourceParts(all, (l) => l.source_tag)}
       selectedKey={selectedId}
       onRowClick={(l) => onOpen(l.id)}
     />

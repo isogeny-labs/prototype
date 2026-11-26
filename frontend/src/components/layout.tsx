@@ -140,6 +140,13 @@ export interface Column<T> {
   minWidth?: number;
 }
 
+/** One labelled part of a table: its heading (drawn across every column) and its rows. */
+export interface TablePart<T> {
+  key: string;
+  head: ReactNode;
+  rows: T[];
+}
+
 /** Phase 5b: what the table beside a panel knows: whether the panel is open (then it shows its compact form), and the
  * panel's width, which the person can change and which is remembered in this browser for every page. */
 interface PanelState {
@@ -169,6 +176,7 @@ export function DataTable<T>({
   rowAttrs,
   headTestId,
   compactColumns,
+  parts,
 }: {
   label: string;
   columns: Column<T>[];
@@ -185,10 +193,53 @@ export function DataTable<T>({
   /** Phase 5b: the columns shown while the detail panel is open beside the table: the name, one summary status and its
    * key marker. The other columns are in the panel. */
   compactColumns?: Column<T>[];
+  /** The design refactor (26 November 2026): the rows in labelled parts, each with a heading across the table. A part
+   * is a heading, never a filter: every row given is drawn, in its part, in the order it came. */
+  parts?: (rows: T[]) => TablePart<T>[];
 }) {
   const panelOpen = usePanelOpen();
   const compact = panelOpen && compactColumns !== undefined;
   const shown = compact ? compactColumns : columns;
+  const drawRow = (row: T) => {
+    const key = rowKey(row);
+    const selected = selectedKey === key;
+    return (
+      <tr
+        key={key}
+        data-testid={rowTestId}
+        data-key={key}
+        {...(rowAttrs ? rowAttrs(row) : {})}
+        aria-selected={onRowClick ? selected : undefined}
+        tabIndex={onRowClick ? 0 : undefined}
+        onClick={onRowClick ? () => onRowClick(row) : undefined}
+        onKeyDown={
+          onRowClick
+            ? (e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onRowClick(row);
+                }
+              }
+            : undefined
+        }
+        className={`border-b border-slate-800/70 last:border-b-0 ${
+          onRowClick ? "cursor-pointer transition-colors hover:bg-slate-800/40" : ""
+        } ${selected ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""}`}
+      >
+        {shown.map((c) => (
+          <td
+            key={c.key}
+            style={c.minWidth ? { minWidth: c.minWidth } : undefined}
+            className={`px-4 py-3 align-top ${c.className ?? ""}`}
+          >
+            {c.render(row)}
+          </td>
+        ))}
+      </tr>
+    );
+  };
+  const inParts = parts && rows.length > 0 ? parts(rows).filter((part) => part.rows.length > 0) : null;
   return (
     <div
       data-testid="data-table"
@@ -216,55 +267,35 @@ export function DataTable<T>({
             ))}
           </tr>
         </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={shown.length} className="px-4 py-8 text-center text-sm text-slate-400">
-                {empty ?? "Nothing to show."}
-              </td>
-            </tr>
-          ) : (
-            rows.map((row) => {
-              const key = rowKey(row);
-              const selected = selectedKey === key;
-              return (
-                <tr
-                  key={key}
-                  data-testid={rowTestId}
-                  data-key={key}
-                  {...(rowAttrs ? rowAttrs(row) : {})}
-                  aria-selected={onRowClick ? selected : undefined}
-                  tabIndex={onRowClick ? 0 : undefined}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  onKeyDown={
-                    onRowClick
-                      ? (e) => {
-                          if (e.target !== e.currentTarget) return;
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            onRowClick(row);
-                          }
-                        }
-                      : undefined
-                  }
-                  className={`border-b border-slate-800/70 last:border-b-0 ${
-                    onRowClick ? "cursor-pointer transition-colors hover:bg-slate-800/40" : ""
-                  } ${selected ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""}`}
+        {inParts ? (
+          inParts.map((part) => (
+            <tbody key={part.key} data-testid="table-part" data-part={part.key}>
+              <tr className="border-b border-slate-800/70 bg-slate-900/70">
+                <th
+                  colSpan={shown.length}
+                  scope="rowgroup"
+                  data-testid="table-part-head"
+                  className="px-4 py-2 text-left text-xs font-normal text-slate-400"
                 >
-                  {shown.map((c) => (
-                    <td
-                      key={c.key}
-                      style={c.minWidth ? { minWidth: c.minWidth } : undefined}
-                      className={`px-4 py-3 align-top ${c.className ?? ""}`}
-                    >
-                      {c.render(row)}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })
-          )}
-        </tbody>
+                  {part.head}
+                </th>
+              </tr>
+              {part.rows.map(drawRow)}
+            </tbody>
+          ))
+        ) : (
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={shown.length} className="px-4 py-8 text-center text-sm text-slate-400">
+                  {empty ?? "Nothing to show."}
+                </td>
+              </tr>
+            ) : (
+              rows.map(drawRow)
+            )}
+          </tbody>
+        )}
       </table>
     </div>
   );
@@ -677,6 +708,7 @@ export function GroupTabs({
   onChoose,
   idBase,
   matches = null,
+  totals = null,
   label = "Work groups",
 }: {
   groups: { key: string; label: string }[];
@@ -684,6 +716,9 @@ export function GroupTabs({
   onChoose: (key: string) => void;
   idBase: string;
   matches?: Record<string, number> | null;
+  /** The design refactor (26 November 2026): how many items each tab holds and how many of them are findings, counted
+   * by the page from its own rows. Shown while no search or filter is on (then `matches` is the number shown). */
+  totals?: Record<string, TabTotal> | null;
   label?: string;
 }) {
   const move = (to: number) => {
@@ -712,6 +747,8 @@ export function GroupTabs({
         {groups.map((g) => {
           const selected = g.key === active;
           const n = matches ? matches[g.key] : undefined;
+          const total = !matches && totals ? totals[g.key] : undefined;
+          const said = n !== undefined ? "matches" : total ? "total" : null;
           return (
             <button
               key={g.key}
@@ -720,7 +757,7 @@ export function GroupTabs({
               id={groupTabId(idBase, g.key)}
               aria-selected={selected}
               aria-controls={groupPanelId(idBase, g.key)}
-              aria-describedby={n !== undefined ? `${groupTabId(idBase, g.key)}-matches` : undefined}
+              aria-describedby={said ? `${groupTabId(idBase, g.key)}-${said}` : undefined}
               tabIndex={selected ? 0 : -1}
               data-testid="group-tab"
               data-group={g.key}
@@ -741,6 +778,24 @@ export function GroupTabs({
                   {n}
                 </span>
               ) : null}
+              {total ? (
+                <span
+                  aria-hidden="true"
+                  data-testid="group-tab-total"
+                  className="rounded-full border border-slate-700 px-1.5 text-[11px] tabular-nums text-slate-400"
+                >
+                  {total.n}
+                </span>
+              ) : null}
+              {total?.findings ? (
+                <span
+                  aria-hidden="true"
+                  data-testid="group-tab-findings"
+                  className="text-[11px] font-medium tabular-nums text-rose-300"
+                >
+                  ✕ {total.findings.n} {total.findings.word}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -753,9 +808,40 @@ export function GroupTabs({
               </span>
             ) : null,
           )
-        : null}
+        : totals
+          ? groups.map((g) =>
+              totals[g.key] ? (
+                <span key={g.key} id={`${groupTabId(idBase, g.key)}-total`} className="sr-only">
+                  {tabTotalWords(totals[g.key]!)}
+                </span>
+              ) : null,
+            )
+          : null}
     </div>
   );
+}
+
+/** What a tab holds: how many items, and how many of them are findings (a False claim, a Failed test, a blocker). */
+export interface TabTotal {
+  n: number;
+  findings: { n: number; word: string } | null;
+}
+
+/** Counts a tab from the page's own rows: one for each row, and as findings the rows whose own result is drawn as a
+ * failure, under their own word where they share one ("4 failed", "1 false"). It words no result and decides none. */
+export function tabTotal(rows: ({ label?: string | null; tone?: string | null } | null | undefined)[]): TabTotal {
+  const found = rows.filter((r) => r?.tone === "fail");
+  const words = Array.from(new Set(found.map((r) => (r?.label ?? "").trim().toLowerCase())));
+  return {
+    n: rows.length,
+    findings:
+      found.length > 0 ? { n: found.length, word: words.length === 1 && words[0] ? words[0]! : "findings" } : null,
+  };
+}
+
+function tabTotalWords(total: TabTotal): string {
+  const items = total.n === 1 ? "1 item" : `${total.n} items`;
+  return total.findings ? `${items}, ${total.findings.n} ${total.findings.word}` : items;
 }
 
 const safeId = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, "");

@@ -2,6 +2,7 @@ import type { CheckRow } from "../../api";
 import { DataTable, type Column } from "../layout";
 import { FromOttoTag } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
+import { sourceParts } from "../sourceParts";
 import { formatTime, ResultBadge, StatusView, WhereFromTag } from "../ui";
 
 /** Phase 5c: an advisory check came from one of Otto's proposals that a person accepted. Its row carries the tag and
@@ -25,20 +26,22 @@ export function FromOttoMark({ row }: { row: CheckRow }) {
 
 /** `wrap`: beside an open panel the column is narrow, so a long result ("No slowdown beyond measured noise") may take
  * two lines, breaking between words only. */
-function Result({ row, wrap = false }: { row: CheckRow; wrap?: boolean }) {
+function Result({ row, wrap = false, quiet = false }: { row: CheckRow; wrap?: boolean; quiet?: boolean }) {
   if (row.status) return <StatusView status={row.status} />;
   if (row.result)
     return (
       // (22 November 2026: where it came from, right under its own word)
       <span className="flex flex-col items-start gap-1">
         <ResultBadge label={row.result.label} tone={row.result.tone} wrap={wrap} />
-        <WhereFromTag tag={row.source_tag} />
+        <WhereFromTag tag={row.source_tag} quiet={quiet} />
       </span>
     );
   return <span className="text-xs text-slate-500">Not run yet</span>;
 }
 
-const columns: Column<CheckRow>[] = [
+/** `quiet`: the table is drawn in parts, whose headings say what each row rests on; a row then keeps its tag for a
+ * screen reader only. */
+const columnsFor = (quiet: boolean): Column<CheckRow>[] => [
   {
     key: "check",
     header: "Check",
@@ -66,7 +69,7 @@ const columns: Column<CheckRow>[] = [
     minWidth: 120,
     render: (r) => <span className="text-xs text-slate-300">{r.came_from.label}</span>,
   },
-  { key: "result", header: "Result", minWidth: 120, render: (r) => <Result row={r} /> },
+  { key: "result", header: "Result", minWidth: 120, render: (r) => <Result row={r} quiet={quiet} /> },
   {
     key: "when",
     header: "Last run",
@@ -84,7 +87,7 @@ const columns: Column<CheckRow>[] = [
 ];
 
 // Beside an open panel: the name, one summary status and its key marker (where it came from).
-const compactColumns: Column<CheckRow>[] = [
+const compactColumnsFor = (quiet: boolean): Column<CheckRow>[] => [
   {
     key: "check",
     header: "Check",
@@ -99,26 +102,33 @@ const compactColumns: Column<CheckRow>[] = [
       </>
     ),
   },
-  { key: "result", header: "Result", minWidth: 96, render: (r) => <Result row={r} wrap /> },
+  { key: "result", header: "Result", minWidth: 96, render: (r) => <Result row={r} wrap quiet={quiet} /> },
 ];
+const COLUMNS = { plain: columnsFor(false), quiet: columnsFor(true) };
+const COMPACT = { plain: compactColumnsFor(false), quiet: compactColumnsFor(true) };
 
-/** Phase 5b: a group's checks (Checks and Evidence draw the same table). */
+/** Phase 5b: a group's checks (Checks and Evidence draw the same table). The design refactor (26 November 2026): on
+ * Evidence the rows come in labelled parts, by what each result rests on (`inParts`). */
 export function CheckTable({
   label,
   rows,
   selectedId,
   onOpen,
+  inParts = false,
 }: {
   label: string;
   rows: CheckRow[];
   selectedId: string | null;
   onOpen: (row: CheckRow) => void;
+  inParts?: boolean;
 }) {
+  const look = inParts ? "quiet" : "plain";
   return (
     <DataTable
       label={label}
-      columns={columns}
-      compactColumns={compactColumns}
+      columns={COLUMNS[look]}
+      compactColumns={COMPACT[look]}
+      parts={inParts ? (all) => sourceParts(all, (r) => (r.status ? null : r.source_tag)) : undefined}
       rows={rows}
       rowKey={(r) => r.id}
       rowTestId="check-row"

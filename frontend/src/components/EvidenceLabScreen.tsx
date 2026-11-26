@@ -23,6 +23,7 @@ import {
   SummaryCards,
   TableWithPanel,
   Toolbar,
+  tabTotal,
   useGroupTab,
   useShowGroups,
   type Column,
@@ -32,6 +33,7 @@ import { AlsoChecks, CheckPanel, EarlierRuns } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
 import { LibraryPanel, LibraryTable } from "./checks/LibraryEvidence";
 import { FoldLine, Trail } from "./proof";
+import { sourceParts } from "./sourceParts";
 import { ItemLinkView, RelatedFold, WithRelated } from "./related";
 import { VerifyResultDetails } from "./VerifyScreen";
 import type { CheckDetail, ChecksView } from "../api";
@@ -99,7 +101,8 @@ function Cell({ result, status, testId }: { result: LabResult | null; status: Ro
           {/* (22 November 2026: where this side's result came from, beside its word) */}
           <span className="flex flex-wrap items-center gap-1.5">
             <ResultBadge label={result.label} tone={result.tone} />
-            <WhereFromTag tag={result.source_tag} />
+            {/* (said once, at the head of the row's part; kept here for a screen reader) */}
+            <WhereFromTag tag={result.source_tag} quiet />
           </span>
           <p className="mt-1.5 text-[13px] leading-snug text-slate-300">{result.plain}</p>
         </>
@@ -457,7 +460,7 @@ export function EvidenceLabScreen({
                 <div className="min-w-0">
                   <span className="flex flex-wrap items-center gap-1.5">
                     <ResultBadge label={row.result.label} tone={row.result.tone} />
-                    <WhereFromTag tag={row.result.source_tag} />
+                    <WhereFromTag tag={row.result.source_tag} quiet />
                   </span>
                   <p className="mt-1.5 text-[13px] leading-snug text-slate-300">{row.result.plain}</p>
                 </div>
@@ -496,7 +499,7 @@ export function EvidenceLabScreen({
         return r ? (
           <span className="flex flex-col items-start gap-1">
             <ResultBadge label={r.label} tone={r.tone} wrap />
-            <WhereFromTag tag={r.source_tag} />
+            <WhereFromTag tag={r.source_tag} quiet />
           </span>
         ) : row.result_status ? (
           <StatusView status={row.result_status} />
@@ -512,6 +515,8 @@ export function EvidenceLabScreen({
       rows={rows}
       rowKey={(r) => String(r.item_id)}
       rowTestId="evidence-row"
+      // In parts, by what each row's result rests on (after a retest, its newest result).
+      parts={(all) => sourceParts(all, (r) => leading(r, beforeAfter)?.source_tag)}
       headTestId={first && beforeAfter ? "lab-columns" : undefined}
       selectedKey={selected ? String(selected.item_id) : null}
       onRowClick={(r) => {
@@ -664,6 +669,21 @@ export function EvidenceLabScreen({
           ),
         )
       : null;
+  // Every tab says how many rows it holds and how many of them are findings, counted from the rows the tab draws.
+  const totals = checks
+    ? Object.fromEntries(
+        checks.groups.map((g) => [
+          g.key,
+          tabTotal(
+            g.key === "encryption"
+              ? [...current.rows.map((r) => leading(r, beforeAfter)), ...extraOf(g).map((r) => r.result)]
+              : g.key === "dependencies"
+                ? checks.libraries.map(() => null)
+                : g.rows.map((r) => r.result),
+          ),
+        ]),
+      )
+    : null;
   const checkPanel = (
     <CheckPanel planId={current.plan_id} check={openLedger} onClose={closePanel}>
       {(detail) => (
@@ -760,6 +780,7 @@ export function EvidenceLabScreen({
             {rows.length > 0 ? (
               <CheckTable
                 label={`${g.label} results`}
+                inParts
                 rows={rows}
                 selectedId={openCheck}
                 onOpen={(r) => {
@@ -851,7 +872,14 @@ export function EvidenceLabScreen({
       </p>
 
       {checks && active !== null ? (
-        <GroupTabs groups={checks.groups} active={active} onChoose={choose} idBase={tabIds} matches={matches} />
+        <GroupTabs
+          groups={checks.groups}
+          active={active}
+          onChoose={choose}
+          idBase={tabIds}
+          matches={matches}
+          totals={totals}
+        />
       ) : null}
       <Toolbar>
         <SearchInput
