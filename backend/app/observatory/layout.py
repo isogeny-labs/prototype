@@ -142,6 +142,7 @@ def lay_out(claims: list[dict], structure: S.Structure | None, listed: dict | No
 
     # ---- servers
     claim_servers = research.servers(claims)
+    claimed = set(claim_servers)
     if structure is not None:
         for svc in structure.services:
             for address in svc.addresses:
@@ -154,9 +155,9 @@ def lay_out(claims: list[dict], structure: S.Structure | None, listed: dict | No
                         label=address,
                         address=address,
                         files=[SCANNER],
-                        system="server:" + address if address in claim_servers else None,
+                        system="server:" + address if address in claimed else None,
                         part=svc.key,
-                        standing=address in claim_servers,
+                        standing=address in claimed,
                     )
                 )
             if not svc.addresses:
@@ -184,8 +185,8 @@ def lay_out(claims: list[dict], structure: S.Structure | None, listed: dict | No
                 label=address,
                 address=address,
                 files=[SCANNER],
-                system="server:" + address if address in claim_servers else None,
-                standing=address in claim_servers,
+                system="server:" + address if address in claimed else None,
+                standing=address in claimed,
             )
         )
 

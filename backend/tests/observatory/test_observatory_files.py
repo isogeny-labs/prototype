@@ -22,9 +22,10 @@ from tests.observatory import observatory_walk as W
 from tests.view_helpers import problems
 
 
-@pytest.fixture
-def lab(tmp_path):
-    lab = make_lab(tmp_path)
+@pytest.fixture(scope="module")
+def lab(tmp_path_factory):
+    """One app for the file: every test brings in a file of its own, and none runs a check or changes a server."""
+    lab = make_lab(tmp_path_factory.mktemp("observatory-files"))
     yield lab
     lab.stop()
 
@@ -452,3 +453,26 @@ def test_the_one_tie_that_makes_two_boxes_one_is_the_one_dependencies_shows():
     assert all(laid.boxes[k].container == "listed" for k in ("top:a", "top:c"))
     # no line was made for any of them: none lists a library
     assert not [ln for ln in laid.lines if "libraries" in ln]
+
+
+def test_two_servers_of_one_service_are_told_apart_by_their_addresses():
+    doc = copy.deepcopy(OTHER)
+    doc["services"][0]["endpoints"].append("https://front.example:9443")
+    laid = _laid_out(doc)
+    servers = [b for b in laid.boxes.values() if b.kind == "server"]
+    assert [(b.title, b.address) for b in servers] == [
+        ("Front door", "front.example:8443"),
+        ("Front door", "front.example:9443"),
+    ]
+    # what an untied entry could be tied to is named so that the two can be told apart
+    assert build._system_names(laid) == [
+        "Front door (front.example:8443)",
+        "Front door (front.example:9443)",
+        "gateway 3.2",
+    ]
+    # the file says its certificate and its software for the service, so for both of its addresses
+    assert {(ln["from"], ln["to"]) for ln in laid.lines if ln["to"] == "algorithm:ecdsa"} >= {
+        ("server:front.example:8443", "algorithm:ecdsa"),
+        ("server:front.example:9443", "algorithm:ecdsa"),
+    }
+    assert laid.answered == {"server:front.example:8443", "server:front.example:9443"}

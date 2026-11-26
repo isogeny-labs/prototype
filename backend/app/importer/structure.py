@@ -25,6 +25,7 @@ from app.importer.common import ImportFileError
 from app.names import clean_text, normalize_algorithm, normalize_tls_version
 
 MAX_SERVICES = 5000
+MAX_ENDPOINTS = 1000  # over all services: each address is a box on the map
 MAX_REFERENCES = 50_000  # every "this names that" in the file, counted once
 MAX_STEPS = 200_000  # the most the walk from the parts to their algorithms may take, over the whole file
 MAX_KEY = 255  # a longer bom-ref is not used as the name of a box: its place in the file is
@@ -166,6 +167,7 @@ def read_structure(data: bytes) -> Structure:
     listed = services if isinstance(services, list) else []
     if len(listed) > MAX_SERVICES:
         raise ImportFileError(f"This file lists more than {MAX_SERVICES} services.", field="services")
+    endpoints_read = 0
     for i, svc in enumerate(listed):
         if not isinstance(svc, dict):
             continue
@@ -173,14 +175,21 @@ def read_structure(data: bytes) -> Structure:
         key = key_for(svc.get("bom-ref"), where, SERVICE)
         given = svc.get("endpoints")
         endpoints: list = given if isinstance(given, list) else []
-        addresses: list[str] = []
+        endpoints_read += len(endpoints)
+        if endpoints_read > MAX_ENDPOINTS:
+            raise ImportFileError(
+                f"This file lists more than {MAX_ENDPOINTS} service endpoints, which is more than Evidence Lab reads "
+                "for the map.",
+                field=f"{where}.endpoints",
+            )
+        addresses: dict[str, None] = {}
         for j, endpoint in enumerate(endpoints):
             try:
                 hp = _endpoint(endpoint, f"{where}.endpoints[{j}]")
             except ImportFileError:
                 hp = None
-            if hp is not None and hp.address not in addresses:
-                addresses.append(hp.address)
+            if hp is not None:
+                addresses.setdefault(hp.address)
         written = tuple(clean_text(e, 120) for e in endpoints if isinstance(e, str))[:20]
         out.services.append(
             Part(
@@ -417,6 +426,7 @@ __all__ = [
     "CERTIFICATE",
     "Edge",
     "MATERIAL",
+    "MAX_ENDPOINTS",
     "MAX_REFERENCES",
     "MAX_SERVICES",
     "MAX_STEPS",

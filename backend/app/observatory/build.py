@@ -180,7 +180,10 @@ def _read(lab: Any, import_id: int, plan_id: int | None, counts: bool = True) ->
 
 def _claim_checks(box: L.Box, got: dict) -> list[dict]:
     verify = got["verify"]
-    results = {r.get("claim_id"): r for r in (verify or {}).get("results") or [] if isinstance(r, dict)}
+    if "verify_results" not in got:  # (read once for the map, not once for each box)
+        found = (verify or {}).get("results") or []
+        got["verify_results"] = {r.get("claim_id"): r for r in found if isinstance(r, dict)}
+    results = got["verify_results"]
     table = words.SERVER_CLAIM_SPOT if box.kind == "server" else words.SOFTWARE_CLAIM_SPOT
     out = []
     for claim in box.claims:
@@ -251,7 +254,11 @@ def _shown(result: dict, row: dict | None) -> dict:
 
 
 def _test_checks(box: L.Box, got: dict) -> list[dict]:
-    rows = [r for r in (got["lab"] or {}).get("rows") or [] if r.get("group") == box.key]
+    if "rows_of" not in got:  # Evidence's rows by the system each test is about (its own grouping), read once
+        got["rows_of"] = {}
+        for r in (got["lab"] or {}).get("rows") or []:
+            got["rows_of"].setdefault(r.get("group"), []).append(r)
+    rows = got["rows_of"].get(box.key, [])
     check_rows = _check_rows(got)
     table = words.SERVER_TEST_SPOT if box.kind == "server" else words.SOFTWARE_TEST_SPOT
     own = f"{box.name} {box.version}".strip() if box.name else None
@@ -428,7 +435,17 @@ def _spots(box: L.Box, got: dict) -> list[dict]:
 
 
 def _system_names(layout: L.Layout) -> list[str]:
-    return [b.title if b.kind == "server" else b.label for b in layout.systems()]
+    """The real names of what a top entry of the dependency list could be tied to: a server by the name its service has
+    in the file (with its address where two servers share that name), a program by its name and version."""
+    systems = layout.systems()
+    shared: dict[str, int] = {}
+    for b in systems:
+        if b.kind == "server":
+            shared[b.title] = shared.get(b.title, 0) + 1
+    return [
+        (b.title if shared[b.title] == 1 else f"{b.title} ({b.label})") if b.kind == "server" else b.label
+        for b in systems
+    ]
 
 
 def _box(box: L.Box, got: dict) -> dict:
@@ -441,10 +458,13 @@ def _box(box: L.Box, got: dict) -> dict:
             s["tag"] = _one_tag(_tags_of(s["checks"]))
     note = None
     if box.kind == "own_software":
-        note = words.not_tied(_system_names(layout))
+        if "not_tied" not in got:  # (the same sentence for every untied entry: worked out once)
+            got["not_tied"] = words.not_tied(_system_names(layout))
+        note = got["not_tied"]
     elif not spots:
-        used = any(use["box"] == box.key for algorithm in layout.algorithms for use in algorithm["uses"])
-        note = words.NOTHING_CHECKED_OF_IT if used else words.NO_CRYPTOGRAPHY_NAMED
+        if "using" not in got:  # every box the file says uses an algorithm, worked out once for the map
+            got["using"] = {use["box"] for algorithm in layout.algorithms for use in algorithm["uses"]}
+        note = words.NOTHING_CHECKED_OF_IT if box.key in got["using"] else words.NO_CRYPTOGRAPHY_NAMED
     return {
         "key": box.key,
         "kind": box.kind,
@@ -603,15 +623,20 @@ def _seen(got: dict, box: L.Box) -> list[str] | None:
     for row in (got["lab"] or {}).get("rows") or []:
         if row.get("group") == box.key and row.get("kind") == "tls_versions":
             found += [_accepted_in_test(row.get("result")), _accepted_in_test(row.get("after"))]
-    dated = [(instant(at), seen) for at, seen in found if seen is not None and instant(at) is not None]
-    return max(dated, key=lambda x: x[0])[1] if dated else None  # type: ignore[arg-type,return-value]
+    newest: tuple[Any, list[str]] | None = None
+    for at, seen in found:
+        when = instant(at)
+        if seen is not None and when is not None and (newest is None or when > newest[0]):
+            newest = (when, seen)
+    return newest[1] if newest is not None else None
 
 
 def _lines(layout: L.Layout, boxes: dict[str, dict], got: dict) -> list[dict]:
     out = []
+    groups = {g["key"]: g for g in layout.libraries}
     for line in layout.lines:
         if "libraries" in line:
-            group = next(g for g in layout.libraries if g["key"] == line["to"])
+            group = groups[line["to"]]
             via = group["rows"][0].get("via_words") if len(group["rows"]) == 1 else None
             label = words.libraries_line(line["libraries"], via)
         else:
@@ -717,8 +742,13 @@ def _counts(got: dict, boxes: dict[str, dict]) -> list[dict]:
 
 
 def _newest(times: list[object]) -> str | None:
-    dated = [(instant(t), str(t)) for t in times if t is not None and instant(t) is not None]
-    return max(dated, key=lambda x: x[0])[1] if dated else None  # type: ignore[arg-type,return-value]
+    """The newest of some recorded times, as it was recorded."""
+    newest: tuple[Any, str] | None = None
+    for t in times:
+        when = instant(t)
+        if when is not None and (newest is None or when > newest[0]):
+            newest = (when, str(t))
+    return newest[1] if newest is not None else None
 
 
 def _built(got: dict) -> dict:
