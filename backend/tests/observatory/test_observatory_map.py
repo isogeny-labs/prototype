@@ -389,7 +389,15 @@ def test_every_result_word_on_the_map_is_the_word_on_its_own_page(walk, stage):
             if c["kind"] == "status" and c["checked"]:
                 system = next(s for s in at.migration["systems"] if s["key"] == key)
                 track = next(t for t in system["tracks"] if t["key"] == c["id"].removeprefix("status-"))
-                assert c["plain"] == track["sentence"] and c["next"] == system["plan_line"]
+                assert c["plain"] == track["sentence"]
+                # the plan's one line for the system, once for the box and under no single track
+                assert "next" not in c and panel["next"] == {
+                    "text": system["plan_line"],
+                    "label": "The system on Migration plan",
+                    "link": {"page": "migration/systems", "item": key},
+                }
+        if not any(c["kind"] == "status" and c["checked"] for c in W.checks(panel)):
+            assert panel["next"] is None  # no status measured (or a box that is no system): no next step is made up
 
 
 @pytest.mark.parametrize("stage", STAGES)
@@ -508,7 +516,7 @@ def test_a_servers_panel_sums_up_in_the_checks_own_words_and_links_each_result(w
     assert claim["plain"] == "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true."
     assert [x["label"] for x in test["links"]] == ["The test on Checks"] and test["fix"] is None
     status = next(c for s in panel["spots"] for c in s["checks"] if c["id"] == "status-kex")
-    assert [x["label"] for x in status["links"]] == ["The system on Migration plan"] and status["next"] is None
+    assert [x["label"] for x in status["links"]] == ["The system on Migration plan"] and panel["next"] is None
     # what the files don't say about it, and the lines of the scanner file that name it
     assert [g["key"] for g in panel["gaps"]["items"]] == ["software", "clients"]
     (lines,) = panel["file_lines"]
@@ -573,7 +581,11 @@ def test_after_the_checks_the_panels_carry_each_results_own_sentence_its_fix_and
     assert [x["label"] for x in test["links"]] == ["The result on Evidence", "The fix on Fixes"]
     status = next(c for s in panel["spots"] for c in s["checks"] if c["id"] == "status-kex")
     assert [x["label"] for x in status["links"]] == ["The system on Migration plan", "The result on Evidence"]
-    assert status["next"] == "Next: hybrid key exchange · Phase 2"
+    assert panel["next"] == {
+        "text": "Next: hybrid key exchange · Phase 2",
+        "label": "The system on Migration plan",
+        "link": {"page": "migration/systems", "item": plan.server},
+    }
     fixes = {f["link"]["item"]: f for f in panel["fixes"]}
     listed = {f["id"]: f for f in walk.lab.fixes_view(plan.id)["fixes"]}
     assert set(fixes) >= {"fix-tls-versions"} and set(fixes) <= set(listed)

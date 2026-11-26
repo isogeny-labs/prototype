@@ -4269,7 +4269,6 @@ class ObservatoryPanelCheck(ObservatoryCheckCore):
     plain: str | None = Field(description="The plain sentence the result's own page shows.")
     at: str | None
     fix: ObservatoryCheckFix | None
-    next: str | None = Field(description="For a post-quantum status: the Migration plan's own next step.")
     links: list[ObservatoryCheckLink]
 
 
@@ -4300,6 +4299,12 @@ class ObservatoryLast(Shape):
     at: str
 
 
+class ObservatoryNext(Shape):
+    text: str = Field(description="The Migration plan's own line for this system, as its Systems table shows it.")
+    label: str
+    link: ItemLink
+
+
 class ObservatoryPanel(Shape):
     """One box of the map, opened."""
 
@@ -4318,6 +4323,9 @@ class ObservatoryPanel(Shape):
     libraries: list[ObservatoryLibraries]
     fixes: list[ObservatoryFix] = Field(
         description="The fixes a recorded link ties to this box or to one of its checks."
+    )
+    next: ObservatoryNext | None = Field(
+        description="The next step the Migration plan names for this system, once its status was measured; else null."
     )
     gaps: ObservatoryBoxGaps
     file_lines: list[ObservatoryFileLines] = Field(description="The lines of the files that name it.")

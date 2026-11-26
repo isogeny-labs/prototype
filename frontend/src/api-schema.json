@@ -17219,6 +17219,30 @@
         ],
         "title": "ObservatoryMore"
       },
+      "ObservatoryNext": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The Migration plan's own line for this system, as its Systems table shows it."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "label",
+          "link"
+        ],
+        "title": "ObservatoryNext"
+      },
       "ObservatoryOutside": {
         "properties": {
           "key": {
@@ -17346,6 +17370,17 @@
             "title": "Fixes",
             "description": "The fixes a recorded link ties to this box or to one of its checks."
           },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryNext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The next step the Migration plan names for this system, once its status was measured; else null."
+          },
           "gaps": {
             "$ref": "#/components/schemas/ObservatoryBoxGaps"
           },
@@ -17397,6 +17432,7 @@
           "spots",
           "libraries",
           "fixes",
+          "next",
           "gaps",
           "file_lines",
           "related_key",
@@ -17619,18 +17655,6 @@
               }
             ]
           },
-          "next": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next",
-            "description": "For a post-quantum status: the Migration plan's own next step."
-          },
           "links": {
             "items": {
               "$ref": "#/components/schemas/ObservatoryCheckLink"
@@ -17658,7 +17682,6 @@
           "plain",
           "at",
           "fix",
-          "next",
           "links"
         ],
         "title": "ObservatoryPanelCheck",
