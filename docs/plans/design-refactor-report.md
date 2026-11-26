@@ -133,7 +133,7 @@ Everything below ran on this computer on the final code. This computer has no Do
 | Backend tests, quick set, with Otto | 2,569 passed, 4 skipped, 6 failed (the six are explained below) |
 | Backend tests, quick set, without Otto (the way GitHub runs them) | 2,443 passed, 130 skipped (126 of them need Otto, and the run says so), and the same 6 failed |
 | Screen tests | 993 passed. The type check and the build pass. |
-| End-to-end walks in a real browser | E2E_RESULT |
+| End-to-end walks in a real browser | The whole set: 114 passed, 6 skipped (they need Docker), none failed, in 40 minutes. After the last two fixes (below) I ran the eight walks they touch again: 18 passed, 1 skipped (needs Docker). |
 | Lint, code style, type check, generated files up to date | All pass. No new type problem. |
 
 **What failed, and why it is not from this build.** Two things fail on `mvp/crypto-simple` too, without any of my changes, and this branch does not touch them:
@@ -145,7 +145,9 @@ Both are worth fixing in a pull request of their own. I left them alone so this 
 
 **The quick set is slower.** Your rules say the quick backend set stays under 5 minutes. Before this build it already took 5 minutes 42 seconds here. Now it takes 6 minutes 44 seconds without Otto, and 7 minutes 46 seconds with Otto (that run shared the computer with another run). The new tests check that the new pages only read. Getting back under 5 minutes means moving the slowest tests to the slow set. That's a small job of its own, and I can do it next.
 
-**A walk that failed on GitHub, and its fix.** On GitHub one walk (Change watch) failed once: it read the Results page's rows a moment before the page had taken in its new address. I changed the walks' shared helper so it waits for the page to take in the address first. That changes only the walks, not the app. The walk passes here, and the next GitHub run will show the fix there.
+**A walk that failed on GitHub, and its fix.** On GitHub one walk (Change watch) failed once: it read the Results page's rows a moment before the page had taken in its new address. I changed the walks' shared helper so it waits for the page to take in the address first. That changes only the walks, not the app. The walk passes here, and the next GitHub run will show the fix there. (When I ran it again here it failed once more, but for my own reason: a copy of the app from one of my throwaway tests was still running on its port. With that copy stopped, it passed.)
+
+**A fault the last pictures showed, and its fix.** On the map, two lines were drawn straight across the name of the Acme Pay service. The name now stands on the page's own colour above the lines, so a line passes behind it and comes out just above the part it reaches. The pictures in this report were taken after that fix.
 
 ## What the independent review found
 
