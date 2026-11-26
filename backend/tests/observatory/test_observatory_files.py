@@ -169,7 +169,8 @@ def test_a_csv_scanner_file_is_drawn_from_its_claims_alone(lab):
     view = _view(lab, plan_id)
     assert view["structure_note"] == words.CSV_NOTE and view["state"] == "file_only"
     (service,) = view["services"]
-    assert (service["title"], service["version"], service["sub"]) == (None, None, words.SERVICE_UNNAMED)
+    assert (service["title"], service["version"], service["sub"]) == (None, None, words.SERVICE_CLAIMS)
+    assert service["sub"] == "The systems your scanner file's claims name"
     # one box for each server and each signing program the claims name, titled with what the claim itself names
     program = next(c for c in imp["claims"] if c["location_kind"] == "software")
     assert [(b["key"], b["kind"], b["title"]) for b in service["boxes"]] == [
@@ -223,7 +224,11 @@ def test_an_import_with_no_kept_copy_is_drawn_from_its_claims_alone_and_says_so(
     assert view["structure_note"] == words.NO_COPY_NOTE
     assert "before the app kept a copy" in view["structure_note"] and "claims alone" in view["structure_note"]
     (service,) = view["services"]
-    assert service["title"] is None and service["sub"] == words.SERVICE_UNNAMED
+    # the map does not say the file names no service (this file does, and the copy that says so was not kept): it says
+    # what it is drawn from, and lists no gap about the service
+    assert service["title"] is None and service["sub"] == words.SERVICE_CLAIMS
+    assert "service" not in {g["key"] for g in view["gaps"]["items"]}
+    assert not any("names no service" in t or "does not name the service" in t for t in W.texts(view))
     # the service's name and the endpoint's name were in the file, not in the claims: neither is drawn
     assert [(b["key"], b["title"]) for b in service["boxes"]] == [
         ("server:localhost:8443", "localhost:8443"),
@@ -277,6 +282,7 @@ OTHER = {
         {"type": "application", "bom-ref": "gateway", "name": "gateway", "version": "3.2"},
         {"type": "library", "bom-ref": "zlib", "name": "zlib", "version": "1.3"},
         {"type": "library", "bom-ref": "left-pad", "name": "left-pad", "version": "1.0"},
+        {"type": "library", "bom-ref": "hasher", "name": "hasher", "version": "0.1"},
         _asset(
             "ecdsa",
             "ECDSA-P256",
@@ -303,6 +309,7 @@ OTHER = {
         {"ref": "front", "dependsOn": ["cert", "gateway"]},
         {"ref": "gateway", "dependsOn": ["zlib"], "provides": ["ecdsa"]},
         {"ref": "ecdsa", "dependsOn": ["sha"]},
+        {"ref": "hasher", "provides": ["sha"]},
     ],
 }
 
@@ -314,9 +321,16 @@ def test_a_scanner_file_that_names_the_software_of_its_endpoint_and_a_claim_on_n
     (service,) = view["services"]
     # the file names no top component: no box is drawn around the parts, and the map says the file names none
     assert service["title"] is None and "service" in {g["key"] for g in view["gaps"]["items"]}
+    assert (
+        service["sub"] == words.SERVICE_UNNAMED and view["structure_note"] is None
+    )  # (the file was read: it names none)
     keys = {b["key"]: b for b in service["boxes"]}
-    assert list(keys) == ["server:front.example:8443", "service:queue", "software:gateway"]
+    assert list(keys) == ["server:front.example:8443", "service:queue", "software:gateway", "software:hasher"]
     assert keys["server:front.example:8443"]["title"] == "Front door"
+    # software the file ties to an algorithm this version does not check (a hash) is drawn, with nothing to check in it
+    hasher = keys["software:hasher"]
+    assert (hasher["kind"], hasher["sub"]) == ("software", "Software · in your scanner file")
+    assert hasher["spots"] == [] and hasher["note"] == words.NOTHING_CHECKED_OF_IT and hasher["tag"] is None
     # a service with no address is a box with nothing to check; software with no cryptography is counted, not drawn
     assert (
         keys["service:queue"]["sub"] == "Service · no address in your scanner file"
@@ -331,10 +345,12 @@ def test_a_scanner_file_that_names_the_software_of_its_endpoint_and_a_claim_on_n
     assert ("server:front.example:8443", "algorithm:ecdsa", "uses", "its certificate") in uses
     assert ("software:gateway", "algorithm:ecdsa", "uses", "signs with") in uses
     assert ("algorithm:ecdsa", "algorithm:sha", "uses", "uses") in uses  # an algorithm the file builds on another
-    assert len(uses) == 4
+    assert ("software:hasher", "algorithm:sha", "uses", "uses") in uses
+    assert len(uses) == 5
     algorithms = {a["technical"]: a for a in view["algorithms"]}
-    assert algorithms["SHA-256"]["plain"] is None and algorithms["SHA-256"]["used"] == words.used_in([])
-    assert algorithms["RSA 2048"]["uses"] == []  # its certificate is on no system the file names
+    assert algorithms["SHA-256"]["plain"] is None and algorithms["SHA-256"]["used"] == "Used in 1 place: hasher 0.1."
+    # its certificate is on no system the file names
+    assert algorithms["RSA 2048"]["uses"] == [] and algorithms["RSA 2048"]["used"] == words.used_in([])
     # the certificate the file puts nowhere: its claim is on no box, and the map says so with the way to Import
     unplaced = next(g for g in view["gaps"]["items"] if g["key"] == "unplaced")
     assert unplaced["text"].startswith("Where 1 claim applies.") and unplaced["link"] == {
@@ -348,3 +364,91 @@ def test_a_scanner_file_that_names_the_software_of_its_endpoint_and_a_claim_on_n
     panel = build.panel_of_plan(lab, plan_id, "software:gateway")
     assert panel["related_key"] == "system:software:gateway" and panel["title"] == "gateway 3.2"
     assert [g["key"] for g in panel["gaps"]["items"]] == ["libraries", "where"]
+
+
+def _laid_out(doc: dict, listed: dict | None = None):
+    """The layout of one scanner file, from its claims and its structure alone (no app is started)."""
+    from app.importer.cbom import read_cbom
+    from app.importer.structure import read_structure
+    from app.observatory.layout import lay_out
+
+    data = json.dumps(doc).encode()
+    claims = [
+        {
+            "id": n,
+            "ref": c.ref,
+            "location": c.location,
+            "location_kind": c.location_kind,
+            "kind": c.kind,
+            "claimed_value": c.claimed_value,
+            "text": c.text,
+            "source": c.source,
+            "detail": c.detail,
+        }
+        for n, c in enumerate(read_cbom(data)[0], start=1)
+    ]
+    return lay_out(claims, read_structure(data), listed)
+
+
+def test_a_file_that_describes_one_program_draws_it_as_the_service_and_as_the_program_inside_it():
+    """A scanner file about one application: the thing it describes is itself what signs."""
+    laid = _laid_out(
+        {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "metadata": {"component": {"type": "application", "bom-ref": "app", "name": "signer", "version": "2.0"}},
+            "components": [
+                _asset("ecdsa", "ECDSA-P256", "algorithm", {"algorithmProperties": {"primitive": "signature"}}),
+                _asset("sha", "SHA-256", "algorithm", {"algorithmProperties": {"primitive": "hash"}}),
+            ],
+            "dependencies": [{"ref": "app", "provides": ["ecdsa", "sha"]}],
+        }
+    )
+    (container,) = laid.containers
+    assert (container.title, container.version, container.named) == ("signer", "2.0", "scanner")
+    (box,) = laid.boxes.values()
+    assert (box.key, box.kind, box.title, box.system) == ("software:app", "program", "signer 2.0", "software:app")
+    assert [c["kind"] for c in box.claims] == ["signature_algorithm"] and laid.unplaced == []
+    assert [(ln["from"], ln["to"], ln["through"]) for ln in laid.lines] == [
+        ("software:app", "algorithm:ecdsa", ["signature"]),
+        ("software:app", "algorithm:sha", ["direct"]),
+    ]
+
+
+def test_the_one_tie_that_makes_two_boxes_one_is_the_one_dependencies_shows():
+    """The layout makes no tie of its own: a top entry is the same box as a system only where the Dependencies view
+    says it is tied to it (`system`), whatever its name; and one with the same name that Dependencies did not tie
+    stays a box of its own."""
+    listed = {
+        "described": None,
+        "described_key": None,
+        "groups": [
+            # the same name and version as the file's program, but Dependencies shows no tie for it
+            {"key": "a", "label": "gateway 3.2", "system": None, "tie_source": None, "rows": []},
+            # another name, tied by a person to the server
+            {
+                "key": "b",
+                "label": "edge-proxy 1.0",
+                "system": "server:front.example:8443",
+                "tie_source": "user",
+                "rows": [],
+            },
+            # tied to a system that is not in this file: not drawn as tied
+            {
+                "key": "c",
+                "label": "ghost 0.1",
+                "system": "server:elsewhere.example:1",
+                "tie_source": "user",
+                "rows": [],
+            },
+        ],
+    }
+    laid = _laid_out(OTHER, listed)
+    assert [c.key for c in laid.containers] == ["service", "listed"] and not laid.merged
+    assert laid.boxes["software:gateway"].ties == [] and laid.boxes["software:gateway"].files == ["scanner"]
+    assert [t["label"] for t in laid.boxes["server:front.example:8443"].ties] == ["edge-proxy 1.0"]
+    assert sorted(k for k in laid.boxes if k.startswith("top:")) == ["top:a", "top:c"]
+    assert laid.untied == ["gateway 3.2", "ghost 0.1"]
+    assert all(laid.boxes[k].container == "listed" for k in ("top:a", "top:c"))
+    # no line was made for any of them: none lists a library
+    assert not [ln for ln in laid.lines if "libraries" in ln]

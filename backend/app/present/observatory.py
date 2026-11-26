@@ -101,7 +101,9 @@ IN_SCANNER, IN_LIST, IN_BOTH = "in your scanner file", "in your dependency list"
 SERVICE_BOTH = "Named in both files, with the same name and version"
 SERVICE_SCANNER = "Named in your scanner file"
 SERVICE_LIST = "Named in your dependency list"
-SERVICE_UNNAMED = "Your scanner file names no service: these are the systems its claims name"
+SERVICE_UNNAMED = "Your scanner file does not name the service it describes: these are the parts it names"
+# (a map drawn from the claims alone can't say what the file names besides them: it says only what it is drawn from)
+SERVICE_CLAIMS = "The systems your scanner file's claims name"
 LIST_UNNAMED = "Your dependency list does not say what it describes: these are the parts it names"
 
 KIND_WORDS = {
@@ -115,6 +117,10 @@ KIND_WORDS = {
 NO_ADDRESS = "no address in your scanner file"
 NOTHING_HERE = "Nothing observed or run here."
 NO_CRYPTOGRAPHY_NAMED = "Your scanner file names it, and no cryptography on it, so there is nothing to check here."
+NOTHING_CHECKED_OF_IT = (
+    "Your scanner file names the cryptography it uses (the lines show it), and nothing about it that this version "
+    "checks."
+)
 
 
 def not_drawn(n: int) -> str:
