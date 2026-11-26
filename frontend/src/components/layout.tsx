@@ -320,6 +320,7 @@ function ItemPageView({
   subtitle,
   children,
   testId,
+  kicker,
 }: {
   page: ItemPage;
   item: string | null;
@@ -327,6 +328,7 @@ function ItemPageView({
   subtitle?: ReactNode;
   children: ReactNode;
   testId: string;
+  kicker?: ReactNode;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const slot = useContext(PanelHeaderSlotContext);
@@ -349,6 +351,11 @@ function ItemPageView({
       </p>
       <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-slate-800/80 pb-4">
         <div className="min-w-0">
+          {kicker ? (
+            <p data-testid="panel-kicker" className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              {kicker}
+            </p>
+          ) : null}
           <h1 ref={heading} className="break-words text-2xl font-semibold tracking-tight text-slate-50">
             {title}
           </h1>
@@ -420,6 +427,7 @@ export function DetailPanel({
   children,
   testId = "detail-panel",
   item = null,
+  kicker,
 }: {
   open: boolean;
   title: ReactNode;
@@ -429,6 +437,8 @@ export function DetailPanel({
   testId?: string;
   /** The item's id as its page's address names it ("test-5", "claim-3", an advisory's id). */
   item?: string | null;
+  /** One short line above the title: what this is and where it sits ("Result · Crypto tests"). */
+  kicker?: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
   const before = useRef<Element | null>(null);
@@ -476,7 +486,7 @@ export function DetailPanel({
     // On a page of its own: drawn where the shell keeps room for it (nothing until that place is there).
     return itemPage.root
       ? createPortal(
-          <ItemPageView page={itemPage} item={item} title={title} subtitle={subtitle} testId={testId}>
+          <ItemPageView page={itemPage} item={item} title={title} subtitle={subtitle} testId={testId} kicker={kicker}>
             {children}
           </ItemPageView>,
           itemPage.root,
@@ -499,14 +509,18 @@ export function DetailPanel({
         className="quiet-scroll fixed inset-y-0 right-0 z-40 flex w-full max-w-2xl flex-col overflow-y-auto border-l border-slate-800 bg-slate-950 shadow-2xl outline-none xl:sticky xl:top-4 xl:z-auto xl:max-h-[calc(100vh-2rem)] xl:w-auto xl:max-w-none xl:rounded-xl xl:border xl:shadow-none"
       >
         {panel ? <PanelEdge panel={panel} /> : null}
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-950/95 px-5 py-4 backdrop-blur">
-          <div className="min-w-0">
-            <h2 id={headingId} className="text-base font-semibold text-slate-50">
-              {title}
-            </h2>
-            {subtitle ? <div className="mt-0.5 text-xs text-slate-400">{subtitle}</div> : null}
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+        {/* The design refactor (26 November 2026): a slim tool row, then the title on a line of its own at the panel's
+            full width, so a long name is never squeezed beside the buttons. */}
+        <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 px-5 pb-3.5 pt-3 backdrop-blur">
+          <div data-testid="panel-tools" className="mb-2 flex flex-wrap items-center justify-end gap-1">
+            {kicker ? (
+              <span
+                data-testid="panel-kicker"
+                className="mr-auto text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+              >
+                {kicker}
+              </span>
+            ) : null}
             {/* Phase 6's own buttons go here (see PanelHeaderSlotContext). */}
             {slot ? (
               <span data-testid="panel-header-slot" className="flex items-center gap-1">
@@ -519,7 +533,7 @@ export function DetailPanel({
                 href={itemPage.hrefFor(item)}
                 target="_blank"
                 rel="noopener"
-                className="whitespace-nowrap rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                className="whitespace-nowrap rounded-md border border-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
               >
                 Open in new tab <span aria-hidden="true">↗</span>
               </a>
@@ -530,7 +544,7 @@ export function DetailPanel({
                   type="button"
                   onClick={() => panel.setWidth(panel.width + PANEL_STEP)}
                   disabled={panel.width >= PANEL_MAX}
-                  className="hidden rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
+                  className="hidden rounded-md border border-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
                 >
                   Wider
                 </button>
@@ -538,7 +552,7 @@ export function DetailPanel({
                   type="button"
                   onClick={() => panel.setWidth(panel.width - PANEL_STEP)}
                   disabled={panel.width <= PANEL_MIN}
-                  className="hidden rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
+                  className="hidden rounded-md border border-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
                 >
                   Narrower
                 </button>
@@ -553,6 +567,10 @@ export function DetailPanel({
               ×
             </button>
           </div>
+          <h2 id={headingId} className="break-words text-lg font-semibold leading-snug text-slate-50">
+            {title}
+          </h2>
+          {subtitle ? <div className="mt-1 text-[13px] text-slate-400">{subtitle}</div> : null}
         </div>
         {/* Phase 5b: inside the panel, content lays itself out by the panel's own width (container queries). */}
         <div className="@container flex-1 px-5 py-4">{children}</div>

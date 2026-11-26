@@ -141,11 +141,17 @@ export function AlsoChecks({ items, which }: { items: SameMeasurement[]; which: 
 }
 
 /** Every run of one check, newest first: when, where it came from, its result, and the run's fingerprint. */
-export function EarlierRuns({ runs }: { runs: CheckRun[] }) {
+export function EarlierRuns({ runs, bare = false }: { runs: CheckRun[]; bare?: boolean }) {
   if (runs.length === 0) return null;
   return (
-    <section data-testid="earlier-runs" aria-label="Every run" className="rounded-lg border border-slate-800 p-3">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Every run, newest first</h3>
+    <section
+      data-testid="earlier-runs"
+      aria-label="Every run"
+      className={bare ? "min-w-0" : "rounded-lg border border-slate-800 p-3"}
+    >
+      {bare ? null : (
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Every run, newest first</h3>
+      )}
       <ol className="space-y-1.5">
         {runs.map((r, i) => (
           <li

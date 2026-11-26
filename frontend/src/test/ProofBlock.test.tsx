@@ -14,14 +14,33 @@ const route = (decision: string) => `POST /api/plans/7/otto/proposals/${ID}/${de
 const withProof = (over = {}) => proposal({ proof: proof(), ...over });
 
 describe("How this test was proven", () => {
-  it("is folded under its title and its Sandbox copy label, and opening it sends nothing", () => {
+  it("shows the three counts at a glance under its title and its Sandbox copy label, with the rest folded, and opening it sends nothing", () => {
     const fetchMock = mockApi({});
     render(<ProofBlock proof={proof()} />);
-    const block = screen.getByTestId("proof-block") as HTMLDetailsElement;
-    expect(block.open).toBe(false);
-    expect(text(block.querySelector("summary")!)).toContain("How this test was proven");
+    const block = screen.getByTestId("proof-block");
+    expect(text(block)).toContain("How this test was proven");
     expect(text(screen.getByTestId("sandbox-copy-label"))).toBe("Sandbox copy");
-    fireEvent.click(block.querySelector("summary")!);
+    // At a glance: the affected version, the fixed version and the control, each with the view's own name for it, its
+    // count and what had to happen. Counts only, never a Passed or a Failed.
+    const tiles = screen.getAllByTestId("proof-tile");
+    expect(tiles.map((t) => t.getAttribute("data-part"))).toEqual(["affected", "fixed", "control"]);
+    expect(text(tiles[0]!)).toContain("starkbank-ecdsa 2.0.0 (the version the advisory names as affected)");
+    expect(text(within(tiles[0]!).getByTestId("proof-tile-count"))).toBe("1 of 64 cases wrong");
+    expect(text(tiles[0]!)).toContain("What had to happen: At least one case wrong");
+    expect(text(tiles[1]!)).toContain(proofBlock.table.rows.find((r) => r.key === "fixed")!.label);
+    expect(text(within(tiles[2]!).getByTestId("proof-tile-count"))).toBe("64 of 64 cases wrong");
+    for (const word of ["Passed", "Failed"]) expect(text(screen.getByTestId("proof-tiles"))).not.toContain(word);
+    // What it does not show stays in the open.
+    expect(text(screen.getByTestId("proof-not-shown"))).toContain("It does not say how serious the weakness is");
+    // Everything else is one fold, shut, named a Cryptanalysis proof, saying what is inside.
+    const fold = screen.getByTestId("proof-fold") as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    expect(text(screen.getByTestId("proof-fold-name"))).toBe("Cryptanalysis proof");
+    expect(text(screen.getByTestId("proof-fold-inside"))).toBe(
+      "The trial, part by part · Frozen before the first run · The code that asked the library · The public copies · The replay",
+    );
+    fireEvent.click(screen.getByTestId("proof-fold-toggle"));
+    expect(fold.open).toBe(true);
     expect(calls(fetchMock)).toEqual([]);
   });
 
@@ -67,7 +86,11 @@ describe("How this test was proven", () => {
     const fetchMock = mockApi({});
     render(<ProofBlock proof={proof()} open />);
     const code = screen.getByTestId("asking-code");
-    expect(text(within(code).getByTestId("asking-code-label"))).toBe("Written by Otto");
+    // (its title and the Written by Otto tag head its numbered part of the fold)
+    const part = screen.getByTestId("proof-part-code");
+    expect(part.contains(code)).toBe(true);
+    expect(text(within(part).getByTestId("asking-code-label"))).toBe("Written by Otto");
+    expect(text(within(part).getByRole("heading", { level: 4 }))).toContain(proofBlock.code.title);
     expect(text(within(code).getByTestId("asking-code-agree"))).toContain("gave the same answer on every case");
     expect(text(within(code).getByTestId("asking-code-known"))).toContain("24 fresh questions");
     expect(screen.queryByTestId("asking-code-source")).toBeNull();
@@ -116,7 +139,8 @@ describe("a proposal with its proof", () => {
     const fetchMock = mockApi({});
     render(<ProposalCard planId={7} proposal={withProof()} onDecided={() => {}} />);
     const card = screen.getByTestId("otto-proposal");
-    expect((within(card).getByTestId("proof-block") as HTMLDetailsElement).open).toBe(false);
+    expect(within(card).getByTestId("proof-block")).not.toBeNull();
+    expect((within(card).getByTestId("proof-fold") as HTMLDetailsElement).open).toBe(false);
     expect(text(screen.getByTestId("proposal-status"))).toContain("Proposed");
     fireEvent.click(within(card).getByTestId("asking-code-toggle"));
     expect(calls(fetchMock)).toEqual([]);
@@ -125,6 +149,17 @@ describe("a proposal with its proof", () => {
   it("a proposal without a proof draws no such block", () => {
     render(<ProposalCard planId={7} proposal={proposal()} onDecided={() => {}} />);
     expect(screen.queryByTestId("proof-block")).toBeNull();
+  });
+
+  it("in a panel that shows the test and holds its proof in the fold, the card leaves out its own copy of both", () => {
+    render(<ProposalCard planId={7} proposal={withProof()} onDecided={() => {}} compact />);
+    const card = within(screen.getByTestId("otto-proposal"));
+    expect(card.queryByTestId("proof-block")).toBeNull();
+    expect(card.queryByTestId("proposal-lines")).toBeNull();
+    // What the decision is about, and the decision itself, stay.
+    expect(card.getByTestId("proposal-why")).not.toBeNull();
+    expect(card.getByTestId("proposal-accept")).not.toBeNull();
+    expect(card.getByTestId("proposal-reject")).not.toBeNull();
   });
 
   it("Accept records the decision through the decide route, and nothing else is sent", async () => {

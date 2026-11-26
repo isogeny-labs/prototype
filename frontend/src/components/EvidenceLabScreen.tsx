@@ -31,7 +31,8 @@ import {
 import { AlsoChecks, CheckPanel, EarlierRuns } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
 import { LibraryPanel, LibraryTable } from "./checks/LibraryEvidence";
-import { ItemLinkView, RelatedFor } from "./related";
+import { FoldLine, Trail } from "./proof";
+import { ItemLinkView, RelatedFold, WithRelated } from "./related";
 import { VerifyResultDetails } from "./VerifyScreen";
 import type { CheckDetail, ChecksView } from "../api";
 import { ResultDetail } from "./lab/ResultDetail";
@@ -44,7 +45,6 @@ import {
   ResultBadge,
   RichTextView,
   SecondaryButton,
-  StatusChip,
   StatusView,
   WhereFromTag,
   splitByGroup,
@@ -168,7 +168,7 @@ const OPEN_IN: Record<string, string> = {
   dependencies: "Open in Dependencies",
 };
 
-/** The every-run list of one test (its earlier runs), asked of the backend. */
+/** The every-run list of one test (its earlier runs), asked of the backend: a quiet folded line at the panel's foot. */
 function RunsFor({ planId, checkId }: { planId: number; checkId: string }) {
   const [detail, setDetail] = useState<CheckDetail | null>(null);
   useEffect(() => {
@@ -181,7 +181,12 @@ function RunsFor({ planId, checkId }: { planId: number; checkId: string }) {
       live = false;
     };
   }, [planId, checkId]);
-  return detail ? <EarlierRuns runs={detail.runs} /> : null;
+  if (!detail || detail.runs.length === 0) return null;
+  return (
+    <FoldLine title="Every run, newest first" count={detail.runs.length} testId="runs-fold">
+      <EarlierRuns runs={detail.runs} bare />
+    </FoldLine>
+  );
 }
 
 export function EvidenceLabScreen({
@@ -555,64 +560,67 @@ export function EvidenceLabScreen({
       open={selected !== null}
       item={selected ? `test-${selected.item_id}` : null}
       title={selected?.title ?? ""}
-      subtitle={
-        selected ? (
-          <span className="flex flex-wrap items-center gap-2">
-            {leading(selected, beforeAfter) ? (
-              <StatusChip
-                label={leading(selected, beforeAfter)!.label}
-                tone={leading(selected, beforeAfter)!.tone}
-                size="sm"
-              />
-            ) : null}
-            {selected.control_line ? <span>{selected.control_line}</span> : null}
-          </span>
-        ) : null
-      }
+      kicker="Result · Crypto tests"
       onClose={closePanel}
     >
       {selected ? (
-        <div data-testid="lab-row" data-kind={selected.kind} id={`lab-detail-${selected.item_id}`}>
-          {beforeAfter ? (
-            <>
-              {selected.after ? (
-                <ResultDetail
-                  result={selected.after}
-                  heading={current.columns?.after_heading}
-                  plain={selected.after.plain}
-                  busy={busy}
-                  onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
-                  onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
-                  onViewFix={onViewFix}
+        <WithRelated itemKey={`test:${selected.item_id}`}>
+          {(related) => (
+            <div
+              data-testid="lab-row"
+              data-kind={selected.kind}
+              id={`lab-detail-${selected.item_id}`}
+              className="space-y-4"
+            >
+              {leading(selected, beforeAfter) ? (
+                <Trail
+                  lines={related}
+                  here={{ kind: "test", name: "Result", label: leading(selected, beforeAfter)!.label }}
                 />
               ) : null}
-              {selected.result ? (
+              {beforeAfter ? (
+                <div>
+                  {selected.after ? (
+                    <ResultDetail
+                      result={selected.after}
+                      heading={current.columns?.after_heading}
+                      plain={selected.after.plain}
+                      controlLine={selected.control_line || null}
+                      busy={busy}
+                      onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
+                      onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
+                      onViewFix={onViewFix}
+                    />
+                  ) : null}
+                  {selected.result ? (
+                    <ResultDetail
+                      result={selected.result}
+                      heading={current.columns?.before_heading}
+                      plain={selected.result.plain}
+                      controlLine={selected.after ? null : selected.control_line || null}
+                      busy={busy}
+                      onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
+                      onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
+                      onViewFix={onViewFix}
+                    />
+                  ) : null}
+                </div>
+              ) : selected.result ? (
                 <ResultDetail
                   result={selected.result}
-                  heading={current.columns?.before_heading}
                   plain={selected.result.plain}
+                  controlLine={selected.control_line || null}
                   busy={busy}
                   onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                   onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
                   onViewFix={onViewFix}
                 />
               ) : null}
-            </>
-          ) : selected.result ? (
-            <ResultDetail
-              result={selected.result}
-              plain={selected.result.plain}
-              busy={busy}
-              onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
-              onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
-              onViewFix={onViewFix}
-            />
-          ) : null}
-          <div className="mt-4">
-            <RunsFor planId={current.plan_id} checkId={`test-${selected.item_id}`} />
-          </div>
-          <RelatedFor itemKey={`test:${selected.item_id}`} />
-        </div>
+              <RunsFor planId={current.plan_id} checkId={`test-${selected.item_id}`} />
+              <RelatedFold lines={related} />
+            </div>
+          )}
+        </WithRelated>
       ) : null}
     </DetailPanel>
   );

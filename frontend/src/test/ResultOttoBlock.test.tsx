@@ -122,9 +122,14 @@ function open(otto: OttoResultBlock | null | undefined) {
 describe("Evidence, a result of an advisory check: where the check came from", () => {
   it("says which advisory and pack it came from, with the way to the advisory", () => {
     open(block);
+    // The design refactor (26 November 2026): the block is a numbered part of the fold; the part's heading carries its
+    // title and the From Otto tag, and the fold's header names it.
+    const part = screen.getByTestId("proof-part-otto");
+    expect(text(within(part).getByTestId("result-otto-label"))).toBe("From Otto");
+    expect(text(within(part).getByRole("heading", { level: 4 }))).toContain("Where this check came from");
+    expect(text(screen.getByTestId("proof-fold-inside"))).toContain("Where the check came from");
     const box = screen.getByTestId("result-otto");
-    expect(text(within(box).getByTestId("result-otto-label"))).toBe("From Otto");
-    expect(text(box)).toContain("Where this check came from");
+    expect(part.contains(box)).toBe(true);
     expect(text(within(box).getByTestId("result-otto-line"))).toContain(block.line);
     const link = within(box).getByTestId("result-otto-advisory");
     expect(text(link)).toBe("Open the advisory");

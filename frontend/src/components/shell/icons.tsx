@@ -25,6 +25,19 @@ const PATHS: Record<string, string> = {
   assistant: "M5 5h14v10H9l-4 4z",
   folder: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   project: "M6 4h12v16H6zM9 8h6M9 12h6M9 16h3",
+  // 26 November 2026 (the design refactor): the folded record, the map, the timeline, a person, a merge, a file.
+  layers: "M12 3 3 7.5l9 4.5 9-4.5zM3 12l9 4.5 9-4.5M3 16.5 12 21l9-4.5",
+  signal: "M12 10.2a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6zM7.2 7.2a6.8 6.8 0 0 0 0 9.6M16.8 7.2a6.8 6.8 0 0 1 0 9.6",
+  map: "M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20zM9 4v13.5M15 6.5V20",
+  clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3.5 2.2",
+  person: "M12 4.5a3.7 3.7 0 1 0 0 7.4 3.7 3.7 0 0 0 0-7.4zM4.5 20c.9-3.8 3.9-5.8 7.5-5.8s6.6 2 7.5 5.8",
+  merge: "M7 3.5a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4zM7 16.1a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4zM17 9.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4zM7 7.9v8.2M7 10c0 2 2 2 4 2h3.8",
+  file: "M7 3h7l5 5v13H7zM14 3v5h5",
+  download: "M12 4v11m0 0-4-4m4 4 4-4M5 20h14",
+  info: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v5M12 7.8v.4",
+  ring: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 9.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4z",
+  arrow: "M5 12h14m-5-5 5 5-5 5",
+  quote: "M5 17v-4.5C5 9 6.8 7 10 6.3M13.5 17v-4.5C13.5 9 15.3 7 18.5 6.3M5 13h4v4H5zM13.5 13h4v4h-4z",
 };
 
 export function Icon({ name, className = "h-4 w-4" }: { name: string; className?: string }) {

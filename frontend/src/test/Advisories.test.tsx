@@ -160,8 +160,8 @@ const PARTS = [
   "advisory-test-block",
   "advisory-no-test",
   "advisory-here",
+  "advisory-proof-fold",
   "advisory-fix",
-  "advisory-claude",
   "advisory-related",
 ];
 const partsInOrder = () =>
@@ -675,12 +675,14 @@ describe("Advisories, an advisory's panel", () => {
     await inPanel.findByTestId("advisory-related");
     // The plain name, the id and the day it was published head the panel.
     const heading = inPanel.getByRole("heading", { level: 2, name: named(blankFailed.name) });
-    expect(text(heading.parentElement)).toBe(
-      `${blankFailed.name}${blankFailed.id}Published ${blankFailed.published_text}`,
-    );
+    // (26 November 2026: a slim tool row says what this is, then the title on a line of its own, then its id and day)
+    expect(text(inPanel.getByTestId("panel-kicker"))).toBe("Advisory");
+    expect(text(heading)).toBe(blankFailed.name);
+    expect(text(heading.nextElementSibling)).toBe(`${blankFailed.id}Published ${blankFailed.published_text}`);
     expect(
       heading.compareDocumentPosition(inPanel.getByTestId("advisory-sentence")) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    // In the open: what it says, the test's status, the proposed check and the fix. Behind one fold: every record.
     expect(partsInOrder()).toEqual([
       "advisory-sentence",
       "advisory-publisher",
@@ -688,10 +690,15 @@ describe("Advisories, an advisory's panel", () => {
       "advisory-affected",
       "advisory-test-block",
       "advisory-here",
+      "advisory-proof-fold",
       "advisory-fix",
-      "advisory-claude",
       "advisory-related",
     ]);
+    const fold = inPanel.getByTestId("advisory-proof-fold") as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    expect(text(within(fold).getByTestId("proof-fold-name"))).toBe("Cryptanalysis proof");
+    expect(text(within(fold).getByTestId("proof-fold-inside"))).toBe("The test · The trial · The records");
+    expect(fold.contains(inPanel.getByTestId("advisory-claude"))).toBe(true);
     expect(inPanel.getByTestId("advisory-sentence").textContent).toBe(blankFailed.panel.sentence);
     expect(posts(fetchMock)).toEqual([]);
     // The table beside the open panel is compact: the name, and one column that still carries the three chips.
@@ -789,23 +796,40 @@ describe("Advisories, an advisory's panel", () => {
     const block = inPanel.getByTestId("advisory-test-block");
     const inBlock = within(block);
     expect(inBlock.getByRole("heading", { level: 3, name: test.title })).not.toBeNull();
-    for (const words of [test.question, test.cases_line, test.control, test.rule])
-      expect(inBlock.getByText(words), words).not.toBeNull();
-    // The fingerprint is cut short; the whole value shows on hover.
-    const fingerprint = inBlock.getByTitle(test.design_fingerprint);
-    expect(fingerprint.textContent).toBe(test.design_fingerprint.slice(0, 12));
-    expect(text(block)).not.toContain(test.design_fingerprint);
-    // Its label and reason are the view's.
+    // In the open: its label and reason, the view's.
     expect(within(block).getByText(blankFailed.test.label).parentElement!.getAttribute("data-tone")).toBe(
       blankFailed.test.tone,
     );
     expect(inBlock.getByTestId("advisory-test-reason").textContent).toBe(blankFailed.test.reason);
 
-    const trial = within(inBlock.getByTestId("advisory-trial"));
-    expect(trial.getByRole("heading", { name: test.trial.title })).not.toBeNull();
+    // Behind the one fold, whole and in order: the test, its trial, the records.
+    const fold = inPanel.getByTestId("advisory-proof-fold") as HTMLDetailsElement;
+    expect(fold.tagName).toBe("DETAILS");
+    expect(fold.open).toBe(false);
+    const inFold = within(fold);
+    expect(inFold.getByTestId("proof-fold-name").textContent).toBe("Cryptanalysis proof");
+    expect(
+      Array.from(fold.querySelectorAll("[data-part]")).map((el) => [
+        el.getAttribute("data-testid"),
+        el.querySelector("h4")!.textContent,
+      ]),
+    ).toEqual([
+      ["proof-part-test", `1${test.title}`],
+      ["proof-part-trial", `2${test.trial.title}`],
+      ["proof-part-records", "3The records"],
+    ]);
+    const details = within(inFold.getByTestId("advisory-test-details"));
+    for (const words of [test.question, test.cases_line, test.control, test.rule])
+      expect(details.getByText(words), words).not.toBeNull();
+    // The fingerprint is cut short; the whole value shows on hover.
+    const fingerprint = details.getByTitle(test.design_fingerprint);
+    expect(fingerprint.textContent).toBe(test.design_fingerprint.slice(0, 12));
+    expect(text(fold)).not.toContain(test.design_fingerprint);
+
+    const trial = within(inFold.getByTestId("advisory-trial"));
     expect(trial.getAllByRole("listitem").map((li) => li.textContent)).toEqual(test.trial.lines);
 
-    const ledger = inBlock.getByTestId("advisory-ledger") as HTMLDetailsElement;
+    const ledger = within(inFold.getByTestId("proof-part-records")).getByTestId("advisory-ledger") as HTMLDetailsElement;
     expect(ledger.tagName).toBe("DETAILS");
     expect(ledger.open).toBe(false);
     expect(text(ledger.querySelector("summary"))).toBe(`${test.ledger.title} (${test.ledger.count})`);
@@ -1007,9 +1031,12 @@ describe("Advisories, an advisory's panel", () => {
     expect(chip.textContent).toBe(noTest.label);
     expect(chip.getAttribute("data-tone")).toBe(stopsNoTest.test.tone);
     expect(within(block).getByTestId("advisory-test-reason").textContent).toBe(noTest.reason);
-    // No trial was run for it; Otto's ledger entries are there, folded.
-    expect(within(block).queryByTestId("advisory-trial")).toBeNull();
-    expect(text(within(block).getByTestId("advisory-ledger").querySelector("summary"))).toBe(
+    // No trial was run for it; Otto's ledger entries are in the fold, which is a record here and no proof.
+    const fold = inPanel.getByTestId("advisory-proof-fold");
+    expect(within(fold).getByTestId("proof-fold-name").textContent).toBe("Technical record");
+    expect(fold.getAttribute("data-kind")).toBe("record");
+    expect(within(fold).queryByTestId("advisory-trial")).toBeNull();
+    expect(text(within(fold).getByTestId("advisory-ledger").querySelector("summary"))).toBe(
       `${noTest.ledger!.title} (${noTest.ledger!.count})`,
     );
 
@@ -1034,8 +1061,8 @@ describe("Advisories, an advisory's panel", () => {
       "advisory-affected",
       "advisory-no-test",
       "advisory-here",
+      "advisory-proof-fold",
       "advisory-fix",
-      "advisory-claude",
     ]);
   });
 
@@ -1049,10 +1076,14 @@ describe("Advisories, an advisory's panel", () => {
     expect(chip.textContent).toBe(noTest.label);
     expect(chip.getAttribute("data-tone")).toBe(looseNotOffered.test.tone);
     expect(within(block).getByTestId("advisory-test-reason").textContent).toBe(noTest.reason);
-    const trial = within(within(block).getByTestId("advisory-trial"));
-    expect(trial.getByRole("heading", { name: noTest.trial!.title })).not.toBeNull();
+    // How its design did is kept whole in the fold: a record, since no test came of it.
+    const fold = inPanel.getByTestId("advisory-proof-fold");
+    expect(within(fold).getByTestId("proof-fold-name").textContent).toBe("Technical record");
+    const part = within(fold).getByTestId("proof-part-trial");
+    expect(within(part).getByRole("heading", { level: 4 }).textContent).toBe(`1${noTest.trial!.title}`);
+    const trial = within(within(part).getByTestId("advisory-trial"));
     expect(trial.getAllByRole("listitem").map((li) => li.textContent)).toEqual(noTest.trial!.lines);
-    expect(within(block).getByTestId("advisory-ledger")).not.toBeNull();
+    expect(within(fold).getByTestId("advisory-ledger")).not.toBeNull();
     expect(within(inPanel.getByTestId("advisory-here")).getByTestId("advisory-here-empty").textContent).toBe(
       looseNotOffered.panel.here.empty,
     );
@@ -1180,8 +1211,27 @@ describe("Advisories, a test that was tried on sandbox copies", () => {
     const fetchMock = await open({ ...advisoriesNotAdded, rows: [withProofOnCard, stopsNoTest] });
     const inPanel = await openRow(BLANK);
     expect(inPanel.getByTestId("advisory-sandbox-label").textContent).toBe("Sandbox copy");
-    expect(inPanel.getAllByTestId("proof-block")).toHaveLength(1);
-    expect(within(card()).getByTestId("proof-block")).toBeTruthy();
+    // Once: the three counts and what they do not show stand with the test, and every part of the proof is in the
+    // one fold. The proposal's card repeats neither.
+    const block = inPanel.getByTestId("advisory-test-block");
+    expect(inPanel.getAllByTestId("proof-tiles")).toHaveLength(1);
+    expect(within(block).getAllByTestId("proof-tile")).toHaveLength(3);
+    expect(within(block).getByTestId("proof-not-shown").textContent).toBe(proof().not_shown);
+    expect(within(card()).queryByTestId("proof-block")).toBeNull();
+    expect(within(card()).queryByTestId("proof-tiles")).toBeNull();
+    const fold = inPanel.getByTestId("advisory-proof-fold");
+    expect(inPanel.getAllByTestId("proof-rows")).toHaveLength(1);
+    expect(
+      Array.from(fold.querySelectorAll('[data-testid^="proof-part-"]')).map((el) => el.getAttribute("data-testid")),
+    ).toEqual([
+      "proof-part-test",
+      "proof-part-trial",
+      "proof-part-frozen",
+      "proof-part-code",
+      "proof-part-copies",
+      "proof-part-replay",
+      "proof-part-records",
+    ]);
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]); // (showing the proof sent nothing)
   });
 
@@ -1193,7 +1243,8 @@ describe("Advisories, a test that was tried on sandbox copies", () => {
     await open({ ...advisoriesNotAdded, rows: [alone, stopsNoTest] });
     const inPanel = await openRow(BLANK);
     const block = inPanel.getByTestId("advisory-test-block");
-    expect(within(block).getAllByTestId("proof-block")).toHaveLength(1);
+    expect(within(block).getAllByTestId("proof-tiles")).toHaveLength(1);
+    expect(within(inPanel.getByTestId("advisory-proof-fold")).getAllByTestId("proof-rows")).toHaveLength(1);
   });
 
   it("shows what a trial on sandbox copies showed for a test that is not offered", async () => {
@@ -1203,7 +1254,15 @@ describe("Advisories, a test that was tried on sandbox copies", () => {
     };
     await open({ ...advisoriesTwoPacks, rows: [refused] });
     const inPanel = await openRow(refused.id);
-    expect(within(inPanel.getByTestId("advisory-no-test")).getByTestId("proof-block")).toBeTruthy();
+    // No test came of it, so no counts are held up as a proof: what the trial does not show is said in the open, and
+    // the trial itself is kept part by part in the fold, a Technical record.
+    expect(within(inPanel.getByTestId("advisory-no-test")).getByTestId("proof-not-shown").textContent).toBe(
+      proof().not_shown,
+    );
+    expect(inPanel.queryByTestId("proof-tiles")).toBeNull();
+    const fold = inPanel.getByTestId("advisory-proof-fold");
+    expect(within(fold).getByTestId("proof-fold-name").textContent).toBe("Technical record");
+    expect(within(fold).getAllByTestId("proof-rows")).toHaveLength(1);
   });
 
   it("labels a result that came from a sandbox copy, and no other", async () => {
@@ -1245,11 +1304,9 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(inCard.getByTestId("proposal-status").textContent).toBe(shown.status.word);
     expect(inCard.getByTestId("proposal-status").getAttribute("data-tone")).toBe(shown.status.tone);
     expect(text(inCard.getByTestId("proposal-why"))).toBe(`${shown.why_label}: ${shown.why}`);
-    expect(
-      within(inCard.getByTestId("proposal-lines"))
-        .getAllByRole("listitem")
-        .map((li) => li.textContent),
-    ).toEqual(shown.lines);
+    // The test stands above the card and its question, cases, control and trial are in the fold below: the card does
+    // not say them a second time here (it does wherever it stands alone).
+    expect(inCard.queryByTestId("proposal-lines")).toBeNull();
     expect(inCard.getByTestId("proposal-decided").textContent).toBe(shown.decided_line);
     expect(inCard.getByTestId("proposal-note").textContent).toBe(shown.note);
     // The program's name heads the row, so the proposal's own title is not said a second time.
@@ -1745,7 +1802,7 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(within(card()).getAllByTestId("proposal-decision")).toHaveLength(1);
     // The assessment's Otto ledger can't be read without the harness: only the pack's own entries are listed.
     expect(inPanel.getAllByTestId("advisory-ledger")).toHaveLength(1);
-    expect(inPanel.getByTestId("advisory-test-block").contains(inPanel.getByTestId("advisory-ledger"))).toBe(true);
+    expect(inPanel.getByTestId("proof-part-records").contains(inPanel.getByTestId("advisory-ledger"))).toBe(true);
     fireEvent.click(button("undo"));
     expect(posts(fetchMock)).toEqual([]);
     expect(planChanged).toBe(0);
@@ -1796,8 +1853,7 @@ describe("Advisories, the names the end-to-end walk looks for", () => {
       "advisory-sources",
       "advisory-affected",
       "advisory-test-block",
-      "advisory-trial",
-      "advisory-ledger",
+      "advisory-test-reason",
       "advisory-here",
       "advisory-here-note",
       "advisory-here-row",
@@ -1805,7 +1861,6 @@ describe("Advisories, the names the end-to-end walk looks for", () => {
       "proposal-label",
       "proposal-status",
       "proposal-why",
-      "proposal-lines",
       "proposal-decided",
       "proposal-effect",
       "proposal-undo",
@@ -1815,9 +1870,20 @@ describe("Advisories, the names the end-to-end walk looks for", () => {
       "advisory-here-result",
       "open-in-checks",
       "see-the-evidence",
+      "advisory-proof-fold",
+      "proof-fold-toggle",
+      "proof-fold-name",
+      "proof-fold-inside",
+      "proof-fold-body",
+      "proof-part-test",
+      "advisory-test-details",
+      "proof-part-trial",
+      "advisory-trial",
+      "proof-part-records",
+      "advisory-ledger",
+      "advisory-claude",
       "advisory-fix",
       "advisory-fix-label",
-      "advisory-claude",
       "advisory-related",
     ];
     expect(present(inPanel, panel())).toEqual(inPanel);
@@ -1827,12 +1893,13 @@ describe("Advisories, the names the end-to-end walk looks for", () => {
     expect(card().getAttribute("data-proposal")).toBe(blankProposal.id);
     expect(card().getAttribute("data-kind")).toBe("check");
     expect(card().getAttribute("data-state")).toBe("accepted");
-    // Each ledger is its own folded list: the test's, the decisions on the proposal, and the check's in this assessment.
+    // Each ledger is its own folded list: the decisions on the proposal and the check's in this assessment (with the
+    // check), then the test's (in the fold).
     const here = blankFailed.panel.here.rows[0]!;
     const ledgers = within(panel()).getAllByTestId("advisory-ledger");
     expect(ledgers.map((d) => d.tagName)).toEqual(["DETAILS", "DETAILS", "DETAILS"]);
     expect(ledgers.map((d) => text(d.querySelector("summary")))).toEqual(
-      [blankFailed.panel.test!.ledger, here.proposal!.history.ledger!, here.ledger!].map(
+      [here.proposal!.history.ledger!, here.ledger!, blankFailed.panel.test!.ledger].map(
         (l) => `${l.title} (${l.count})`,
       ),
     );
@@ -1848,7 +1915,6 @@ describe("Advisories, the names the end-to-end walk looks for", () => {
       "proposal-label",
       "proposal-status",
       "proposal-why",
-      "proposal-lines",
       "proposal-decided",
       "proposal-accept",
       "proposal-reject",
