@@ -1095,6 +1095,13 @@ def _build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             # has stopped or resumed watching something: the looks as the rule reads them, every item as it stands,
             # and every stop and watch again.
             evidence["watch_list"] = watch_list
+        from app.record.part import actions_part
+
+        who_did_what = actions_part(db, plan, evidence)
+        if who_did_what:
+            # Who did what (design refactor, decision I), inside what is signed: each recorded press with who, when,
+            # which button and what it started. Absent while no press is on record (everything before names were kept).
+            evidence["actions"] = who_did_what
     return _clean(evidence)
 
 
@@ -2147,6 +2154,7 @@ def render_report_html(envelope: dict) -> bytes:
     body += _otto_html(e.get("otto"))
     body += _change_watch_html(e.get("change_watch"))
     body += _watch_list_html(e.get("watch_list"))
+    body += _actions_html(e.get("actions"))
     body.append(el("p", t("End of report. " + REPORT_LINE), cls="note"))
     page = (
         f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
@@ -2156,6 +2164,35 @@ def render_report_html(envelope: dict) -> bytes:
         f"<body>\n<main>\n{_join(body)}\n</main>\n</body>\n</html>\n"
     )
     return page.encode("utf-8")
+
+
+def _actions_html(part: dict | None) -> list:
+    """Who did what (design refactor, decision I): the last section of the report. One row for each recorded press:
+    when, who, which button, what it was on and what it started. It lists records; it decides nothing."""
+    if not part:
+        return []
+    out = [el("h2", t("Who did what")), el("p", t(part.get("note")), cls="note")]
+    rows = []
+    for action in part.get("actions") or []:
+        refs = action.get("refs") or []
+        started = ", ".join(f"{str(r.get('kind')).replace('_', ' ')} {r.get('id')}" for r in refs)
+        missing = action.get("runs_not_in_file") or 0
+        if missing:
+            started += ("; " if started else "") + f"{missing} more of its runs are not listed in this file"
+        source = (part.get("sources") or {}).get(action.get("by_source")) or action.get("by_source")
+        rows.append(
+            el(
+                "tr",
+                el("td", _when(action.get("at"))),
+                el("td", t(action.get("by")), el("div", t(source), cls="note")),
+                el("td", t(action.get("what")), el("div", t(action.get("button")), cls="note")),
+                el("td", t(action.get("item") or ""), cls="mono"),
+                el("td", t(started or "nothing listed")),
+            )
+        )
+    head = el("tr", *[el("th", t(c)) for c in ("When", "Who", "What (the button)", "On", "What it started or made")])
+    out.append(el("table", el("thead", head), el("tbody", *rows)))
+    return out
 
 
 def _watch_list_html(part: dict | None) -> list:
@@ -2610,6 +2647,9 @@ def _export_view(row: EvidenceExportRow) -> dict:
         "message": "Two files were downloaded: the evidence (JSON) and a readable report (HTML). The JSON file is the record.",
         "verify_hint": f"To check the file: {VERIFY_COMMAND}",
     }
+
+
+export_view = _export_view  # one stored download as a view names it (Evidence files lists every one of them)
 
 
 class EvidenceMixin:

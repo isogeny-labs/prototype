@@ -841,6 +841,42 @@ class AssistantMessageRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class ActionRow(Base):
+    """Who did what (design refactor, decision I, 26 November 2026). One row for one press of a button that decides or
+    changes something in an assessment, written by the request that pressed it (`app/lab/actions.py`, the one place
+    that writes here). `at` is the moment of the press and `by` the name it was made under, taken then from one source
+    (`by_source`): the logged-in account, else the name typed once in Settings (Who decides), else "You". Rows are only
+    ever added, and nothing is filled in afterwards: what happened before this table existed has no row.
+    `item`: what the press was on, as the key the Related block uses ("test:12", "fix:fix-...", "change:<key>",
+    "system:<key>"), "run:<id>" for a result, "developer-change:<id>" for a developer's change, or None.
+    `detail`: the few facts of the press (which tests, which reviewer, which version) and the ids of the records it
+    made. No result is kept here and none is read from here."""
+
+    __tablename__ = "actions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int | None] = mapped_column(ForeignKey("assessments.id"), nullable=True)
+    import_id: Mapped[int | None] = mapped_column(ForeignKey("imports.id"), nullable=True)
+    plan_id: Mapped[int | None] = mapped_column(ForeignKey("plans.id"), nullable=True)
+    at: Mapped[str] = mapped_column(String(40))  # the moment of the press (ISO text, UTC)
+    by: Mapped[str] = mapped_column(String(100))
+    by_source: Mapped[str] = mapped_column(String(12))  # account | typed | default
+    by_account: Mapped[str | None] = mapped_column(String(60), nullable=True)  # "github:<numeric id>" for an account
+    kind: Mapped[str] = mapped_column(String(40))
+    item: Mapped[str | None] = mapped_column(String(720), nullable=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ActionRunRow(Base):
+    """Which press started a run: written when the run is stored, beside it. The run row, its fingerprint and its
+    review are not touched. A run with no row here was started before names were kept (or by nothing a person pressed)."""
+
+    __tablename__ = "action_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    action_id: Mapped[int] = mapped_column(ForeignKey("actions.id"))
+    run_id: Mapped[int] = mapped_column(ForeignKey("test_runs.id"), unique=True)
+
+
 NO_DELETE_TABLES = ("folders", "projects", "assessments")
 
 
@@ -877,8 +913,10 @@ APPEND_ONLY_TABLES = (
     "assistant_messages",  # phase 6b: what was said to Otto
     "watch_runs",
     "watch_reviews",  # phase 6d: Change watch
-    "watchlist_marks",
-)  # sandbox research: the Watch list
+    "watchlist_marks",  # sandbox research: the Watch list
+    "actions",
+    "action_runs",  # who did what (design refactor, decision I)
+)
 
 
 # A column that was added to a table after the table first shipped. A data folder made before then gets the column when

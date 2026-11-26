@@ -25,8 +25,10 @@ from app.web import changewatch as changewatch_routes
 from app.web import changes, checks, dependencies, fixes, hosting, importing, migration, projects, session
 from app.web import lab as lab_routes
 from app.web import otto as otto_routes
+from app.web import record as record_routes
 from app.web import tests as test_routes
 from app.web.turns import OneReadAtATime
+from app.web.who import WhoIsAsking
 from app.web.common import error_response
 
 
@@ -73,6 +75,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Reads take turns, first come, first served: several views worked out side by side are much slower than one after
     # another (app/web/turns.py). Anything that changes something does not wait.
     app.add_middleware(OneReadAtATime)
+    # Who did what: the session of a request is known to the Lab while it is answered, so a press is recorded under
+    # the account that pressed it (app/web/who.py, app/lab/actions.py).
+    app.add_middleware(WhoIsAsking)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_request: Request, exc: StarletteHTTPException):
@@ -135,6 +140,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         assistant_routes.routes(lab, require_login), dependencies=guarded
     )  # phase 6a: the panel's read; 6b: a typed sentence
     app.include_router(changewatch_routes.routes(lab, require_login), dependencies=guarded)  # phase 6d: Change watch
+    # Evidence as the full record: the timeline, the decisions, the evidence files, an item's history (reads only)
+    app.include_router(record_routes.routes(lab, require_login), dependencies=guarded)
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):
