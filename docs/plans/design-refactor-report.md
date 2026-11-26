@@ -65,7 +65,25 @@ Advisories opens with four numbers and then the list; its background lines are f
 
 These are smaller items. Each is listed in the SPEC as not built, so nothing claims otherwise.
 
-NOT_BUILT
+| The plan said | What is there instead |
+|---|---|
+| The test plan on Checks drawn in two parts, by where each test runs | Each test says where it runs, in one line ("On your server, localhost:8443" or "On a copy of acme-sign 1.4.2, on this computer"). The list itself is not split. |
+| "Why it matters" opening under a row | It stays on the row, as before. |
+| The two research buttons in the Advisories header | They stay in the New advisories block, as before. |
+| On the Overview: three cards for the three questions, a small copy of the map, one count by tag | The Overview is as it was, with a new link to the map. The Observatory has the four counts. |
+| The three layers on a change of Change watch | Its panel is as it was. |
+| Three shapes of label (result, what it rests on, where it came from) | Only the tag at the head of each part. The labels themselves look as before. |
+| Links that jump to a part inside the dropdown | Not built. |
+| The second author's asking code on a switch beside the first | It stays under the first, as before. |
+| Numbers on the sidebar (proposals waiting, open fixes) | Not built. |
+| "What it shows" and "what it doesn't" in two columns | One block, as before. |
+| The trail on every panel | It is on a result, an advisory and a fix. Not on a system, a library or a claim. |
+| "Show on the map" on every result | It is on the results of a server or a signing program on the Results page. |
+| The map in the downloadable report | Not built (the plan had already left this out). |
+
+I left these out to keep the build to what could be tested properly today. None of them changes a result. Tell me which you want and I will plan them.
+
+One more thing to know: the Otto panel still calls the Results page "Evidence" in its sentences. The address did not change, so every old link still works.
 
 ## How it was checked
 
@@ -73,7 +91,11 @@ CHECKS
 
 ## What the independent review found
 
-REVIEW
+A separate reviewer read the whole build against the SPEC and your rules. It reported 13 findings. None was about a wrong result. What it found, and what was done:
+
+REVIEW_TABLE
+
+It also confirmed what it found sound: the answer keys, the reviewer, the wireframes, the research data and the package lists are untouched; no new network call; no "secure", score or severity in any new text; folding dropped no record; the new reads write nothing; the two new tables are add-only and have one writer; an older evidence file still verifies.
 
 ## What I need from you
 
