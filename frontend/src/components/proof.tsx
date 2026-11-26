@@ -30,7 +30,10 @@ export function Glance({ children, testId = "glance" }: { children: ReactNode; t
 /** One quiet fact under the plain sentence, with a small picture beside it (where it ran, the control). */
 export function GlanceFact({ icon, children, testId }: { icon: string; children: ReactNode; testId?: string }) {
   return (
-    <div data-testid={testId} className="grid grid-cols-[1.125rem_minmax(0,1fr)] items-start gap-2 text-[13px] leading-snug text-slate-300">
+    <div
+      data-testid={testId}
+      className="grid grid-cols-[1.125rem_minmax(0,1fr)] items-start gap-2 text-[13px] leading-snug text-slate-300"
+    >
       <Icon name={icon} className="mt-0.5 h-4 w-4 text-slate-400" />
       <div className="min-w-0 break-words">{children}</div>
     </div>

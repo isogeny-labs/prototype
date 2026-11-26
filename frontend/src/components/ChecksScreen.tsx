@@ -17,6 +17,7 @@ import {
   FilterSelect,
   GroupSection,
   GroupTabs,
+  tabTotal,
   ItemPageContext,
   PageHeader,
   PartSection,
@@ -276,6 +277,13 @@ export function ChecksScreen({
     [narrowedAny, view, needle, fromFilter, resultFilter],
   );
 
+  // Every tab says how many checks it holds and how many of them are findings, counted from the rows of that tab.
+  const totals = useMemo(
+    () =>
+      view ? Object.fromEntries(view.groups.map((g) => [g.key, tabTotal(tabRows(g).map((r) => r.result))])) : null,
+    [view],
+  );
+
   // Phase 6b: with the Result filter on, the test plan lists only its tests that read that way ("show me failed
   // checks" lists the failed checks and nothing else). A test of the plan is its row "test-<id>" in the list.
   const planOnly = useMemo(() => {
@@ -431,7 +439,14 @@ export function ChecksScreen({
       {thePlan}
       <PageHeader title="Checks" description={view.subline} />
       {active !== null ? (
-        <GroupTabs groups={view.groups} active={active} onChoose={choose} idBase={tabIds} matches={matches} />
+        <GroupTabs
+          groups={view.groups}
+          active={active}
+          onChoose={choose}
+          idBase={tabIds}
+          matches={matches}
+          totals={totals}
+        />
       ) : null}
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search checks" placeholder="Search checks" />

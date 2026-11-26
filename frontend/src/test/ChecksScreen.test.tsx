@@ -78,13 +78,27 @@ const section = (key: string) => {
 };
 const rowsIn = (key: string) => within(section(key)).queryAllByTestId("check-row");
 
+const t0 = (group: string) => screen.getAllByRole("tab").find((t) => t.getAttribute("data-group") === group)!;
+
 describe("Checks, the page", () => {
   it("is named Checks, has the four work groups as tabs in order, opens on the first with something in it, and keeps the test plan under Crypto tests", async () => {
     const fetchMock = await open();
     expect(screen.getByRole("heading", { level: 1, name: "Checks" })).not.toBeNull();
     expect(text(screen.getByTestId("page-header"))).toContain(CHECKS_SUBLINE);
     const tabs = within(screen.getByRole("tablist", { name: "Work groups" })).getAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
+    expect(tabs.map((t) => t.firstChild!.textContent)).toEqual([
+      "Verification",
+      "Crypto tests",
+      "Migration",
+      "Dependencies",
+    ]);
+    // Beside its name each tab says how many checks it holds, and how many of them are findings (26 November 2026).
+    const verification = checksView.groups.find((g) => g.key === "verification")!;
+    expect(within(t0("verification")).getByTestId("group-tab-total").textContent).toBe(
+      String(verification.rows.length),
+    );
+    expect(tabs.every((t) => within(t).queryByTestId("group-tab-total") !== null)).toBe(true);
+    expect(within(tabs[0]!).getByTestId("group-tab-findings").textContent).toBe("✕ 1 false");
     // One group's table at a time: the first group with something in it (claims were verified).
     expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false"]);
     expect(shownGroups()).toEqual(["verification"]);

@@ -383,7 +383,10 @@ function ItemPageView({
       <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-slate-800/80 pb-4">
         <div className="min-w-0">
           {kicker ? (
-            <p data-testid="panel-kicker" className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <p
+              data-testid="panel-kicker"
+              className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+            >
               {kicker}
             </p>
           ) : null}
