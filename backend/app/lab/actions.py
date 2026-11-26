@@ -239,7 +239,9 @@ def _before_now(t: Told, phase: str) -> bool:
     return (
         t.db.scalar(
             select(TestRunRow.id)
-            .where(TestRunRow.plan_id == t.args["plan_id"], TestRunRow.phase == phase, TestRunRow.started_at < t.press.at)
+            .where(
+                TestRunRow.plan_id == t.args["plan_id"], TestRunRow.phase == phase, TestRunRow.started_at < t.press.at
+            )
             .limit(1)
         )
         is not None
@@ -263,7 +265,9 @@ def _plan_change(t: Told) -> dict:
         "added": list(t.press.made.get("plan_items") or []),
         "back": [c["id"] for c in changed if c.get("removed") == [True, False]],
         "removed": [c["id"] for c in changed if c.get("removed") == [False, True]],
-        "moved": [{"item": c["id"], "from": c["position"][0], "to": c["position"][1]} for c in changed if "position" in c],
+        "moved": [
+            {"item": c["id"], "from": c["position"][0], "to": c["position"][1]} for c in changed if "position" in c
+        ],
     }
 
 
@@ -283,7 +287,9 @@ def _watch_again(t: Told) -> bool:
         t.db.scalar(
             select(WatchRunRow.id)
             .where(
-                WatchRunRow.plan_id == watch.plan_id, WatchRunRow.head_commit == watch.head_commit, WatchRunRow.id < watch.id
+                WatchRunRow.plan_id == watch.plan_id,
+                WatchRunRow.head_commit == watch.head_commit,
+                WatchRunRow.id < watch.id,
             )
             .limit(1)
         )
@@ -314,6 +320,7 @@ PRESSES: dict[str, What] = {
         lambda t: {"assessment_id": t.args["assessment_id"]},
         detail=lambda t: {
             **({"changed": _assessment_changes(t.args["changes"])} if _assessment_changes(t.args["changes"]) else {}),
+            **({"detail_id": t.first("assessment_details")} if t.first("assessment_details") else {}),
             **({"signoff_id": t.first("assessment_signoffs")} if t.args["changes"].get("close") else {}),
         },
     ),
@@ -351,13 +358,19 @@ PRESSES: dict[str, What] = {
     "run_test": What("run", _plan, item=lambda t: f"test:{t.args['item_id']}", detail=_queued, runs=True),
     "run_all": What("run_all", _plan, detail=_queued, runs=True),
     "add_test": What(
-        "test_added", _plan, detail=lambda t: {"catalog_id": t.args["catalog_id"], **_plan_change(t)}, needs=("plan_items",)
+        "test_added",
+        _plan,
+        detail=lambda t: {"catalog_id": t.args["catalog_id"], **_plan_change(t)},
+        needs=("plan_items",),
     ),
     "remove_test": What(
         "test_removed", _plan, item=lambda t: f"test:{t.args['item_id']}", detail=_plan_change, needs=("plan_items",)
     ),
     "reorder": What(
-        "tests_reordered", _plan, detail=lambda t: {"order": list(t.args["order"]), **_plan_change(t)}, needs=("plan_items",)
+        "tests_reordered",
+        _plan,
+        detail=lambda t: {"order": list(t.args["order"]), **_plan_change(t)},
+        needs=("plan_items",),
     ),
     "start_retest": What(
         "retest",
@@ -371,7 +384,11 @@ PRESSES: dict[str, What] = {
         needs=("retests",),
     ),
     "retest_now": What(
-        "retest_now", _plan, item=_fix, detail=lambda t: {"retest_id": t.first("retests"), **_queued(t)}, needs=("retests",)
+        "retest_now",
+        _plan,
+        item=_fix,
+        detail=lambda t: {"retest_id": t.first("retests"), **_queued(t)},
+        needs=("retests",),
     ),
     "measure_migration": What(
         "measure_status", _plan, detail=lambda t: {"again": _before_now(t, "migration"), **_queued(t)}, runs=True
@@ -384,7 +401,7 @@ PRESSES: dict[str, What] = {
         "dig_deeper",
         _run,
         item=lambda t: f"run:{t.args['run_id']}",
-        detail=lambda t: {"request_id": t.first("research_requests")},
+        detail=lambda t: {"research_request_id": t.first("research_requests")},
         needs=("research_requests",),
     ),
     # ---- Fixes: a code change, from Connect demo code to the merge
@@ -419,7 +436,11 @@ PRESSES: dict[str, What] = {
     "merge": What("merged", _plan, item=_fix, detail=lambda t: {"merge_id": t.first("merges")}, needs=("merges",)),
     # ---- a change to a system: try, approvals, Apply, Roll back
     "try_change": What(
-        "change_tried", _plan, item=_change, detail=lambda t: {"try_id": t.first("change_tries")}, needs=("change_tries",)
+        "change_tried",
+        _plan,
+        item=_change,
+        detail=lambda t: {"try_id": t.first("change_tries")},
+        needs=("change_tries",),
     ),
     "ask_approval": What(
         "approval_asked",
@@ -432,11 +453,15 @@ PRESSES: dict[str, What] = {
         "change_approved",
         _plan,
         item=_change,
-        detail=lambda t: {"approval_id": t.first("apply_approvals"), **_reviewer(t)},
+        detail=lambda t: {"apply_approval_id": t.first("apply_approvals"), **_reviewer(t)},
         needs=("apply_approvals",),
     ),
     "apply_change": What(
-        "applied", _plan, item=_change, detail=lambda t: {"apply_id": t.first("applies"), **_queued(t)}, needs=("applies",)
+        "applied",
+        _plan,
+        item=_change,
+        detail=lambda t: {"apply_id": t.first("applies"), **_queued(t)},
+        needs=("applies",),
     ),
     "rollback_change": What(
         "rolled_back",
@@ -529,7 +554,9 @@ KINDS = (
 )
 
 
-def place(db, plan_id=None, import_id=None, assessment_id=None, run_id=None) -> tuple[int | None, int | None, int | None]:
+def place(
+    db, plan_id=None, import_id=None, assessment_id=None, run_id=None
+) -> tuple[int | None, int | None, int | None]:
     """(assessment, import, plan) of a press, from whichever of them it names. A file brought in before its test plan
     was made has no plan yet, and an assessment that was just started has no file."""
     if run_id is not None:
@@ -688,4 +715,16 @@ class ActionsMixin:
             db.commit()
 
 
-__all__ = ["ACCOUNT", "DEFAULT", "KINDS", "PRESSES", "SOURCES", "TYPED", "YOU", "ActionsMixin", "asking", "place", "recorded"]
+__all__ = [
+    "ACCOUNT",
+    "DEFAULT",
+    "KINDS",
+    "PRESSES",
+    "SOURCES",
+    "TYPED",
+    "YOU",
+    "ActionsMixin",
+    "asking",
+    "place",
+    "recorded",
+]

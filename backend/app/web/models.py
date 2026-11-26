@@ -3650,6 +3650,325 @@ class AssistantView(Shape):
     busy: bool = Field(description="Something is running: ask again in a second.")
 
 
+# ---------------------------------------------------------------- Evidence as the full record (design refactor, section 6)
+# The Timeline, one entry's story, Approvals and decisions, Evidence files and the history in an item's panel. Reads
+# only: they repeat what the records say. Every result word here is the reviewer's, or its own page's, as given.
+
+RecordAreaKey = Literal["observe", "advisories", "checks", "fixes", "migration", "dependencies", "watch", "assessment"]
+RecordKindKey = Literal["runs", "people", "system", "files"]
+RecordIcon = Literal[
+    "grid",
+    "file",
+    "download",
+    "signoff",
+    "person",
+    "live",
+    "flask",
+    "list",
+    "approve",
+    "merge",
+    "clock",
+    "apply",
+    "rollback",
+]
+WhoSource = Literal["account", "typed", "default", "reviewer", "signoff", "decides", "clock", "author", "none"]
+
+
+class RecordWho(Shape):
+    """One name on a record, and where it came from. A person is never the decider of a result."""
+
+    name: str = Field(description='The name, or "Not recorded (before names were kept)".')
+    source: WhoSource = Field(
+        description="account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the "
+        "reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name "
+        "(Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none."
+    )
+    source_label: str = Field(description="The same, in one plain line.")
+    demo: bool = Field(description="Demo data: a demo reviewer or the demo developer.")
+    recorded: bool = Field(description="False where no name was kept.")
+    button: str | None = Field(
+        description='The button it was pressed with ("Run all", "Retest now, on Fixes"), or null.'
+    )
+
+
+class RecordArea(Shape):
+    key: RecordAreaKey
+    label: str = Field(description='"Observatory and Verify", "Advisories", "Checks", "Fixes", "Migration plan", ...')
+
+
+class RecordKind(Shape):
+    key: RecordKindKey
+    label: str = Field(description='"Runs and results", "What people did", "Changes to a system", "Files in and out"')
+
+
+class RecordResult(Shape):
+    """A result word and its tone, exactly as the reviewer's review or the item's own page gives them."""
+
+    label: str
+    tone: Tone
+
+
+class RecordChip(Shape):
+    name: str | None = Field(description="What it is a result of, where several stand together; else null.")
+    label: str
+    tone: Tone
+
+
+class RecordCount(Shape):
+    label: str
+    tone: Tone
+    count: int
+
+
+class RecordFilter(Shape):
+    key: str = Field(description='"all", or an area or kind key.')
+    label: str
+    count: int = Field(description="How many entries it would list, with the other filter and the search as they are.")
+
+
+class TimelineRun(Shape):
+    run_id: int | None
+    verify_run_id: int | None = Field(description="For a claim checked by Verify (then run_id is null).")
+    name: str
+    ran_on: str
+    result: RecordResult
+    source_tag: Source | None
+    link: ItemLink
+
+
+class TimelineEntry(Shape):
+    """One thing that happened. One entry for one press: the runs a press started are in its entry."""
+
+    id: str = Field(description='Stable: "press-12", "retest-3", "merge-1", "verify-2", "otto-5", ...')
+    at: str = Field(description="The moment, as ISO text in UTC; the screen writes it in the viewer's zone.")
+    area: RecordArea
+    kind: RecordKind
+    icon: RecordIcon
+    lead: str = Field(description="The bold start of the sentence.")
+    rest: RichText = Field(description="The rest of the sentence.")
+    who: RecordWho
+    also: list[RecordWho] = Field(
+        description="A second name: the demo reviewer an approval was given as, a commit's author."
+    )
+    decided_by: str | None = Field(
+        description='"decided by the separate reviewer" for runs, "decided by fixed rules" for Verify; null otherwise.'
+    )
+    marks: list[str] = Field(description='"From Otto", "Demo data"')
+    source_tags: list[Source] = Field(description="The source tags of its runs, each once.")
+    runs: list[TimelineRun]
+    counts: list[RecordCount] = Field(description="Its runs counted by result word.")
+    outcome: RecordResult | None = Field(description="A proof's, a try's or a watch run's own word, where it has one.")
+    pending: int = Field(description="Runs this press started that have no result yet.")
+    link: ItemLink | None
+    apart: bool = Field(description="From Change watch: listed under Change watch only, and counted nowhere else.")
+
+
+class TimelineDay(Shape):
+    date: str = Field(description="YYYY-MM-DD, in the zone the view names.")
+    count: int
+    entries: list[TimelineEntry]
+
+
+class TimelineChosen(Shape):
+    area: str
+    kind: str
+    q: str
+
+
+class TimelineApart(Shape):
+    count: int
+    label: str
+    text: str
+    area: RecordAreaKey
+
+
+class TimelineView(Shape):
+    plan_id: int
+    is_demo: bool
+    title: str
+    subline: str
+    chosen: TimelineChosen
+    areas: list[RecordFilter] = Field(description="Where: All, then each place.")
+    kinds: list[RecordFilter] = Field(description="What: Everything, then each kind.")
+    total: int
+    days: list[TimelineDay] = Field(description="Newest first.")
+    zone: str = Field(description="The time zone the days are sorted by (the `tz` asked for, or UTC).")
+    empty_text: str | None
+    apart: TimelineApart | None = Field(
+        description="What Change watch ran and brought in, where it is not listed: how many, and where to see them."
+    )
+    names_note: str = Field(description="One sentence that says where names come from.")
+    disclaimer: str
+    busy: bool = Field(description="Something is running: ask again in a second.")
+
+
+class RecordRole(Shape):
+    role: str = Field(description='"Merged by", "Approved by", "Approved as", "Pressed by", ...')
+    who: RecordWho
+    at: str | None
+    note: str | None
+
+
+class RecordRested(Shape):
+    title: str
+    text: str | None
+    chips: list[RecordChip]
+    link: ItemLink | None
+    link_label: str | None
+
+
+class RecordFact(Shape):
+    label: str
+    value: str
+    mono: bool
+
+
+class TimelineEntryDetail(Shape):
+    """One entry's story, for a side panel."""
+
+    plan_id: int
+    is_demo: bool
+    entry: TimelineEntry
+    title: str
+    summary: str
+    people: list[RecordRole] = Field(description="Who: every person involved, each with what they did.")
+    names_note: str
+    rested_title: str
+    rested: list[RecordRested] = Field(description="What it rested on (a merge, an Apply); empty otherwise.")
+    after_title: str
+    after: list[RecordRested] = Field(description="What came after (a merge, an Apply, a Roll back); empty otherwise.")
+    record_title: str = Field(description='"Technical record"')
+    record: list[RecordFact] = Field(description="Ids, commits and fingerprints, for the folded part.")
+    link_label: str | None
+
+
+class DecisionWord(Shape):
+    key: str
+    label: str = Field(description='"Approved", "Merged", "Accepted", "Not added", "Applied", "Signed off", ...')
+
+
+class DecisionRow(Shape):
+    id: str = Field(description="The timeline entry of this decision.")
+    at: str
+    decision: DecisionWord
+    on: str
+    marks: list[str]
+    who: RecordWho = Field(description="The name the decision was recorded under.")
+    pressed_by: RecordWho | None = Field(
+        description="Who pressed, where that is another name (an approval as a demo reviewer)."
+    )
+    area: RecordArea
+    link: ItemLink | None
+
+
+class DecisionDay(Shape):
+    date: str
+    count: int
+    rows: list[DecisionRow]
+
+
+class DecisionCard(Shape):
+    key: Literal["decisions", "approvals", "otto", "signoff"]
+    title: str
+    value: str
+    small: str
+
+
+class DecisionsChosen(Shape):
+    area: str
+
+
+class DecisionsView(Shape):
+    plan_id: int
+    is_demo: bool
+    title: str
+    subline: str
+    cards: list[DecisionCard]
+    names_note: str
+    results_note: str = Field(description="Why no result is in this list.")
+    chosen: DecisionsChosen
+    areas: list[RecordFilter]
+    total: int
+    days: list[DecisionDay] = Field(description="Newest first.")
+    zone: str
+    empty_text: str | None
+    disclaimer: str
+
+
+class EvidenceFileRow(Shape):
+    id: int
+    at: str
+    fingerprint: str
+    fingerprint_label: str
+    who: RecordWho = Field(description="Who downloaded it.")
+    # "json" would shadow BaseModel.json, so the attribute is json_ and the key stays "json".
+    json_: FileLink = Field(alias="json")
+    html: FileLink
+
+
+class EvidenceFilesCheck(Shape):
+    title: str
+    text: str
+    command: str
+    report_note: str
+
+
+class EvidenceFilesHolds(Shape):
+    title: str
+    items: list[str]
+
+
+class EvidenceFilesView(Shape):
+    plan_id: int
+    is_demo: bool
+    title: str
+    subline: str
+    files: list[EvidenceFileRow] = Field(description="Every download, newest first.")
+    empty_text: str | None
+    download: LabViewDownload = Field(description="The Download evidence button, as Evidence gives it.")
+    check: EvidenceFilesCheck
+    holds: EvidenceFilesHolds
+    names_note: str
+
+
+class HistoryLine(Shape):
+    id: str
+    at: str | None = Field(description="Null where the record has no time (a proposal of Otto's is not stored).")
+    icon: RecordIcon
+    title: str
+    result: RecordChip | None = Field(description="This item's own result in that run, or a proof's or a try's word.")
+    results: list[RecordChip] = Field(
+        description="Several results that stand together (a retest's, in a fix's history)."
+    )
+    who: RecordWho | None
+    said: str | None = Field(description='"started by You, with Run all", "by You", or that no name was kept.')
+    decided_by: str | None
+    note: str | None
+    fingerprint: str | None = Field(description="The run's fingerprint (SHA-256), in full.")
+    source_tag: Source | None
+    marks: list[str]
+    link: ItemLink | None
+
+
+class HistoryTimeline(Shape):
+    area: RecordAreaKey = Field(description="The place to open the timeline with.")
+
+
+class HistoryView(Shape):
+    plan_id: int
+    is_demo: bool
+    key: str
+    title: str = Field(description='"History of this check", "History of this fix", ...')
+    decides: str | None = Field(
+        description="The line on top that says what decides a result; null for a fix or a change."
+    )
+    lines: list[HistoryLine] = Field(description="Newest first; a line with no time comes last.")
+    notes: list[str]
+    empty_text: str | None
+    names_note: str
+    timeline: HistoryTimeline
+
+
 def _rebuild_all() -> None:
     for _model in list(globals().values()):
         if isinstance(_model, type) and issubclass(_model, BaseModel) and _model is not BaseModel:
