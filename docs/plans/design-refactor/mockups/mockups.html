@@ -156,7 +156,7 @@ body.shot .mockbar{display:none}
 .table .fix{font-size:13px;color:var(--slate-300)}
 .table tr.sub td{padding:8px 16px;background:color-mix(in oklab,var(--slate-800) 35%,transparent);font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--slate-400);font-weight:600}
 .table tr.sub td .mark{text-transform:none;letter-spacing:0;margin-left:6px}
-.table.ev th:nth-child(1){width:43%}.table.ev th:nth-child(2){width:9%}.table.ev th:nth-child(3){width:13%}.table.ev th:nth-child(4){width:21%}
+.table.ev th:nth-child(1){width:52%}.table.ev th:nth-child(2){width:11%}.table.ev th:nth-child(3){width:23%}
 .table.compact td{padding:11px 14px}
 .table.compact td:last-child{width:1%;white-space:nowrap}
 .cell-stack{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
@@ -305,6 +305,82 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
 .statcards dt{font-size:12.5px;color:var(--slate-400)}
 .statcards dd{font-size:24px;line-height:1.2;font-weight:600;color:var(--slate-50)}
 .statcards small{font-size:12px;color:var(--slate-500)}
+
+/* ---- parts of a table: observed on your systems, proven in the lab ---- */
+.table tr.part td{padding:10px 16px;background:color-mix(in oklab,var(--slate-800) 40%,transparent);border-bottom:1px solid var(--slate-800)}
+.table tr.part td>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.table tr.part .pt{font-weight:600;color:var(--slate-50);font-size:13.5px}
+.table tr.part .pm{font-size:12.5px;color:var(--slate-400)}
+.table tr.part .pn{margin-left:auto;font-size:12px;font-variant-numeric:tabular-nums;color:var(--slate-300);border:1px solid var(--slate-700);border-radius:999px;padding:0 7px}
+.table.compact tr.part td{padding:8px 14px}
+.table tr.sub td.lvl2{padding-left:30px}
+
+/* ---- the Observatory: a map of your systems ---- */
+.mapcard{position:relative;border:1px solid var(--slate-800);border-radius:14px;background:color-mix(in oklab,var(--slate-900) 35%,transparent);padding:14px 18px 18px}
+.maphead{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.maphead h2{font-size:15px;font-weight:600;color:var(--slate-50)}
+.maphead p{font-size:12.5px;color:var(--slate-400)}
+.maphead .seg{margin-left:auto}
+.map{position:relative;width:100%}
+.map svg.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:2}
+.map .lane{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;align-items:start}
+.map .lanelabel{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate-500);font-weight:600}
+.map .svc .lane{gap:24px}
+.map .svc{position:relative;border:1px solid var(--slate-700);border-radius:14px;padding:12px 12px 14px;margin:30px 0 54px;background:color-mix(in oklab,var(--slate-900) 70%,transparent)}
+.map .svct{display:flex;flex-direction:column;align-items:flex-end;text-align:right;margin:-2px 0 10px;min-height:34px}
+.map .svct .nh{font-size:13.5px}
+.map .node{position:relative;border:1px solid var(--slate-600);border-radius:10px;background:var(--slate-950);padding:9px 11px 10px;min-width:0}
+.map .node.ghost{border-style:dashed;background:transparent}
+.map .node.sel{box-shadow:0 0 0 2px var(--sky-400);border-color:var(--sky-400)}
+.map .node.center{justify-self:center;width:84%}
+.map .nh{font-weight:600;color:var(--slate-50);font-size:13.5px;line-height:1.3}
+.map .nk{font-size:11.5px;color:var(--slate-400);line-height:1.35;margin-top:1px}
+.map .ntag{margin-top:6px}
+.map .nnote{font-size:12px;color:var(--slate-400);margin-top:6px;line-height:1.4}
+.map .spot{border-top:1px solid var(--slate-800);margin-top:8px;padding-top:7px}
+.map .spot .sl{font-size:12.5px;color:var(--slate-100);line-height:1.35}
+.map .spot .sl .faint{font-size:11.5px}
+.map .spot .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.map .spot .wait{font-size:11.5px;color:var(--slate-500);margin-top:3px;font-style:italic}
+.map .lrow{display:flex;align-items:center;justify-content:space-between;gap:6px;border-top:1px solid var(--slate-800);margin-top:6px;padding-top:6px;font-size:12px}
+.map .lrow .mono{font-size:11.5px;color:var(--slate-200)}
+.chip.xs{font-size:11px;padding:0 6px;gap:3px;font-weight:600}
+.map .elabel{position:absolute;z-index:3;transform:translate(-50%,-50%);font-size:11px;line-height:1.4;background:var(--slate-950);border:1px solid var(--slate-700);border-radius:999px;padding:1px 8px;white-space:nowrap;color:var(--slate-300)}
+.map .elabel b{color:var(--slate-50);font-weight:600}
+.map .elabel.live{border-color:color-mix(in oklab,var(--sky-400) 60%,transparent);color:var(--sky-200)}
+.map .elabel.ask{border-style:dashed;padding:1px 6px}
+.edges path{fill:none;stroke-width:1.5}
+.edges .uses{stroke:var(--slate-500)}
+.edges .live{stroke:var(--sky-400);stroke-width:1.8}
+.edges .ask{stroke:var(--slate-500);stroke-dasharray:4 4}
+.edges marker path{stroke:none}
+.maplegend{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--slate-800);font-size:12px;color:var(--slate-400)}
+.maplegend .k{display:inline-flex;align-items:center;gap:7px}
+.maplegend svg{width:30px;height:10px;overflow:visible}
+.maplegend .box{display:inline-block;width:18px;height:12px;border-radius:3px;border:1px solid var(--slate-500)}
+.maplegend .box.ghost{border-style:dashed}
+.gaps{margin-top:12px;border:1px dashed var(--slate-700);border-radius:10px;padding:10px 14px}
+.gaps h3{font-size:12.5px;font-weight:600;color:var(--slate-100);display:flex;align-items:center;gap:8px}
+.gaps ul{display:grid;gap:5px;margin-top:6px;font-size:12.5px;color:var(--slate-300)}
+.gaps li{display:grid;grid-template-columns:14px minmax(0,1fr);gap:6px}
+.gaps li::before{content:"?";font-size:11px;font-weight:600;color:var(--slate-500)}
+.drawer-open .maplegend,.drawer-open .gaps{margin-right:calc(46% + 8px)}
+.drawer{position:absolute;top:56px;right:14px;width:46%;z-index:5;box-shadow:0 18px 40px -12px rgba(0,0,0,.55);background:var(--slate-950)}
+:root[data-theme="light"] .drawer{box-shadow:0 18px 40px -16px rgba(15,23,42,.28)}
+.spotlist{display:grid;gap:0;margin-top:12px;border-top:1px solid var(--slate-800)}
+.spotlist li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:10px 0;border-bottom:1px solid var(--slate-800)}
+.spotlist .k{font-size:13px;font-weight:600;color:var(--slate-50)}
+.spotlist .p{grid-column:1/-1;font-size:13px;color:var(--slate-300)}
+.spotlist .chips{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.spotlist .lk{grid-column:1/-1;font-size:12.5px}
+.banner{display:flex;align-items:center;gap:12px;border:1px solid var(--slate-700);border-radius:12px;padding:12px 16px;margin-bottom:14px;background:var(--slate-900)}
+.banner p{font-size:13.5px;color:var(--slate-200)}
+.banner .btn{margin-left:auto}
+.thumb{position:relative;overflow:hidden;border:1px solid var(--slate-800);border-radius:10px;background:var(--slate-950);margin:8px 0 10px}
+.thumb .map{position:absolute;left:10px;top:10px;transform-origin:0 0}
+.locator{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--slate-400);margin-top:10px}
+.locator .ic{color:var(--slate-400)}
+.locator b{color:var(--slate-200);font-weight:500}
 </style>
 </head>
 <body>
@@ -333,6 +409,7 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
   <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></symbol>
   <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.3v3.4M8 5.2v.2"/></symbol>
   <symbol id="i-grip" viewBox="0 0 16 16"><path d="M6 4v.01M10 4v.01M6 8v.01M10 8v.01M6 12v.01M10 12v.01" stroke-width="2.2"/></symbol>
+  <symbol id="i-map" viewBox="0 0 16 16"><path d="M1.8 4.2l4.1-1.6 4.2 1.6 4.1-1.6v9.2l-4.1 1.6-4.2-1.6-4.1 1.6z"/><path d="M5.9 2.6v9.2M10.1 4.2v9.2"/></symbol>
   <symbol id="i-ring" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.6"/></symbol>
 </svg>
 
@@ -340,9 +417,13 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
   <b>THROWAWAY MOCKUP</b><span>not the app</span><span class="sep">|</span>
   <span>Screen:</span>
   <button data-screen="overview">Overview</button>
+  <button data-screen="observatorynew">Observatory, just brought in</button>
+  <button data-screen="observatory">Observatory</button>
+  <button data-screen="system">A system</button>
   <button data-screen="checks">Checks</button>
   <button data-screen="evidence">Evidence</button>
-  <button data-screen="result">A result</button>
+  <button data-screen="observed">An observed result</button>
+  <button data-screen="result">A tested result</button>
   <button data-screen="advisory">A proposed check</button>
   <button data-screen="fix">A fix</button>
   <span class="sep">|</span><span>Cryptanalysis proof:</span>
@@ -399,8 +480,8 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
       <ul class="rows">
         <li><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span> read from your systems <b>5</b></li>
         <li><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span> run on a copy here <b>6</b></li>
-        <li><span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span> not checked yet <b>0</b></li>
-        <li><span class="tag published"><svg class="ic sm"><use href="#i-quote"/></svg>Published</span> said by a publisher <b>0</b></li>
+        <li><span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span> not checked yet <b>6</b></li>
+        <li><span class="tag published"><svg class="ic sm"><use href="#i-quote"/></svg>Published</span> said by a publisher <b>4</b></li>
       </ul>
     </section>
   </div>
@@ -423,20 +504,29 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
     </section>
     <section class="card gcard">
       <h3>Dependencies</h3><p class="q">What can your libraries do?</p>
-      <div class="res"><span class="muted small">No dependency list yet.</span></div>
-      <div class="foot">Add one on Migration plan<a href="#">Open →</a></div>
+      <div class="res"><span class="chip sm neutral"><span class="sym">•</span>10 libraries</span><span class="chip sm neutral"><span class="sym">•</span>4 answered</span><span class="chip sm neutral"><span class="sym">•</span>0 blockers</span></div>
+      <div class="foot">4 done · 6 open · no fixes<a href="#">Open →</a></div>
     </section>
   </div>
 
-  <div class="cols3" style="grid-template-columns:1fr 1fr;margin-top:16px">
+  <div class="cols3" style="grid-template-columns:2fr 1fr;margin-top:16px;align-items:start">
     <section class="card">
-      <div class="eyebrow">Brought in</div>
-      <p class="small"><a href="#" class="mono">acme-pay-cbom.json</a>: 3 claims, 1 server and 1 signing program named. Dependency list: none yet.</p>
+      <div class="eyebrow" style="display:flex;align-items:center;gap:8px;margin-bottom:0">Your systems <a href="#" style="margin-left:auto;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500">Open the Observatory →</a></div>
+      <div class="thumb" data-map-thumb="full"></div>
+      <p class="small muted">4 parts of Acme Pay token-signing service. 5 checks observed live, 6 proven in the lab. 2 things your files don't say.</p>
     </section>
-    <section class="card">
-      <div class="eyebrow">Evidence</div>
-      <p class="small"><a href="#">11 runs recorded.</a> Not downloaded yet. &nbsp;<a href="#">Download evidence</a></p>
-    </section>
+    <div style="display:grid;gap:16px">
+      <section class="card">
+        <div class="eyebrow">Brought in</div>
+        <p class="small"><a href="#" class="mono">acme-pay-cbom.json</a>: 3 claims, 1 server and 1 signing program named.</p>
+        <p class="small" style="margin-top:6px"><a href="#" class="mono">dependencies-demo.cdx.json</a>: 10 libraries.</p>
+      </section>
+      <section class="card">
+        <div class="eyebrow">Evidence</div>
+        <p class="small"><a href="#">15 runs recorded.</a> Not downloaded yet.</p>
+        <p class="small" style="margin-top:6px"><a href="#">Download evidence</a></p>
+      </section>
+    </div>
   </div>
   <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
 </template>
@@ -463,7 +553,8 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
   <table class="table">
     <thead><tr><th style="width:36px"></th><th>Test plan · 6 tests</th><th>Runs on</th><th>Latest result</th><th style="width:150px"></th></tr></thead>
     <tbody>
-      <tr class="sub"><td colspan="5">Standard tests · 5</td></tr>
+      <tr class="part"><td colspan="5"><div><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="pt">On your systems</span><span class="pm">Handshakes with an address in your file that you confirmed. Nothing else is sent.</span><span class="pn">2</span></div></td></tr>
+      <tr class="sub"><td colspan="5">Server localhost:8450</td></tr>
       <tr><td><svg class="ic grip"><use href="#i-grip"/></svg></td>
         <td><div class="name">Old TLS versions</div><div class="plain">Checks whether the server accepts any TLS version older than the file claims (TLS 1.3 only).</div><div class="why">Why it matters: older versions have known weaknesses and are easy to leave switched on.</div></td>
         <td class="on mono">localhost:8450</td>
@@ -474,6 +565,8 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
         <td class="on mono">localhost:8450</td>
         <td><div class="cell-stack"><span class="chip pass"><span class="sym">✓</span>Passed</span><a href="#" class="xs">See the evidence</a></div></td>
         <td><button class="btn sm">Run</button> <button class="btn sm icon ghost"><svg class="ic sm"><use href="#i-x"/></svg></button></td></tr>
+      <tr class="part"><td colspan="5"><div><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="pt">On copies on this computer</span><span class="pm">Run on a copy on this computer. Your live systems are not touched.</span><span class="pn">4</span></div></td></tr>
+      <tr class="sub"><td colspan="5">Signing program acme-sign 1.4.2 · standard tests · 3</td></tr>
       <tr><td><svg class="ic grip"><use href="#i-grip"/></svg></td>
         <td><div class="name">Independent exam (Wycheproof)</div><div class="plain">Puts acme-sign through an outside exam: 484 cases, each with a published right answer.</div></td>
         <td class="on mono">acme-sign 1.4.2</td>
@@ -520,43 +613,34 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
   <div class="toolbar">
     <div class="search"><svg class="ic"><use href="#i-search"/></svg>Search tests and results</div>
     <label>Result</label><div class="select">All results <svg class="ic sm"><use href="#i-down"/></svg></div>
-    <span class="legend"><svg class="ic"><use href="#i-info"/></svg>Rests on:
-      <span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span>
-      <span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span>
-      <span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span>
-      <span class="tag published"><svg class="ic sm"><use href="#i-quote"/></svg>Published</span></span>
   </div>
   <table class="table ev">
-    <thead><tr><th>Test</th><th>Result</th><th>Rests on</th><th>Fix</th><th>Last run</th></tr></thead>
+    <thead><tr><th>Test</th><th>Result</th><th>Fix</th><th>Last run</th></tr></thead>
     <tbody>
+      <tr class="part"><td colspan="4"><div><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="pt">On your systems</span><span class="pm">Handshakes with an address in your file that you confirmed. Nothing else is sent.</span><span class="pn">2</span></div></td></tr>
       <tr><td><div class="name">Old TLS versions <span class="on mono">· localhost:8450</span></div><div class="plain">The server accepts TLS 1.2, so 'TLS 1.3 only' is not true.</div></td>
         <td><span class="chip fail"><span class="sym">✕</span>Failed</span></td>
-        <td><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></td>
         <td class="fix">Server setting change: try it on a test copy, then apply <a href="#">→</a></td>
         <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
       <tr><td><div class="name">Certificate strength <span class="on mono">· localhost:8450</span></div><div class="plain">ECDSA P-256, as claimed. NIST retirement note.</div></td>
         <td><span class="chip pass"><span class="sym">✓</span>Passed</span></td>
-        <td><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></td>
         <td class="fix faint" aria-label="No fix listed">·</td>
         <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
+      <tr class="part"><td colspan="4"><div><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="pt">On copies on this computer</span><span class="pm">Run on a copy on this computer. Your live systems are not touched.</span><span class="pn">4</span></div></td></tr>
       <tr><td><div class="name">Independent exam (Wycheproof) <span class="on mono">· acme-sign 1.4.2</span></div><div class="plain">acme-sign 1.4.2 got 3 of the 484 exam cases wrong: it accepted signatures that aren't genuine.</div></td>
         <td><span class="chip fail"><span class="sym">✕</span>Failed</span></td>
-        <td><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></td>
         <td class="fix">Fix available, code not connected <a href="#">→</a></td>
         <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
       <tr><td><div class="name">Attacker tricks (our short list) <span class="on mono">· acme-sign 1.4.2</span></div><div class="plain">Accepts the signature r=0, s=0. One cause: no range check.</div></td>
         <td><span class="chip fail"><span class="sym">✕</span>Failed</span></td>
-        <td><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></td>
         <td class="fix">Fix available, code not connected <a href="#">→</a></td>
         <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
       <tr><td><div class="name">Speed and size <span class="on mono">· acme-sign 1.4.2</span></div><div class="plain">Signing and checking were timed. Numbers only: no pass or fail on the first run.</div></td>
         <td><span class="chip neutral"><span class="sym">•</span>Measured</span></td>
-        <td><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></td>
         <td class="fix faint" aria-label="No fix listed">·</td>
         <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
       <tr><td><div class="name">Advisory check: Missing ECDSA signature range check <span class="mark">From Otto</span></div><div class="on"><span class="mono">CVE-2022-21449 · acme-sign 1.4.2</span></div><div class="plain">acme-sign 1.4.2 got 3 of the 77 published cases for this advisory wrong.</div></td>
         <td><span class="chip fail"><span class="sym">✕</span>Failed</span></td>
-        <td><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></td>
         <td class="fix">Fix available, code not connected <a href="#">→</a></td>
         <td class="when">18 Nov 2026, 7:16 am EST</td></tr>
     </tbody>
@@ -576,12 +660,14 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
     <table class="table compact">
       <thead><tr><th>Test</th><th>Result</th></tr></thead>
       <tbody>
-        <tr><td><div class="name">Old TLS versions</div><div class="on mono">localhost:8450</div></td><td><div class="cell-stack"><span class="chip sm fail"><span class="sym">✕</span>Failed</span><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></div></td></tr>
-        <tr><td><div class="name">Certificate strength</div><div class="on mono">localhost:8450</div></td><td><div class="cell-stack"><span class="chip sm pass"><span class="sym">✓</span>Passed</span><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></div></td></tr>
-        <tr><td><div class="name">Independent exam (Wycheproof)</div><div class="on mono">acme-sign 1.4.2</div></td><td><div class="cell-stack"><span class="chip sm fail"><span class="sym">✕</span>Failed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
-        <tr><td><div class="name">Attacker tricks (our short list)</div><div class="on mono">acme-sign 1.4.2</div></td><td><div class="cell-stack"><span class="chip sm fail"><span class="sym">✕</span>Failed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
-        <tr><td><div class="name">Speed and size</div><div class="on mono">acme-sign 1.4.2</div></td><td><div class="cell-stack"><span class="chip sm neutral"><span class="sym">•</span>Measured</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
-        <tr class="sel"><td><div class="name">Advisory check: Missing ECDSA signature range check</div><div class="on mono">CVE-2022-21449</div><div class="on mono">acme-sign 1.4.2</div></td><td><div class="cell-stack"><span class="chip sm fail"><span class="sym">✕</span>Failed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
+        <tr class="part"><td colspan="2"><div><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="pt">On your systems</span><span class="pm"></span><span class="pn">2</span></div></td></tr>
+        <tr><td><div class="name">Old TLS versions</div><div class="on mono">localhost:8450</div></td><td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td></tr>
+        <tr><td><div class="name">Certificate strength</div><div class="on mono">localhost:8450</div></td><td><span class="chip sm pass"><span class="sym">✓</span>Passed</span></td></tr>
+        <tr class="part"><td colspan="2"><div><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="pt">On copies</span><span class="pm"></span><span class="pn">4</span></div></td></tr>
+        <tr><td><div class="name">Independent exam (Wycheproof)</div><div class="on mono">acme-sign 1.4.2</div></td><td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td></tr>
+        <tr><td><div class="name">Attacker tricks (our short list)</div><div class="on mono">acme-sign 1.4.2</div></td><td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td></tr>
+        <tr><td><div class="name">Speed and size</div><div class="on mono">acme-sign 1.4.2</div></td><td><span class="chip sm neutral"><span class="sym">•</span>Measured</span></td></tr>
+        <tr class="sel"><td><div class="name">Advisory check: Missing ECDSA signature range check</div><div class="on mono">CVE-2022-21449</div><div class="on mono">acme-sign 1.4.2</div></td><td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td></tr>
       </tbody>
     </table>
 
@@ -607,6 +693,7 @@ pre.code{margin:8px 0 0;border:1px solid var(--slate-800);background:var(--slate
             <li><svg class="ic"><use href="#i-flask"/></svg><span>Run on a copy of acme-sign 1.4.2 on this computer, in demo mode. Your live system was not touched.</span></li>
             <li><svg class="ic"><use href="#i-ring"/></svg><span>Control: a deliberately broken signer failed this test, as expected.</span></li>
           </ul>
+          <p class="locator"><svg class="ic"><use href="#i-map"/></svg>On your map: <b>Acme Pay token-signing service › acme-sign 1.4.2 › Checks signatures</b> <a href="#">Show on the map</a></p>
           <div class="next"><span class="say"><b>Fix available,</b> code not connected</span><button class="btn sm primary">View in Fixes <svg class="ic sm"><use href="#i-arrow"/></svg></button><span class="end"><button class="btn sm">Mark reviewed</button><button class="btn sm">Dig deeper</button></span></div>
         </div>
 
@@ -892,8 +979,9 @@ def check_signature(public_key, message, signature):
     <table class="table compact">
       <thead><tr><th>Fix</th><th>Status</th></tr></thead>
       <tbody>
+        <tr class="part"><td colspan="2"><div><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="pt">From checks on copies</span><span class="pm"></span><span class="pn">2</span></div></td></tr>
         <tr><td><div class="name">Update elliptic to the fixed version (6.5.7)</div><div class="on">3 failed tests on elliptic 6.5.6</div></td><td><span class="chip sm warn"><span class="sym">·</span>Text only</span></td></tr>
-        <tr class="sel"><td><div class="name">Update elliptic to 6.5.7 <span class="mark">From Otto</span></div><div class="on">Advisory check, CVE-2024-42460</div></td><td><div class="cell-stack"><span class="chip sm warn"><span class="sym">?</span>Proposed</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div></td></tr>
+        <tr class="sel"><td><div class="name">Update elliptic to 6.5.7 <span class="mark">From Otto</span></div><div class="on">Advisory check, CVE-2024-42460</div></td><td><span class="chip sm warn"><span class="sym">?</span>Proposed</span></td></tr>
       </tbody>
     </table>
 
@@ -966,10 +1054,332 @@ def check_signature(public_key, message, signature):
   <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
 </template>
 
+<template id="t-map-full">
+<div class="map" data-edges='[{"a":"clients","b":"endpoint","kind":"live","t":0.42,"label":"TLS · <b>1.3 and 1.2 accepted</b>"},{"a":"payserver","b":"endpoint","kind":"ask","dir":"h","label":"?"},{"a":"endpoint","b":"ecdsa","kind":"uses","xb":0.28,"t":0.5,"label":"its certificate"},{"a":"acmesign","b":"ecdsa","kind":"uses","xb":0.72,"t":0.5,"label":"signs with"},{"a":"payserver","b":"openssl","kind":"uses","t":0.5,"label":"through python 3.12.3"},{"a":"ledger","b":"ledgerlibs","kind":"uses","t":0.5,"label":"uses 8 libraries"}]'>
+  <svg class="edges" aria-hidden="true"></svg>
+  <div class="lane">
+    <div class="lanelabel" style="align-self:center">Outside your systems</div>
+    <div class="node ghost center" data-k="clients"><div class="nh">Clients</div><div class="nk">Who connects is not in your files</div></div>
+  </div>
+  <div class="svc">
+    <div class="svct"><span class="nh">Acme Pay token-signing service 1.0.0 <span class="mark demo">Demo data</span></span><span class="nk">Named in your scanner file and your dependency list</span></div>
+    <div class="lane">
+      <div class="node ghost" data-k="payserver">
+        <div class="nh">acme-pay-server 1.0.0</div><div class="nk">Your software · in your dependency list</div>
+        <div class="ntag"><span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span></div>
+        <div class="nnote">Not tied to a system of your file.</div>
+      </div>
+      <div class="node" data-k="endpoint">
+        <div class="nh">Token-signing endpoint</div><div class="nk">Server · localhost:8450</div>
+        <div class="ntag"><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></div>
+        <div class="spot"><div class="sl">TLS versions <span class="faint">· the file says 1.3 only</span></div><div class="chips"><span class="chip xs fail" title="Verify: the claim"><span class="sym">✕</span>False</span><span class="chip xs fail" title="Old TLS versions"><span class="sym">✕</span>Failed</span></div></div>
+        <div class="spot"><div class="sl">Certificate <span class="faint">· ECDSA P-256</span></div><div class="chips"><span class="chip xs pass" title="Verify: the claim"><span class="sym">✓</span>True</span><span class="chip xs pass" title="Certificate strength"><span class="sym">✓</span>Passed</span><span class="chip xs neutral" title="Authentication"><span class="sym">○</span>Classical</span></div></div>
+        <div class="spot"><div class="sl">Key exchange</div><div class="chips"><span class="chip xs neutral" title="Key exchange"><span class="sym">○</span>Classical</span></div></div>
+      </div>
+      <div class="node" data-k="acmesign">
+        <div class="nh">acme-sign 1.4.2</div><div class="nk">Signing program · in both files</div>
+        <div class="ntag"><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></div>
+        <div class="spot"><div class="sl">Signs <span class="faint">· ECDSA P-256</span></div><div class="chips"><span class="chip xs pass" title="Verify: the claim"><span class="sym">✓</span>True</span><span class="chip xs neutral" title="Signatures"><span class="sym">○</span>Classical</span></div></div>
+        <div class="spot"><div class="sl">Checks signatures</div><div class="chips"><span class="chip xs fail" title="Independent exam"><span class="sym">✕</span>Failed</span><span class="chip xs fail" title="Attacker tricks"><span class="sym">✕</span>Failed</span><span class="chip xs fail" title="Advisory check"><span class="sym">✕</span>Failed</span></div></div>
+        <div class="spot"><div class="sl">Speed and size</div><div class="chips"><span class="chip xs neutral"><span class="sym">•</span>Measured</span></div></div>
+      </div>
+      <div class="node ghost" data-k="ledger">
+        <div class="nh">acme-ledger 5.1.0</div><div class="nk">Your software · in your dependency list</div>
+        <div class="ntag"><span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span></div>
+        <div class="nnote">Not tied to a system of your file.</div>
+      </div>
+    </div>
+  </div>
+  <div class="lane">
+    <div class="node" data-k="openssl">
+      <div class="nk">Library</div><div class="nh">openssl 3.0.22</div><div class="nk">through python 3.12.3</div>
+      <div class="lrow"><span>Post-quantum</span><span class="chip xs neutral"><span class="sym">•</span>No to all three</span></div>
+      <div class="ntag"><span class="tag published"><svg class="ic sm"><use href="#i-quote"/></svg>Published</span></div>
+    </div>
+    <div class="node" data-k="ecdsa" style="grid-column:2/span 2;justify-self:center;width:64%">
+      <div class="nk">Algorithm</div><div class="nh">Classical signatures</div><div class="nk">ECDSA P-256 · named in your scanner file</div>
+      <div class="nnote">Used in 2 places: the endpoint's certificate and acme-sign's signatures.</div>
+    </div>
+    <div class="node" data-k="ledgerlibs">
+      <div class="nk">Libraries</div><div class="nh">acme-ledger's libraries · 8</div><div class="nk">From your dependency list</div>
+      <div class="lrow"><span class="mono">openssl 3.5.9</span><span class="chip xs neutral"><span class="sym">•</span>Yes to all three</span></div>
+      <div class="lrow"><span class="mono">openjdk 17.0.2</span><span class="chip xs neutral"><span class="sym">•</span>No to all three</span></div>
+      <div class="lrow"><span>6 more</span><a href="#" class="xs">on Dependencies</a></div>
+    </div>
+  </div>
+</div>
+</template>
+<template id="t-map-new">
+<div class="map" data-edges='[{"a":"clients","b":"endpoint","kind":"uses","t":0.42,"label":"TLS · the file says <b>1.3 only</b>"},{"a":"endpoint","b":"ecdsa","kind":"uses","xb":0.28,"t":0.5,"label":"its certificate"},{"a":"acmesign","b":"ecdsa","kind":"uses","xb":0.72,"t":0.5,"label":"signs with"}]'>
+  <svg class="edges" aria-hidden="true"></svg>
+  <div class="lane">
+    <div class="lanelabel" style="align-self:center">Outside your systems</div>
+    <div class="node ghost center" data-k="clients"><div class="nh">Clients</div><div class="nk">Who connects is not in your files</div></div>
+  </div>
+  <div class="svc">
+    <div class="svct"><span class="nh">Acme Pay token-signing service 1.0.0 <span class="mark demo">Demo data</span></span><span class="nk">Named in your scanner file</span></div>
+    <div class="lane">
+      <div></div>
+      <div class="node ghost" data-k="endpoint">
+        <div class="nh">Token-signing endpoint</div><div class="nk">Server · localhost:8450</div>
+        <div class="ntag"><span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span></div>
+        <div class="spot"><div class="sl">TLS versions <span class="faint">· the file says 1.3 only</span></div><div class="wait">Not checked yet</div></div>
+        <div class="spot"><div class="sl">Certificate <span class="faint">· the file says ECDSA P-256</span></div><div class="wait">Not checked yet</div></div>
+        <div class="spot"><div class="sl">Key exchange</div><div class="wait">Not in your file</div></div>
+      </div>
+      <div class="node ghost" data-k="acmesign">
+        <div class="nh">acme-sign 1.4.2</div><div class="nk">Signing program · in your scanner file</div>
+        <div class="ntag"><span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span></div>
+        <div class="spot"><div class="sl">Signs <span class="faint">· the file says ECDSA P-256</span></div><div class="wait">Not checked yet</div></div>
+      </div>
+      <div class="node ghost" data-k="nodeps">
+        <div class="nh">Libraries</div><div class="nk">Not brought in yet</div>
+        <div class="nnote">Add your dependency list on Migration plan › Dependencies to see the parts and libraries inside.</div>
+      </div>
+    </div>
+  </div>
+  <div class="lane">
+    <div class="node" data-k="ecdsa" style="grid-column:2/span 2;justify-self:center;width:64%">
+      <div class="nk">Algorithm</div><div class="nh">Classical signatures</div><div class="nk">ECDSA P-256 · named in your scanner file</div>
+      <div class="nnote">Used in 2 places: the endpoint's certificate and acme-sign's signatures.</div>
+    </div>
+  </div>
+</div>
+</template>
+<!-- =============================== THE OBSERVATORY =============================== -->
+<template id="t-observatory">
+  <div class="pagehead">
+    <div><h1>Observatory</h1><p>Your systems as your files describe them, where the cryptography is, and what each check found there. The map fills in as checks run. Looking at it runs nothing.</p></div>
+  </div>
+  <dl class="statcards">
+    <div class="card"><dt><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></dt><dd>5</dd><small>checks on localhost:8450</small></div>
+    <div class="card"><dt><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></dt><dd>6</dd><small>checks on a copy of acme-sign 1.4.2</small></div>
+    <div class="card"><dt><span class="tag published"><svg class="ic sm"><use href="#i-quote"/></svg>Published</span></dt><dd>4</dd><small>library answers from their makers</small></div>
+    <div class="card"><dt><span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span></dt><dd>6</dd><small>nothing observed or run yet</small></div>
+  </dl>
+  <section class="mapcard">
+      <div class="maphead">
+        <div><h2>Map</h2><p>Built from <span class="mono">acme-pay-cbom.json</span>, <span class="mono">dependencies-demo.cdx.json</span> and the checks of this assessment. Last changed 18 November 2026, 7:16 am EST, by Run all.</p></div>
+        <span class="seg"><span class="on">Map</span><span>List</span></span>
+      </div>
+      <div data-map="full"></div>
+      <div class="maplegend">
+        <span class="k"><svg viewBox="0 0 30 10"><path d="M0 5h30" style="stroke:var(--slate-500);stroke-width:1.5"/></svg>Your files say one uses the other</span>
+        <span class="k"><svg viewBox="0 0 30 10"><path d="M0 5h24" style="stroke:var(--sky-400);stroke-width:1.8"/><path d="M24 1l6 4-6 4z" style="fill:var(--sky-400)"/></svg>A connection we made (handshakes only)</span>
+        <span class="k"><svg viewBox="0 0 30 10"><path d="M0 5h30" style="stroke:var(--slate-500);stroke-width:1.5;stroke-dasharray:4 4"/></svg>Your files don't say</span>
+        <span class="k"><span class="box ghost"></span>Nothing observed or run here yet</span>
+        <span class="k">Chips are the checks' own words</span>
+      </div>
+      <div class="gaps">
+        <h3>What your files don't say <span class="muted xs" style="font-weight:400">The map draws no line it can't show from your files or a check.</span></h3>
+        <ul>
+          <li><span>Which software answers on localhost:8450. If it is acme-pay-server 1.0.0, tie them on <a href="#">Dependencies</a> (Part of).</span></li>
+          <li><span>Which system acme-ledger 5.1.0 is part of. Tie it on <a href="#">Dependencies</a> (Part of).</span></li>
+          <li><span>Who connects to the endpoint, and which data flows between the parts. A scanner file can name data flows; yours names none.</span></li>
+        </ul>
+      </div>
+  </section>
+</template>
+
+<template id="t-observatorynew">
+  <div class="pagehead">
+    <div><h1>Observatory</h1><p>Your systems as your files describe them, where the cryptography is, and what each check found there. The map fills in as checks run. Looking at it runs nothing.</p></div>
+  </div>
+  <div class="banner"><svg class="ic"><use href="#i-info"/></svg><p><b class="strong">Nothing has been checked yet.</b> This is what your scanner file says. Verify checks each claim on your live systems, and the map fills in as each check runs.</p><a class="btn" href="#">Open Verify <svg class="ic sm"><use href="#i-arrow"/></svg></a></div>
+  <section class="mapcard">
+      <div class="maphead">
+        <div><h2>Map</h2><p>Built from <span class="mono">acme-pay-cbom.json</span>. Brought in 18 November 2026, 7:12 am EST.</p></div>
+        <span class="seg"><span class="on">Map</span><span>List</span></span>
+      </div>
+      <div data-map="new"></div>
+      <div class="maplegend">
+        <span class="k"><svg viewBox="0 0 30 10"><path d="M0 5h30" style="stroke:var(--slate-500);stroke-width:1.5"/></svg>Your files say one uses the other</span>
+        <span class="k"><svg viewBox="0 0 30 10"><path d="M0 5h24" style="stroke:var(--sky-400);stroke-width:1.8"/><path d="M24 1l6 4-6 4z" style="fill:var(--sky-400)"/></svg>A connection we made (handshakes only)</span>
+        <span class="k"><svg viewBox="0 0 30 10"><path d="M0 5h30" style="stroke:var(--slate-500);stroke-width:1.5;stroke-dasharray:4 4"/></svg>Your files don't say</span>
+        <span class="k"><span class="box ghost"></span>Nothing observed or run here yet</span>
+        <span class="k">Chips are the checks' own words</span>
+      </div>
+  </section>
+</template>
+
+<template id="t-system">
+  <div class="pagehead">
+    <div><h1>Observatory</h1><p>Your systems as your files describe them, where the cryptography is, and what each check found there. The map fills in as checks run. Looking at it runs nothing.</p></div>
+  </div>
+  <dl class="statcards">
+    <div class="card"><dt><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span></dt><dd>5</dd><small>checks on localhost:8450</small></div>
+    <div class="card"><dt><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span></dt><dd>6</dd><small>checks on a copy of acme-sign 1.4.2</small></div>
+    <div class="card"><dt><span class="tag published"><svg class="ic sm"><use href="#i-quote"/></svg>Published</span></dt><dd>4</dd><small>library answers from their makers</small></div>
+    <div class="card"><dt><span class="tag file"><svg class="ic sm"><use href="#i-file"/></svg>From your file</span></dt><dd>6</dd><small>nothing observed or run yet</small></div>
+  </dl>
+  <section class="mapcard drawer-open">
+      <div class="maphead">
+        <div><h2>Map</h2><p>Built from <span class="mono">acme-pay-cbom.json</span>, <span class="mono">dependencies-demo.cdx.json</span> and the checks of this assessment. Last changed 18 November 2026, 7:16 am EST, by Run all.</p></div>
+        <span class="seg"><span class="on">Map</span><span>List</span></span>
+      </div>
+      <div data-map="full" data-sel="endpoint"></div>
+      <div class="maplegend">
+        <span class="k"><svg viewBox="0 0 30 10"><path d="M0 5h30" style="stroke:var(--slate-500);stroke-width:1.5"/></svg>Your files say one uses the other</span>
+        <span class="k"><svg viewBox="0 0 30 10"><path d="M0 5h24" style="stroke:var(--sky-400);stroke-width:1.8"/><path d="M24 1l6 4-6 4z" style="fill:var(--sky-400)"/></svg>A connection we made (handshakes only)</span>
+        <span class="k"><svg viewBox="0 0 30 10"><path d="M0 5h30" style="stroke:var(--slate-500);stroke-width:1.5;stroke-dasharray:4 4"/></svg>Your files don't say</span>
+        <span class="k"><span class="box ghost"></span>Nothing observed or run here yet</span>
+        <span class="k">Chips are the checks' own words</span>
+      </div>
+      <div class="gaps">
+        <h3>What your files don't say <span class="muted xs" style="font-weight:400">The map draws no line it can't show from your files or a check.</span></h3>
+        <ul>
+          <li><span>Which software answers on localhost:8450. If it is acme-pay-server 1.0.0, tie them on <a href="#">Dependencies</a> (Part of).</span></li>
+          <li><span>Which system acme-ledger 5.1.0 is part of. Tie it on <a href="#">Dependencies</a> (Part of).</span></li>
+          <li><span>Who connects to the endpoint, and which data flows between the parts. A scanner file can name data flows; yours names none.</span></li>
+        </ul>
+      </div>
+      <section class="panel drawer">
+        <div class="phead">
+          <div class="ptools"><span class="where">System · Observatory</span>
+            <button class="btn sm ghost">Open in new tab <svg class="ic sm"><use href="#i-ext"/></svg></button><button class="btn sm ghost">Wider</button><button class="btn sm ghost">Narrower</button><button class="btn sm ghost icon" title="Close details"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
+          <h2>Token-signing endpoint</h2>
+          <div class="sub">Server · <span class="mono">localhost:8450</span> · part of Acme Pay token-signing service 1.0.0</div>
+        </div>
+        <div class="pbody">
+          <div class="glance">
+            <div class="top"><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="when">Last observed 18 November 2026, 7:16 am EST</span></div>
+            <p class="lead" style="font-size:15px">2 claims: 1 False, 1 True. 2 server tests: 1 Failed, 1 Passed. Key exchange and authentication: Classical.</p>
+            <ul class="spotlist">
+              <li><span class="k">TLS versions</span><span class="chips"><span class="chip xs fail"><span class="sym">✕</span>False</span><span class="chip xs fail"><span class="sym">✕</span>Failed</span></span><span class="p">The server accepts TLS 1.2, so 'TLS 1.3 only' is not true.</span><span class="lk"><a href="#">Technical record</a> · claim on Verify, Old TLS versions on Evidence</span></li>
+              <li><span class="k">Certificate · ECDSA P-256</span><span class="chips"><span class="chip xs pass"><span class="sym">✓</span>True</span><span class="chip xs pass"><span class="sym">✓</span>Passed</span></span><span class="p">ECDSA P-256, as claimed. NIST retirement note.</span><span class="lk"><a href="#">Technical record</a> · claim on Verify, Certificate strength on Evidence</span></li>
+              <li><span class="k">Key exchange and authentication</span><span class="chips"><span class="chip xs neutral"><span class="sym">○</span>Classical</span></span><span class="p">Next: hybrid key exchange · Phase 2</span><span class="lk"><a href="#">Open in Migration plan</a></span></li>
+            </ul>
+            <div class="next"><span class="say"><b>Fix:</b> Server setting change: try it on a test copy, then apply</span><span class="end"><button class="btn sm primary">View in Fixes <svg class="ic sm"><use href="#i-arrow"/></svg></button></span></div>
+          </div>
+          <div class="gaps" style="margin:0">
+            <h3>What your files don't say about it</h3>
+            <ul>
+              <li><span>Which software answers on this address. If it is acme-pay-server 1.0.0, tie them on <a href="#">Dependencies</a> (Part of).</span></li>
+              <li><span>Who connects to it.</span></li>
+            </ul>
+          </div>
+          <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>In your scanner file <span class="n">(3 lines)</span></div>
+          <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Related <span class="n">(3)</span></div>
+        </div>
+      </section>
+  </section>
+</template>
+<!-- =============================== AN OBSERVED RESULT (Evidence, panel open) =============================== -->
+<template id="t-observed">
+  <div class="pagehead">
+    <div><h1>Evidence <span class="mark demo">Demo data</span></h1><p>What every check found, and the record behind it. Results for server <span class="mono">localhost:8450</span> and signing program <span class="mono">acme-sign 1.4.2</span>.</p></div>
+    <div class="actions"><button class="btn">Retest new version</button><button class="btn">Download evidence</button></div>
+  </div>
+  <div data-slot="tabs" data-active="encryption"></div>
+  <div style="height:14px"></div>
+  <div class="split">
+    <table class="table compact">
+      <thead><tr><th>Test</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr class="part"><td colspan="2"><div><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="pt">On your systems</span><span class="pm"></span><span class="pn">2</span></div></td></tr>
+        <tr class="sel"><td><div class="name">Old TLS versions</div><div class="on mono">localhost:8450</div></td><td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td></tr>
+        <tr><td><div class="name">Certificate strength</div><div class="on mono">localhost:8450</div></td><td><span class="chip sm pass"><span class="sym">✓</span>Passed</span></td></tr>
+        <tr class="part"><td colspan="2"><div><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="pt">On copies</span><span class="pm"></span><span class="pn">4</span></div></td></tr>
+        <tr><td><div class="name">Independent exam (Wycheproof)</div><div class="on mono">acme-sign 1.4.2</div></td><td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td></tr>
+        <tr><td><div class="name">Attacker tricks (our short list)</div><div class="on mono">acme-sign 1.4.2</div></td><td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td></tr>
+        <tr><td><div class="name">Speed and size</div><div class="on mono">acme-sign 1.4.2</div></td><td><span class="chip sm neutral"><span class="sym">•</span>Measured</span></td></tr>
+        <tr><td><div class="name">Advisory check: Missing ECDSA signature range check</div><div class="on mono">CVE-2022-21449</div><div class="on mono">acme-sign 1.4.2</div></td><td><span class="chip sm fail"><span class="sym">✕</span>Failed</span></td></tr>
+      </tbody>
+    </table>
+
+    <section class="panel">
+      <div class="phead">
+        <div class="ptools"><span class="where">Result · Crypto tests</span>
+          <button class="btn sm ghost">Open in new tab <svg class="ic sm"><use href="#i-ext"/></svg></button><button class="btn sm ghost">Wider</button><button class="btn sm ghost">Narrower</button><button class="btn sm ghost icon" title="Close details"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
+        <h2>Old TLS versions</h2>
+        <div class="sub">Server test · on <span class="mono">localhost:8450</span></div>
+      </div>
+      <div class="pbody">
+        <ol class="trail" aria-label="Where this sits">
+          <li><span class="k">Claim</span><a class="v" href="#">localhost:8450 accepts TLS 1.3 only</a><span class="s">False</span></li>
+          <li><span class="k">Check</span><a class="v" href="#">Old TLS versions, in the test plan</a><span class="s">On your systems</span></li>
+          <li class="here"><span class="k">Result · you are here</span><span class="v">Failed</span><span class="s">18 Nov 2026, 7:16 am EST</span></li>
+          <li><span class="k">Fix</span><a class="v" href="#">Server accepts TLS 1.2</a><span class="s">Ready to try</span></li>
+        </ol>
+
+        <div class="glance">
+          <div class="top"><span class="chip fail"><span class="sym">✕</span>Failed</span><span class="tag live"><svg class="ic sm"><use href="#i-live"/></svg>Observed live</span><span class="when">18 November 2026, 7:16 am EST</span></div>
+          <p class="lead">The server accepts TLS 1.2, so 'TLS 1.3 only' is not true.</p>
+          <ul class="facts">
+            <li><svg class="ic"><use href="#i-live"/></svg><span>Read from localhost:8450, an address in your file that you confirmed, with handshakes only.</span></li>
+            <li><svg class="ic"><use href="#i-ring"/></svg><span>Control: a deliberately misconfigured test server failed this test, as expected.</span></li>
+          </ul>
+          <p class="locator"><svg class="ic"><use href="#i-map"/></svg>On your map: <b>Acme Pay token-signing service › Token-signing endpoint › TLS versions</b> <a href="#">Show on the map</a></p>
+          <div class="next"><span class="say"><b>Server setting change:</b> try it on a test copy, then apply</span><button class="btn sm primary">View in Fixes <svg class="ic sm"><use href="#i-arrow"/></svg></button><span class="end"><button class="btn sm">Mark reviewed</button><button class="btn sm">Dig deeper</button></span></div>
+        </div>
+
+        <div class="shows">
+          <div><h3>What this shows</h3><p>It shows the server is set up to accept TLS 1.2 today, which the file says it does not.</p></div>
+          <div><h3>What it doesn't</h3><p>It doesn't show that any client actually uses TLS 1.2, and it says nothing about the rest of the server's setup.</p></div>
+        </div>
+
+        <details class="proof" data-proof>
+          <summary><span class="badge"><svg class="ic"><use href="#i-live"/></svg></span>
+            <span><span class="t">Technical record</span><br><span class="d">What the server did with each TLS version, the control, the test as locked, and the run record.</span></span>
+            <span class="act"><span class="show">Show</span><span class="hide">Hide</span></span><svg class="ic chev"><use href="#i-chev"/></svg></summary>
+          <div class="pbodyx">
+            <div class="jump"><a href="#"><b>1</b>What happened</a><a href="#"><b>2</b>The control</a><a href="#"><b>3</b>The locked test</a><a href="#"><b>4</b>Run record</a></div>
+            <section class="psec">
+              <h4><span class="n">1</span>What happened</h4>
+              <p><span class="eyebrow" style="margin:0 6px 0 0;display:inline">Technical summary</span>The server accepted TLS 1.2. The file claims TLS 1.3 only.</p>
+              <p>We tried one handshake for each TLS version, 1.0 to 1.3, against localhost:8450, offering exactly that version each time.</p>
+              <p>The server completed a handshake with TLS 1.3 and TLS 1.2. The file says it accepts TLS 1.3 only, so TLS 1.2 should have been refused.</p>
+              <div class="subhead" style="margin:12px 0 8px">What the server did with each TLS version <span class="mini">measured</span></div>
+              <div class="box"><table class="grid">
+                <thead><tr><th>TLS version</th><th>The file says <span class="mini">from the file</span></th><th>The server <span class="mini">measured</span></th></tr></thead>
+                <tbody>
+                  <tr><td>TLS 1.3</td><td>accept</td><td class="num">accepted</td></tr>
+                  <tr><td>TLS 1.2</td><td>refuse</td><td class="num">accepted</td></tr>
+                  <tr><td>TLS 1.1</td><td>refuse</td><td class="num">refused</td></tr>
+                  <tr><td>TLS 1.0</td><td>refuse</td><td class="num">refused</td></tr>
+                </tbody></table></div>
+            </section>
+            <section class="psec">
+              <h4><span class="n">2</span>The control</h4>
+              <p>The same handshakes against a deliberately misconfigured test server on this computer that accepts TLS 1.2, which must fail this test.</p>
+              <p class="note">It failed, as expected.</p>
+            </section>
+            <section class="psec">
+              <h4><span class="n">3</span>The test, locked before the run</h4>
+              <dl class="kv">
+                <dt>Question</dt><dd>Does the server at localhost:8450 accept any TLS version other than TLS 1.3?</dd>
+                <dt>Method</dt><dd>Make one handshake per TLS version (1.0, 1.1, 1.2 and 1.3), offering exactly that version, and note whether the server completes it. Handshakes only; no data is sent.</dd>
+                <dt>Inputs</dt><dd>The claim from the file: TLS 1.3 only. TLS versions tried: 1.0, 1.1, 1.2 and 1.3.</dd>
+                <dt>Pass/fail rule</dt><dd>Failed if the server completes a handshake with any version other than TLS 1.3. Passed only if it refuses every other version and accepts a claimed one.</dd>
+                <dt>Locked</dt><dd>18 November 2026, 7:15 am EST, before the run started</dd>
+                <dt>Fingerprint of these details (SHA-256)</dt><dd class="muted">the test's own, in full</dd>
+              </dl>
+            </section>
+            <section class="psec">
+              <h4><span class="n">4</span>Run record</h4>
+              <dl class="kv">
+                <dt>Command</dt><dd class="mono xs">One TLS handshake per version to localhost:8450 (connected to 127.0.0.1), offering exactly that version; handshake only</dd>
+              </dl>
+              <p class="note">Time: 18 November 2026, 7:16 am EST · Duration <span class="mini">measured</span> · Mode: Demo mode, not isolated · The run's output summary and the full raw output, as recorded. The full raw output is in the downloaded evidence JSON.</p>
+            </section>
+          </div>
+        </details>
+
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Every run, newest first <span class="n">(1)</span></div>
+        <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>Related <span class="n">(3)</span> <span class="muted xs">claim, fix, system and track</span></div>
+      </div>
+    </section>
+  </div>
+  <p class="standing">Passing these tests doesn't prove a system secure. It shows these specific checks passed.</p>
+</template>
 <script>
 // Throwaway: a few lines that put the chosen screen into the shell. Nothing here is the app's code.
 const SCREENS = {
   overview: { nav: "overview", crumb: "Overview", project: "Otto walk" },
+  observatory: { nav: "observatory", crumb: "Observatory", project: "Otto walk" },
+  observatorynew: { nav: "observatory", crumb: "Observatory", project: "Otto walk", fixes: 0 },
+  system: { nav: "observatory", crumb: "Observatory", project: "Otto walk" },
+  observed: { nav: "evidence", crumb: "Evidence", project: "Otto walk" },
   checks: { nav: "checks", crumb: "Checks", project: "Otto walk" },
   evidence: { nav: "evidence", crumb: "Evidence", project: "Otto walk" },
   result: { nav: "evidence", crumb: "Evidence", project: "Otto walk" },
@@ -991,16 +1401,18 @@ function sidebar(s) {
     ${item("overview", "grid", "Overview")}
     <div class="navsec"><b>1</b>Bring in</div>
     ${item("import", "import", "Import")}
+    <div class="navsec"><b>2</b>Observe</div>
+    ${item("observatory", "map", "Observatory")}
     ${item("verify", "verify", "Verify")}
-    <div class="navsec"><b>2</b>Prove</div>
+    <div class="navsec"><b>3</b>Test</div>
     ${item("advisories", "horn", "Advisories", waiting ? [waiting, waiting + " proposed checks wait for your decision"] : null)}
     ${item("checks", "flask", "Checks")}
     ${item("evidence", "doc", "Evidence")}
-    <div class="navsec"><b>3</b>Fix</div>
+    <div class="navsec"><b>4</b>Fix</div>
     ${item("fixes", "wrench", "Fixes", fixes ? [fixes, fixes + " open findings with a fix"] : null)}
-    <div class="navsec"><b>4</b>Plan the move</div>
+    <div class="navsec"><b>5</b>Plan the move</div>
     ${item("migration", "route", "Migration plan")}
-    <div class="navsec"><b>5</b>Keep watching</div>
+    <div class="navsec"><b>6</b>Keep watching</div>
     ${item("watch", "eye", "Change watch")}
     <div class="sidefoot">
       ${item("projects", "folder", "Projects")}
@@ -1014,13 +1426,54 @@ function tabs(active, page) {
   const groups =
     page === "fixes"
       ? [["verification", "Verification", 0, ""], ["encryption", "Crypto tests", 2, ""], ["migration", "Migration", 0, ""], ["dependencies", "Dependencies", 0, ""]]
-      : [["verification", "Verification", 3, "1 false"], ["encryption", "Crypto tests", 6, "4 failed"], ["migration", "Migration", 2, ""], ["dependencies", "Dependencies", 0, ""]];
+      : [["verification", "Verification", 3, "1 false"], ["encryption", "Crypto tests", 6, "4 failed"], ["migration", "Migration", 2, ""], ["dependencies", "Dependencies", 10, ""]];
   return `<div class="tabs" role="tablist" aria-label="Work groups">${groups
     .map(
       ([key, label, n, find]) =>
         `<button class="tab${key === active ? " on" : ""}" role="tab" aria-selected="${key === active}">${label}<span class="n">${n}</span>${find ? `<span class="find">✕ ${find}</span>` : ""}</button>`,
     )
     .join("")}</div>`;
+}
+// Draws a map's lines from its data-edges: a curve from the bottom of one box to the top of another, or a straight
+// dashed line between two boxes side by side. Positions are layout positions, so a scaled copy draws the same.
+function where(el, root) {
+  let x = 0, y = 0, n = el;
+  while (n && n !== root) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+  return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+}
+function drawEdges(map) {
+  const svg = map.querySelector("svg.edges");
+  map.querySelectorAll(".elabel").forEach((e) => e.remove());
+  const W = map.offsetWidth, H = map.offsetHeight;
+  svg.setAttribute("width", W); svg.setAttribute("height", H); svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = '<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--sky-400)"/></marker></defs>';
+  for (const e of JSON.parse(map.dataset.edges || "[]")) {
+    const A = map.querySelector(`[data-k="${e.a}"]`), B = map.querySelector(`[data-k="${e.b}"]`);
+    if (!A || !B) continue;
+    const a = where(A, map), b = where(B, map);
+    let d, lx, ly;
+    if (e.dir === "h") {
+      const y = a.y + Math.min(a.h, b.h) / 2, x1 = a.x + a.w, x2 = b.x;
+      d = `M${x1} ${y}L${x2} ${y}`; lx = (x1 + x2) / 2; ly = y;
+    } else {
+      const x1 = a.x + a.w * (e.xa ?? 0.5), y1 = a.y + a.h, x2 = b.x + b.w * (e.xb ?? 0.5), y2 = b.y - (e.kind === "live" ? 2 : 0);
+      const m = (y2 - y1) / 2;
+      d = `M${x1} ${y1}C${x1} ${y1 + m} ${x2} ${y2 - m} ${x2} ${y2}`;
+      const t = e.t ?? 0.5, u = 1 - t;
+      lx = u * u * u * x1 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x2;
+      ly = u * u * u * y1 + 3 * u * u * t * (y1 + m) + 3 * u * t * t * (y2 - m) + t * t * t * y2;
+    }
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d); path.setAttribute("class", e.kind);
+    if (e.kind === "live") path.setAttribute("marker-end", "url(#arr)");
+    svg.appendChild(path);
+    if (e.label) {
+      const l = document.createElement("span");
+      l.className = "elabel " + e.kind; l.innerHTML = e.label;
+      l.style.left = lx + "px"; l.style.top = ly + "px";
+      map.appendChild(l);
+    }
+  }
 }
 const state = { screen: "evidence", theme: "dark", proof: "closed" };
 function render() {
@@ -1033,6 +1486,26 @@ function render() {
   page.replaceChildren(document.getElementById("t-" + state.screen).content.cloneNode(true));
   page.querySelectorAll("[data-slot=tabs]").forEach((el) => (el.outerHTML = tabs(el.dataset.active, el.dataset.page)));
   page.querySelectorAll("details[data-proof]").forEach((d) => (d.open = state.proof === "open"));
+  page.querySelectorAll("[data-map]").forEach((slot) => {
+    slot.replaceChildren(document.getElementById("t-map-" + slot.dataset.map).content.cloneNode(true));
+    if (slot.dataset.sel) slot.querySelector(`[data-k="${slot.dataset.sel}"]`)?.classList.add("sel");
+  });
+  page.querySelectorAll("[data-map-thumb]").forEach((slot) => {
+    slot.replaceChildren(document.getElementById("t-map-" + slot.dataset.mapThumb).content.cloneNode(true));
+    const map = slot.querySelector(".map");
+    map.style.width = "1064px";
+  });
+  page.querySelectorAll(".map").forEach(drawEdges);
+  page.querySelectorAll("[data-map-thumb]").forEach((slot) => {
+    const map = slot.querySelector(".map");
+    const k = (slot.clientWidth - 20) / map.offsetWidth;
+    map.style.transform = `scale(${k})`;
+    slot.style.height = Math.ceil(map.offsetHeight * k + 20) + "px";
+  });
+  page.querySelectorAll(".drawer").forEach((d) => {
+    const card = d.closest(".mapcard");
+    card.style.minHeight = d.offsetTop + d.offsetHeight + 14 + "px";
+  });
   document.querySelectorAll("#mockbar button").forEach((b) => {
     const on = b.dataset.screen === state.screen || b.dataset.themeSet === state.theme || b.dataset.proof === state.proof;
     b.setAttribute("aria-pressed", String(on));
