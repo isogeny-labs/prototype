@@ -39,7 +39,7 @@ The map after the checks have run, and a system opened from it:
 **What I propose, in six changes.**
 
 1. **Three layers for every proof.** First the answer in plain English. Then what it shows and what it doesn't. Then one dropdown, folded shut, that holds every record a cryptographer or an auditor wants, whole: the published cases, the control, the locked test, the run record, the code, the fingerprints. It is called **Cryptanalysis proof** where something was tested and **Technical record** where it was observed. The same three layers on every result, every proposed check and every fix.
-2. **Observe and test, apart.** Two steps in the sidebar. On Checks, Evidence and Fixes every list comes in two labelled parts: what was observed on your systems, and what was proven on copies. A new page, the **Observatory**, draws a map of your systems that shows where the cryptography is and fills in with every check.
+2. **Observe and test, apart.** Two steps in the sidebar. On Checks, Evidence and Fixes the lists come in labelled parts: what was observed on your systems, and what was proven on copies. A new page, the **Observatory**, draws a map of your systems that shows where the cryptography is and fills in with every check.
 3. **One tab strip, the same everywhere.** The four work groups stay as they are. Each tab gains a count and says how many findings it holds. The sidebar stops repeating the tabs.
 4. **A sidebar that tells the story.** Six numbered steps: Bring in, Observe, Test, Fix, Plan the move, Keep watching. Ten entries where there are up to seventeen today.
 5. **One fixed place for each kind of label.** The result, what it rests on, and where it came from stop competing for the same spot.
@@ -119,7 +119,7 @@ The map after the checks have run, and a system opened from it:
 | The group's question and its counts sit in a separate strip, and four summary cards sit above the tabs. | One band under the tabs holds the group's question ("Is the cryptography built right?"), its Open, In progress and Done counts, and its numbers. | One place to look. The numbers belong to the open tab, so they sit under it. |
 | The sidebar repeats the four groups under whichever page is open. | The sidebar does not repeat them. | One way to move between groups, not two. It also removes the doubled "Migration" and "Dependencies". |
 | The sidebar entry is "Migration"; the page it opens is titled "Migration plan". | The sidebar entry is "Migration plan" too. Its three views stay as tabs on the page only. | "Migration" then always means the work group, and "Migration plan" always means the page. |
-| Checks and Evidence show near-identical tables. | Checks has the columns of a to-do list: test, runs on, latest result, Run. Evidence has the columns of a record: test, result, fix, last run. Each page says its role in one sentence under the title. Inside every tab, both come in two labelled parts: on your systems, and on copies (section 5). | The two pages stop looking like copies. |
+| Checks and Evidence show near-identical tables. | Checks has the columns of a to-do list: test, runs on, latest result, Run. Evidence has the columns of a record: test, result, fix, last run. Each page says its role in one sentence under the title. Inside every tab, both come in labelled parts: on Checks by where each test runs, on Evidence by what each result rests on (section 5). | The two pages stop looking like copies. |
 
 **The numbers on a tab are the page's own counts and decide nothing.** They are counted the way the page already counts. Anything the rules keep out of every count stays out: on Fixes, the entry that comes from Change watch is counted nowhere today and would not be counted on a tab either.
 
@@ -143,7 +143,7 @@ On the Overview the four groups stay side by side as four cards, as today, each 
 | **2. What it rests on** | Whether it was observed, tested on a copy, read from the file, or published | A quiet outlined pill with a small picture (a signal, a flask, a page, a quote mark) | The heading of the part of the list it sits in ("On your systems", "On copies on this computer"). Beside the result in a panel. | Observed live, Proven in the lab, From your file, Published |
 | **3. Where it came from** | Who or what produced the item | A small square label after the name | After the item's name | From Otto, Demo data, New, Sandbox copy, Written by Otto |
 
-In round 1 the tag had a column of its own. Round 2 does better: each list is split into labelled parts by what its results rest on, so the tag is said once, at the head of its part, with one line on what it means. A part is a heading, not a filter: every row is still on the page, and there is no filter by source, as the SPEC says.
+In round 1 the tag had a column of its own. Round 2 does better: on Evidence and Fixes each list is split into labelled parts by what its results rest on, so the tag is said once, at the head of its part, with one line on what it means (section 5 has the rules). On Checks the test plan is grouped by where each test runs, and each row keeps its tag. A part is a heading, not a filter: every row is still on the page, and there is no filter by source, as the SPEC says.
 
 The many small tags inside the evidence ("measured", "demo", "reference", "assumed", "from the file") keep their words and stay on the facts they label. Those facts are in the Cryptanalysis proof, so the small tags no longer sit next to the answer.
 
@@ -298,7 +298,7 @@ An observed result with its Technical record, folded and open. It also says wher
 | | Observe | Test |
 |---|---|---|
 | The question | What do my systems do right now? | Is the software built right? |
-| How | Handshakes with an address in your file that you confirmed. Nothing else is sent. | Run on a copy on this computer, with published cases and a control that must fail. |
+| How | Handshakes from this computer with an address in your file that you confirmed. Nothing else is sent. | Run on a copy on this computer, with published cases and a control that must fail. |
 | Pages | Observatory (new), Verify | Advisories, Checks, Evidence |
 | The tag | Observed live | Proven in the lab |
 | The dropdown | Technical record | Cryptanalysis proof |
@@ -307,10 +307,18 @@ An observed result with its Technical record, folded and open. It also says wher
 
 **What I would not do, and why.**
 
-- **Move the two server tests out of the test plan.** Old TLS versions and Certificate strength are observations, but they sit in the one test plan with its one Run all. Moving them would give two places to start the same run. Instead the plan is drawn in two labelled parts, "On your systems" and "On copies on this computer". Evidence and Fixes get the same two parts inside each work-group tab.
+- **Move the two server tests out of the test plan.** Old TLS versions and Certificate strength are observations, but they sit in the one test plan with its one Run all. Moving them would give two places to start the same run. Instead the plan is drawn in two parts, named by where each test runs: "On your server, localhost:8450" and "On a copy of acme-sign 1.4.2, on this computer". Each row keeps its own tag beside its result, as today.
 - **Replace the four work groups.** They say *what question* a check answers; observe and test say *how we know*. Both stay, at two levels: the tab is the question, the part inside it is how we know.
 - **Keep two copies of a result.** Evidence stays the one complete record of every result, observed or tested, because it is what the signed evidence file holds. The Observatory shows each result where it belongs on your system, in the checks' own words, and opens its record.
 - **Put Verify under Test.** Verify checks your file's claims, and most of them are about live systems, so it sits under Observe. A claim about a signing program is checked on a copy, and its tag says so ("Proven in the lab").
+
+**The parts on Evidence and Fixes.** Inside each work-group tab, the rows are grouped by the tag of their result, and the tag is said once, at the head of its part, with one line on what it means: "On your systems" (Observed live), "On copies on this computer" (Proven in the lab), and where a tab has them, "Said by the maker" (Published) and "Only in your file" (From your file). Three rules keep the parts honest:
+
+- **A row with no tag gets no tag.** A test that has not run, or couldn't run, has no tag today, so it sits in a last part, "No result yet", with no tag at its head.
+- **A fix sits in the part of the finding it came from**, as its tag already does.
+- **Change watch's entry on Fixes keeps its own heading,** "From a developer's change", outside the parts, and is counted in no part, as the rules ask today.
+
+The parts are headings, not filters: every row is still on the page.
 
 Evidence, with its two parts inside the Crypto tests tab:
 
@@ -322,16 +330,15 @@ Evidence, with its two parts inside the Crypto tests tab:
 
 | On the map | Where it comes from |
 |---|---|
-| **The boxes:** your service and the parts it is made of | Your scanner file names the service (Acme Pay token-signing service) and what it contains: a token-signing endpoint and acme-sign 1.4.2. Your dependency list names the same service and adds two more parts, acme-pay-server 1.0.0 and acme-ledger 5.1.0, with the libraries inside each. |
+| **The boxes:** your service and the parts it is made of | Your scanner file names the service (Acme Pay token-signing service) and what it contains: a token-signing endpoint and acme-sign 1.4.2. Your dependency list names a service with the same name and version and adds two more parts, acme-pay-server 1.0.0 and acme-ledger 5.1.0, with the libraries inside each. The map draws the two as one box only because name and version match, and says so on the box. That is a new matching rule (section 8), the same kind as the one Dependencies already uses to tie acme-sign 1.4.2 between the two files. |
 | **Where the cryptography is** | Each box lists the places it uses cryptography: the endpoint's TLS versions, certificate and key exchange; how acme-sign signs and checks signatures; each library's post-quantum answers. |
 | **One algorithm in two places** | Your scanner file says the endpoint's certificate and acme-sign both use ECDSA P-256. The map draws both lines into one box, so it is plain that the same algorithm sits in two places. |
-| **What each check found** | The checks' own words on each spot (True or False, Passed or Failed, Classical), and on each box the tag of what it rests on: Observed live on the endpoint, Proven in the lab on acme-sign. |
-| **The lines** | A solid grey line: your files say one uses the other. A blue arrow: a connection we made, with what we saw ("TLS · 1.3 and 1.2 accepted"). A dashed line with "?": your files don't say. |
+| **What each check found** | Each spot lists its checks by name, each with its own word: "The claim: False", "Old TLS versions: Failed", "Post-quantum status: Classical". Where every result in a box rests on the same thing, its tag is said once on the box (Observed live on the endpoint, Proven in the lab on acme-sign); otherwise each spot carries its own. A part with no result has no tag. |
+| **The lines** | A solid grey line: your files say one uses the other. A blue arrow from "This computer": a connection we made, handshakes only, with what we saw ("TLS · 1.3 and 1.2 accepted"). It starts at this computer, not at your clients, because that is where the handshake came from. A dashed line with "?": your files don't say (who your clients are). |
 
 **The rule: the map draws no line it can't show from your files or a check.** Where it doesn't know, it says so under the map, in a list called "What your files don't say", with where each gap can be filled:
 
-- which software answers on localhost:8450 (the dependency list names acme-pay-server 1.0.0 but doesn't tie it to that address; Dependencies already has **Part of** to tie them);
-- which system acme-ledger 5.1.0 is part of;
+- which software answers on localhost:8450. The dependency list names two parts that aren't tied to the endpoint or to acme-sign, acme-pay-server 1.0.0 and acme-ledger 5.1.0, and the map does not guess which one, if either, runs the endpoint. Dependencies already has **Part of** to tie one;
 - who connects to the endpoint, and which data flows between the parts (a scanner file can name data flows; the demo file names none).
 
 That list is useful on its own: it shows the gaps in the customer's inventory, which a scanner's list never does.
@@ -342,8 +349,10 @@ That list is useful on its own: it shows the gaps in the customer's inventory, w
 
 ![The Observatory just after the file comes in](design-refactor/mockups/10-observatory-just-brought-in-light.png)
 
-- After Verify and Run all, every spot carries what its checks found (the picture at the top of this plan).
-- After any later check of the assessment (a retest, Apply and the measurement right after it), the spot shows the newest result. Change watch's runs are kept apart from the assessment's own results by the rules, so they do not change the map.
+- After Verify, Run all and **Measure status** (on the Migration plan, which gives the post-quantum status), every spot carries what its checks found (the picture at the top of this plan). A spot whose check has not run says so: "Not checked yet", or "Not measured yet".
+- **A box keeps the version your file names.** A retest runs on another version (for example acme-sign 1.4.3), so its result is shown beside the first one and labelled with that version ("Retest on acme-sign 1.4.3: Passed"), never in its place. The Advisories page already words a retest this way.
+- **A try on a test copy is not your live system,** so it is not drawn on the live server's box; the box links to it. The measurement right after **Apply** is of the live system, so it is drawn, as Observed live.
+- **Change watch's runs are kept apart** from the assessment's own results by the rules, so they do not change the map.
 - The map is drawn from the records each time the page opens. It keeps no copy of its own.
 
 **Opening a box** opens its panel over the right side of the map: what each spot's checks found, in their own words, the next step, what your files don't say about it, and the way to each Technical record or Cryptanalysis proof.
@@ -461,8 +470,10 @@ That list is useful on its own: it shows the gaps in the customer's inventory, w
 
 *The map needs one new piece on the server side.* It is like "Where it is used" today:
 
-1. **One new read** that gathers, into one picture, the structure of the kept scanner file, the dependency list with its ties, and each check's latest result. It reads only. It decides nothing, writes nothing and runs nothing. (The app already keeps a copy of each scanner file and already reads its "depends on" lines to find where each certificate is used. It just doesn't keep them as a picture yet.)
-2. **Data flows** are not read today. A CycloneDX file can name the data that flows between services, but the importer doesn't read those lines. Reading them would be an importer change (data only; nothing in the file runs). Until then the map draws no data-flow arrows, and says that your file names none.
+1. **A reader of the scanner file's structure.** Since phase 5b the app keeps a copy of each scanner file it reads, and the importer reads its "depends on" lines, but it keeps only what it needs for the claims (where each certificate is used). The service's name and which part sits inside which are not stored. So the map needs a reader that takes the structure from the kept copy. It is a new file reader: data only, nothing in the file runs, and like every file reader it gets a seeded fuzz test. A file brought in before phase 5b has no kept copy; its map is drawn from its claims alone and says so.
+2. **One new read** that puts that structure together with the dependency list, its ties and each check's newest result, into one picture. It reads only. It decides nothing, writes nothing and runs nothing, like "Where it is used" today.
+3. **A new matching rule:** the scanner file's service and the dependency list's service are drawn as one box only when their name and version are the same, and the box says so.
+4. **Data flows** are not read today. A CycloneDX file can name the data that flows between services, but the importer doesn't read those lines. Reading them would be an importer change (data only; nothing in the file runs). Until then the map draws no data-flow arrows, and says that your file names none.
 
 *Not proposed:*
 
@@ -482,15 +493,15 @@ That list is useful on its own: it shows the gaps in the customer's inventory, w
 | 1 | A new paragraph: the three layers and the Cryptanalysis proof dropdown. |
 | 2 | The sidebar: six numbered steps, ten entries, with Observe (Observatory, Verify) and Test (Advisories, Checks, Evidence), and "Migration plan". It no longer "lists the four under the page that is open". |
 | 3 | The tabs: a count on each, always. |
-| 4 | Where the source tag sits: at the head of its part of each list ("On your systems", "On copies on this computer"), and beside the result in a panel. Checks, Evidence and Fixes are drawn in those parts inside each tab. |
+| 4 | Where the source tag sits: on Evidence and Fixes, at the head of its part of each tab ("On your systems", "On copies on this computer", and "No result yet" with no tag), and beside the result in a panel. On Checks it stays beside each row's result. |
 | 5 | The order of a result's panel on Evidence, and of an advisory's panel. |
 | 6 | Advisories: the top blocks folded into one line; the two research buttons in the page header. |
 | 7 | The trail at the top of every panel (new). |
-| 8 | Checks: the test plan is drawn in the two parts, by where each test runs; a test's "Why it matters" opens under its row instead of standing on the card. |
+| 8 | Checks: the test plan is always drawn in parts by where each test runs (today only when the file names several servers or programs); a test's "Why it matters" opens under its row instead of standing on the card. |
 | 9 | Overview: one count by tag for the whole assessment (new), and a small copy of the map, "Your systems" (new). Each group's own count by tag stays on its card, though the mockup does not draw it. |
 | 10 | The code that asked the library: the second author's version on a switch beside the first instead of under it. "Show the code" stays. |
 | 11 | The publisher's two version lines folded on an advisory's panel. |
-| 12 | A new page, the Observatory: four counts by tag, the map with its Map and List views, and "What your files don't say". |
+| 12 | A new page, the Observatory: four counts by tag, the map with its Map and List views, "What your files don't say", and, before any check has run, one line that says so with **Open Verify** (it only opens the page). |
 | 13 | The panel of a box on the map, which opens over the right side of the map. |
 | 14 | "On your map" with **Show on the map** in the first layer of every result. |
 
@@ -502,7 +513,7 @@ That list is useful on its own: it shows the gaps in the customer's inventory, w
 
 One throwaway file, [`design-refactor/mockups/mockups.html`](design-refactor/mockups/mockups.html), holds every screen. It is not the app and is not connected to it. Open it in a browser: the purple bar at the top switches the screen, the dark or light look, and the dropdown open or closed. The pictures below were taken from it with the repo's Playwright, at 1440 pixels wide.
 
-Sentences are the app's own wherever the app has one, read from the existing screenshots and from the app's code, and the demo data is the same. The map's boxes and lines are the demo files' own (`demo/acme-pay-cbom.json` and `demo/dependencies-demo.cdx.json`). A few short lines are stand-ins where I shortened the app's sentence or where the app has no sentence yet (the sentence under each page title, the one-line test descriptions on Checks, the Observatory's own lines, and the run record of the observed result); a build would use the app's own words.
+Sentences are the app's own wherever the app has one, read from the existing screenshots and from the app's code, and the demo data is the same. The map's boxes and lines are the demo files' own (`demo/acme-pay-cbom.json` and `demo/dependencies-demo.cdx.json`). The demo server's address is localhost:8450 in these pictures, as in the walk they copy; the demo file itself names localhost:8443, and the walks move the port. A few short lines are stand-ins where I shortened the app's sentence or where the app has no sentence yet (the sentence under each page title, the one-line test descriptions on Checks, the Observatory's own lines, and the run record of the observed result); a build would use the app's own words.
 
 | # | Screen | Dark | Light |
 |---|---|---|---|
@@ -550,7 +561,7 @@ The mockups, their pictures and the small script that takes them (`shoot.mjs`) a
 
 | | Decision | My recommendation |
 |---|---|---|
-| **F** | Observe and test as two steps: the six-step sidebar (Bring in, Observe, Test, Fix, Plan the move, Keep watching), and every list on Checks, Evidence and Fixes in two labelled parts, "On your systems" and "On copies on this computer". | Yes. |
+| **F** | Observe and test as two steps: the six-step sidebar (Bring in, Observe, Test, Fix, Plan the move, Keep watching), and the lists on Checks, Evidence and Fixes in labelled parts: on Checks by where each test runs, on Evidence and Fixes by what each result rests on ("On your systems", "On copies on this computer"). | Yes. |
 | **G** | The Observatory as drawn: a map built only from your files and the checks, the list of what your files don't say, a panel for each box, "Show on the map" on every result, and the small map on the Overview. | Yes, built after the three layers (section 11), with a short plan of its own first, because it is the one part that needs new work on the server side. |
 
 ---
