@@ -151,7 +151,16 @@ A separate reviewer read the whole build against the SPEC and your rules. It rep
 
 It also confirmed what it found sound: the answer keys, the reviewer, the wireframes, the research data and the package lists are untouched; no new network call; no "secure", score or severity in any new text; folding dropped no record; the new reads write nothing; the two new tables are add-only and have one writer; an older evidence file still verifies.
 
+## Your calls
+
+These are choices I made where you may want something else. Each is a small change either way.
+
+1. **When recording a press fails.** If the button's own work succeeded (an Apply, a Merge, a Run all) but writing down who pressed it failed, the button still says it worked, and the press is left unrecorded with one line in the app's log. The other way would be to show an error, but then you might press a second time on something that already happened. I chose the first. Such a press then reads "Not recorded" in the Timeline. `docs/LIMITS.md` says so.
+2. **Whose name is on Otto's decisions.** A decision on Otto's proposals is still recorded under the name typed in Settings (Who decides), or "You", as you decided on 19 November. Everything else now takes the logged-in account first where the app has one (the hosted app logs in with GitHub). So on the hosted app, an Accept could read "You" while a Merge in the same session reads your GitHub name. Making Otto's decisions follow the account too is a one-line change, but it changes what the Otto panel and Settings say, so I left it for you.
+3. **The Observatory's four numbers** are the Overview's own counts: every check of the assessment by what it rests on, including retests and fix proofs, which the map does not draw as boxes. So the numbers can be larger than the chips you see on the map. The page says this under the numbers. The other way would be to count only what the map draws.
+
 ## What I need from you
 
 1. Look at the pictures, or run the app (`./run-demo.sh`), and tell me what you want changed.
-2. When you are happy, tell me to merge. I will not merge before you say so.
+2. Tell me about the three calls above, if you want any of them the other way.
+3. When you are happy, tell me to merge. I will not merge before you say so.
