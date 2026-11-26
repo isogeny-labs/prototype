@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Evidence, Import, Result, ResultValue, Tone, VerifyRun } from "../api";
 import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
 import { ItemLinkView, RelatedFor } from "./related";
+import { HistoryFold } from "./evidence/HistoryFold";
 import {
   AlsoNoticedList,
   DemoDataLabel,
@@ -262,6 +263,7 @@ export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
             {selected ? (
               <>
                 <VerifyResultDetails result={selected} />
+                <HistoryFold itemKey={`claim:${selected.claim_id}`} />
                 <RelatedFor itemKey={`claim:${selected.claim_id}`} />
               </>
             ) : null}

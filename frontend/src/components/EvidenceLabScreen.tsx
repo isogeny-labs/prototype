@@ -23,6 +23,7 @@ import {
   SummaryCards,
   TableWithPanel,
   Toolbar,
+  tabTotal,
   useGroupTab,
   useShowGroups,
   type Column,
@@ -31,9 +32,13 @@ import {
 import { AlsoChecks, CheckPanel, EarlierRuns } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
 import { LibraryPanel, LibraryTable } from "./checks/LibraryEvidence";
-import { ItemLinkView, RelatedFor } from "./related";
+import { FoldLine, GlanceFact, Trail } from "./proof";
+import { sourceParts } from "./sourceParts";
+import { HistoryFold } from "./evidence/HistoryFold";
+import { ItemLinkView, RelatedFold, WithRelated } from "./related";
 import { VerifyResultDetails } from "./VerifyScreen";
 import type { CheckDetail, ChecksView } from "../api";
+import { ByVersion } from "./lab/ByVersion";
 import { ResultDetail } from "./lab/ResultDetail";
 import { RetestMenu } from "./lab/RetestMenu";
 import {
@@ -44,7 +49,6 @@ import {
   ResultBadge,
   RichTextView,
   SecondaryButton,
-  StatusChip,
   StatusView,
   WhereFromTag,
   splitByGroup,
@@ -99,7 +103,8 @@ function Cell({ result, status, testId }: { result: LabResult | null; status: Ro
           {/* (22 November 2026: where this side's result came from, beside its word) */}
           <span className="flex flex-wrap items-center gap-1.5">
             <ResultBadge label={result.label} tone={result.tone} />
-            <WhereFromTag tag={result.source_tag} />
+            {/* (said once, at the head of the row's part; kept here for a screen reader) */}
+            <WhereFromTag tag={result.source_tag} quiet />
           </span>
           <p className="mt-1.5 text-[13px] leading-snug text-slate-300">{result.plain}</p>
         </>
@@ -168,7 +173,7 @@ const OPEN_IN: Record<string, string> = {
   dependencies: "Open in Dependencies",
 };
 
-/** The every-run list of one test (its earlier runs), asked of the backend. */
+/** The every-run list of one test (its earlier runs), asked of the backend: a quiet folded line at the panel's foot. */
 function RunsFor({ planId, checkId }: { planId: number; checkId: string }) {
   const [detail, setDetail] = useState<CheckDetail | null>(null);
   useEffect(() => {
@@ -181,7 +186,12 @@ function RunsFor({ planId, checkId }: { planId: number; checkId: string }) {
       live = false;
     };
   }, [planId, checkId]);
-  return detail ? <EarlierRuns runs={detail.runs} /> : null;
+  if (!detail || detail.runs.length === 0) return null;
+  return (
+    <FoldLine title="Every run, newest first" count={detail.runs.length} testId="runs-fold">
+      <EarlierRuns runs={detail.runs} bare />
+    </FoldLine>
+  );
 }
 
 export function EvidenceLabScreen({
@@ -207,6 +217,8 @@ export function EvidenceLabScreen({
   };
   useEffect(() => setStatusFilterState((result as StatusFilter | null) ?? "all"), [result]);
   const [exported, setExported] = useState<EvidenceExport | null>(null);
+  // Results, the Crypto tests tab: what each check shows now, or every version side by side.
+  const [resultsView, setResultsView] = useState<"now" | "versions">("now");
   const [pollTick, setPollTick] = useState(0);
   // Phase 5b: every other kind of check, in the four groups.
   const [checks, setChecks] = useState<ChecksView | null>(null);
@@ -452,7 +464,7 @@ export function EvidenceLabScreen({
                 <div className="min-w-0">
                   <span className="flex flex-wrap items-center gap-1.5">
                     <ResultBadge label={row.result.label} tone={row.result.tone} />
-                    <WhereFromTag tag={row.result.source_tag} />
+                    <WhereFromTag tag={row.result.source_tag} quiet />
                   </span>
                   <p className="mt-1.5 text-[13px] leading-snug text-slate-300">{row.result.plain}</p>
                 </div>
@@ -491,7 +503,7 @@ export function EvidenceLabScreen({
         return r ? (
           <span className="flex flex-col items-start gap-1">
             <ResultBadge label={r.label} tone={r.tone} wrap />
-            <WhereFromTag tag={r.source_tag} />
+            <WhereFromTag tag={r.source_tag} quiet />
           </span>
         ) : row.result_status ? (
           <StatusView status={row.result_status} />
@@ -507,6 +519,8 @@ export function EvidenceLabScreen({
       rows={rows}
       rowKey={(r) => String(r.item_id)}
       rowTestId="evidence-row"
+      // In parts, by what each row's result rests on (after a retest, its newest result).
+      parts={(all) => sourceParts(all, (r) => leading(r, beforeAfter)?.source_tag)}
       headTestId={first && beforeAfter ? "lab-columns" : undefined}
       selectedKey={selected ? String(selected.item_id) : null}
       onRowClick={(r) => {
@@ -550,69 +564,89 @@ export function EvidenceLabScreen({
       table(visible, true, "Results")
     );
 
+  // Where this result sits on the map of the systems: the Observatory opens on its box.
+  // (only for a result of a server or of a signing program: those are the boxes of the map; a test on the reference
+  // library has no place on it, so no line is drawn for it)
+  const onTheMap = (itemId: number) =>
+    /^(server|software):/.test(current.rows.find((r) => r.item_id === itemId)?.group ?? "") ? (
+      <GlanceFact icon="map" testId="on-the-map">
+        On your map:{" "}
+        <ItemLinkView link={{ page: "observatory", item: `test:${itemId}` }} testId="show-on-the-map">
+          Show on the map
+        </ItemLinkView>
+      </GlanceFact>
+    ) : undefined;
+
   const panel = (
     <DetailPanel
       open={selected !== null}
       item={selected ? `test-${selected.item_id}` : null}
       title={selected?.title ?? ""}
-      subtitle={
-        selected ? (
-          <span className="flex flex-wrap items-center gap-2">
-            {leading(selected, beforeAfter) ? (
-              <StatusChip
-                label={leading(selected, beforeAfter)!.label}
-                tone={leading(selected, beforeAfter)!.tone}
-                size="sm"
-              />
-            ) : null}
-            {selected.control_line ? <span>{selected.control_line}</span> : null}
-          </span>
-        ) : null
-      }
+      kicker="Result · Crypto tests"
       onClose={closePanel}
     >
       {selected ? (
-        <div data-testid="lab-row" data-kind={selected.kind} id={`lab-detail-${selected.item_id}`}>
-          {beforeAfter ? (
-            <>
-              {selected.after ? (
-                <ResultDetail
-                  result={selected.after}
-                  heading={current.columns?.after_heading}
-                  plain={selected.after.plain}
-                  busy={busy}
-                  onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
-                  onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
-                  onViewFix={onViewFix}
+        <WithRelated itemKey={`test:${selected.item_id}`}>
+          {(related) => (
+            <div
+              data-testid="lab-row"
+              data-kind={selected.kind}
+              id={`lab-detail-${selected.item_id}`}
+              className="space-y-4"
+            >
+              {leading(selected, beforeAfter) ? (
+                <Trail
+                  lines={related}
+                  here={{ kind: "test", name: "Result", label: leading(selected, beforeAfter)!.label }}
                 />
               ) : null}
-              {selected.result ? (
+              {beforeAfter ? (
+                <div>
+                  {selected.after ? (
+                    <ResultDetail
+                      result={selected.after}
+                      heading={current.columns?.after_heading}
+                      plain={selected.after.plain}
+                      controlLine={selected.control_line || null}
+                      place={onTheMap(selected.item_id)}
+                      busy={busy}
+                      onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
+                      onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
+                      onViewFix={onViewFix}
+                    />
+                  ) : null}
+                  {selected.result ? (
+                    <ResultDetail
+                      result={selected.result}
+                      heading={current.columns?.before_heading}
+                      plain={selected.result.plain}
+                      controlLine={selected.after ? null : selected.control_line || null}
+                      place={selected.after ? undefined : onTheMap(selected.item_id)}
+                      busy={busy}
+                      onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
+                      onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
+                      onViewFix={onViewFix}
+                    />
+                  ) : null}
+                </div>
+              ) : selected.result ? (
                 <ResultDetail
                   result={selected.result}
-                  heading={current.columns?.before_heading}
                   plain={selected.result.plain}
+                  controlLine={selected.control_line || null}
+                  place={onTheMap(selected.item_id)}
                   busy={busy}
                   onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                   onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
                   onViewFix={onViewFix}
                 />
               ) : null}
-            </>
-          ) : selected.result ? (
-            <ResultDetail
-              result={selected.result}
-              plain={selected.result.plain}
-              busy={busy}
-              onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
-              onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
-              onViewFix={onViewFix}
-            />
-          ) : null}
-          <div className="mt-4">
-            <RunsFor planId={current.plan_id} checkId={`test-${selected.item_id}`} />
-          </div>
-          <RelatedFor itemKey={`test:${selected.item_id}`} />
-        </div>
+              <RunsFor planId={current.plan_id} checkId={`test-${selected.item_id}`} />
+              <HistoryFold itemKey={`test:${selected.item_id}`} />
+              <RelatedFold lines={related} />
+            </div>
+          )}
+        </WithRelated>
       ) : null}
     </DetailPanel>
   );
@@ -656,6 +690,27 @@ export function EvidenceLabScreen({
           ),
         )
       : null;
+  // Every tab says how many rows it holds and how many of them are findings, counted from the rows the tab draws.
+  const totals = checks
+    ? Object.fromEntries(
+        checks.groups.map((g) => [
+          g.key,
+          tabTotal(
+            g.key === "encryption"
+              ? [
+                  ...current.rows.map((r) => leading(r, beforeAfter)),
+                  // (a run of Change watch is listed under this tab, and counted with nothing else: not here either)
+                  ...extraOf(g)
+                    .filter((r) => r.came_from.key !== "watch")
+                    .map((r) => r.result),
+                ]
+              : g.key === "dependencies"
+                ? checks.libraries.map(() => null)
+                : g.rows.map((r) => r.result),
+          ),
+        ]),
+      )
+    : null;
   const checkPanel = (
     <CheckPanel planId={current.plan_id} check={openLedger} onClose={closePanel}>
       {(detail) => (
@@ -696,7 +751,33 @@ export function EvidenceLabScreen({
           const extra = extraOf(g).filter(keepCheck);
           return (
             <GroupSection key={g.key} group={g} counts={counts} tabbed={tabbed}>
-              {listing}
+              {/* Now: what each check shows today. By version: every check on every version it ran on, side by side. */}
+              <div
+                role="group"
+                aria-label="Results view"
+                data-testid="results-view"
+                className="mb-3 inline-flex gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1"
+              >
+                {(
+                  [
+                    ["now", "Now"],
+                    ["versions", "By version"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={resultsView === key}
+                    onClick={() => setResultsView(key)}
+                    className={`rounded-md px-3 py-1 text-[13px] font-medium transition-colors ${
+                      resultsView === key ? "bg-slate-800 text-slate-50" : "text-slate-400 hover:text-slate-100"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {resultsView === "versions" ? <ByVersion group={g} /> : listing}
               {extra.length > 0 ? (
                 <div className="mt-4">
                   <h3 className="mb-2 text-sm font-semibold text-slate-200">Fix proofs and changes</h3>
@@ -752,6 +833,7 @@ export function EvidenceLabScreen({
             {rows.length > 0 ? (
               <CheckTable
                 label={`${g.label} results`}
+                inParts
                 rows={rows}
                 selectedId={openCheck}
                 onOpen={(r) => {
@@ -769,10 +851,22 @@ export function EvidenceLabScreen({
   );
 
   return (
-    <section aria-label="Evidence">
+    <section aria-label="Results">
+      {/* The design refactor (26 November 2026): this is the Results view of the Evidence section: what each check shows
+          now. What happened in order, who decided what and the files are its other three views. */}
       <PageHeader
-        eyebrow={current.is_demo ? <DemoDataLabel /> : undefined}
-        title="Evidence"
+        eyebrow={
+          <>
+            Evidence
+            {current.is_demo ? (
+              <>
+                {" "}
+                <DemoDataLabel />
+              </>
+            ) : null}
+          </>
+        }
+        title="Results"
         description={
           <>
             <p data-testid="lab-subline">
@@ -843,7 +937,14 @@ export function EvidenceLabScreen({
       </p>
 
       {checks && active !== null ? (
-        <GroupTabs groups={checks.groups} active={active} onChoose={choose} idBase={tabIds} matches={matches} />
+        <GroupTabs
+          groups={checks.groups}
+          active={active}
+          onChoose={choose}
+          idBase={tabIds}
+          matches={matches}
+          totals={totals}
+        />
       ) : null}
       <Toolbar>
         <SearchInput

@@ -5,7 +5,16 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, enterApp, REPO, stepLink, openFreshAssessment, expectPageOpen } from "./shared";
+import {
+  DISCLAIMER,
+  enterApp,
+  REPO,
+  stepLink,
+  openFreshAssessment,
+  openMigrationView,
+  openProofFold,
+  expectPageOpen,
+} from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(REPO, "docs/screenshots/phase4a");
@@ -210,7 +219,12 @@ test("A classical server: today, measured; the cost with every number's source; 
   await shot("05-migration-classical-server-today-and-cost.png");
   // the evidence behind the status is one press away
   await detail.getByRole("button", { name: "See the evidence" }).click();
-  await expect(detail.getByTestId("result-detail")).toContainText("Test details, locked before the run");
+  // (a measurement of the live server was observed, so its records are behind a fold named Technical record)
+  const measured = detail.getByTestId("result-detail");
+  await expect(measured.getByTestId("proof-fold-name")).toHaveText("Technical record");
+  await openProofFold(measured);
+  await expect(measured.getByTestId("proof-part-locked")).toBeVisible();
+  await expect(measured).toContainText("Test details, locked before the run");
   await detail.getByRole("button", { name: "Details and evidence" }).click();
 });
 
@@ -295,7 +309,11 @@ test("The other statuses: Hybrid and Post-quantum only in place, a signing progr
 });
 
 test("The roadmap: built from the recommendations, each system in its phase", async () => {
-  await page.getByRole("button", { name: "Roadmap", exact: true }).click();
+  // The design refactor (26 November 2026): the page has no switch of its own any more. Its three views are the
+  // sidebar's links under "Migration plan", listed while one of them is open.
+  await expect(page.getByRole("group", { name: "Migration views" })).toHaveCount(0);
+  await expect(page.getByTestId("sidebar-views").getByRole("link")).toHaveText(["Systems", "Roadmap", "Dependencies"]);
+  await openMigrationView(page, "Roadmap");
   // Phase 5b: with a system's panel open the plan shows its compact form; this step reads the full rows.
   const open = page.getByTestId("detail-panel");
   if ((await open.count()) > 0) await open.getByRole("button", { name: "Close details" }).click();
@@ -375,7 +393,7 @@ test("Fixes: the change for Phase 1 has its change box (Ready to try); the block
 
 test("Your own choice: a reason is needed when it differs, the review date is never forever, and the roadmap follows", async () => {
   await stepLink(page, "6. Migration").click();
-  await page.getByRole("button", { name: /^Systems/ }).click();
+  await openMigrationView(page, "Systems");
   const detail = await open("localhost:8452");
   const keep = option("Keep classical for now");
   await keep.getByRole("button", { name: "Choose this option" }).click();
@@ -391,7 +409,7 @@ test("Your own choice: a reason is needed when it differs, the review date is ne
   await expect(card("localhost:8452")).toContainText("Kept classical · review 30 Jun 2027");
   await expect(detail.getByRole("heading", { name: "Recommended: Hybrid", exact: true })).toBeVisible(); // the recommendation is not rewritten
   await expect(option("Keep classical for now")).toContainText("Your choice");
-  await page.getByRole("button", { name: "Roadmap", exact: true }).click();
+  await openMigrationView(page, "Roadmap");
   await expect(page.getByTestId("roadmap-intro")).toContainText("1 of 7 chosen");
   await expect(band("Later").getByTestId("roadmap-row")).toHaveCount(2);
   await expect(band("Later").getByTestId("roadmap-row").filter({ hasText: "localhost:8452" })).toContainText(
@@ -402,7 +420,7 @@ test("Your own choice: a reason is needed when it differs, the review date is ne
 });
 
 test("A setting changes the recommendation at once; measuring again never changes your choice", async () => {
-  await page.getByRole("button", { name: /^Systems/ }).click();
+  await openMigrationView(page, "Systems");
   let detail = await open("localhost:8453");
   await expect(detail.getByRole("heading", { name: "Recommended: Keep classical for now" })).toBeVisible();
   await detail.getByLabel("Data lifespan").selectOption("long");
@@ -419,7 +437,7 @@ test("A setting changes the recommendation at once; measuring again never change
 });
 
 test("Download evidence from the roadmap: the plan is in the signed file and the report", async () => {
-  await page.getByRole("button", { name: "Roadmap", exact: true }).click();
+  await openMigrationView(page, "Roadmap");
   const created = page.waitForResponse(
     (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
   );

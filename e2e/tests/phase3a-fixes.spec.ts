@@ -14,6 +14,7 @@ import {
   stepLink,
   openFreshAssessment,
   openGroupTab,
+  openProofFold,
   resultPanel,
   toggleResult,
 } from "./shared";
@@ -155,8 +156,8 @@ test("Run all tests every target, in parallel, within the job limit", async () =
 
 test("Evidence Lab: grouped results, each with its plain line; 9.9 is only under Not tested; the note on 8445", async () => {
   await stepLink(page, "4. Evidence Lab").click();
-  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
-  await openGroupTab(page, "Crypto tests", "Evidence"); // (the results are Evidence's Crypto tests tab)
+  await expect(page.getByRole("heading", { name: "Results", level: 1 })).toBeVisible();
+  await openGroupTab(page, "Crypto tests", "Results"); // (the results are Results' Crypto tests tab)
   await expect(page.getByTestId("lab-group")).toHaveCount(5);
   await expect(page.getByTestId("evidence-row")).toHaveCount(8);
   await expect(page.getByTestId("not-tested")).toContainText(
@@ -181,9 +182,13 @@ test("Evidence Lab: grouped results, each with its plain line; 9.9 is only under
     ["Failed", "Failed", "Measured"],
   );
   await expect(page.getByRole("heading", { name: "Signing program: acme-sign 9.9", exact: true })).toHaveCount(0);
-  // The technical text is inside the opened result.
+  // The technical text is inside the opened result: since the design refactor (26 November 2026) behind its one
+  // fold, which is shut until it is opened.
   const program = g("Signing program: acme-sign 1.4.2");
   await toggleResult(page, "Independent exam (Wycheproof)", program);
+  await expect(resultPanel(page).getByTestId("technical-summary")).toBeHidden();
+  await openProofFold(resultPanel(page));
+  await expect(resultPanel(page).getByTestId("technical-summary")).toBeVisible();
   await expect(resultPanel(page).getByTestId("technical-summary")).toContainText("3 of 484 official cases wrong");
   await toggleResult(page, "Independent exam (Wycheproof)", program);
   await shot("03-evidence-lab-multi-target.png");

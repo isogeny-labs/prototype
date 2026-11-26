@@ -18,19 +18,28 @@ function Source({ source, testId }: { source: string; testId: string }) {
 /** Sandbox research (a prototype): the code that asked a library a test's questions, shown as text for a person to
  * read. Where Claude wrote it, it carries the tag "Written by Otto", and the second author's version stands beside it.
  * It is data on this screen: showing it runs nothing. */
-export function AskingCode({ code }: { code: TestProofCode }) {
+export function AskingCode({
+  code,
+  bare = false,
+}: {
+  code: TestProofCode;
+  /** Inside a numbered part of the fold, which already carries the title and the Written by Otto tag. */
+  bare?: boolean;
+}) {
   const [shown, setShown] = useState(false);
   return (
     <div data-testid="asking-code" className="min-w-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <h4 className="text-[13px] font-semibold text-slate-100">{code.title}</h4>
-        {code.label ? (
-          <span data-testid="asking-code-label" className={TAG}>
-            {code.label}
-          </span>
-        ) : null}
-      </div>
-      <p data-testid="asking-code-line" className="mt-1 break-words text-[13px] text-slate-300">
+      {bare ? null : (
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="text-[13px] font-semibold text-slate-100">{code.title}</h4>
+          {code.label ? (
+            <span data-testid="asking-code-label" className={TAG}>
+              {code.label}
+            </span>
+          ) : null}
+        </div>
+      )}
+      <p data-testid="asking-code-line" className={`${bare ? "" : "mt-1 "}break-words text-[13px] text-slate-300`}>
         {code.line}
       </p>
       {code.agree_line ? (

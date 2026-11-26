@@ -6,7 +6,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { DISCLAIMER, REPO, enterApp, openGroupTab, stepLink } from "./shared";
+import { DISCLAIMER, REPO, enterApp, openGroupTab, openMigrationView, stepLink } from "./shared";
 
 const SHOTS = path.join(REPO, "docs/screenshots/phase5a");
 const DEPENDENCY_LIST = path.join(REPO, "demo/dependencies-demo.cdx.json");
@@ -145,9 +145,10 @@ test("run Acme Pay: Verify claims, then every suggested test", async () => {
 });
 
 test("Evidence: a table of results; a row opens the detail panel; Fixes and Migration in the new layout", async () => {
-  await stepLink(page, "Evidence").click();
+  // (the design refactor, 26 November 2026: the page of the results is the Results view of Evidence)
+  await stepLink(page, "Results").click();
   await expect(page.getByText(DISCLAIMER)).toBeVisible();
-  await openGroupTab(page, "Crypto tests", "Evidence"); // (the results are Evidence's Crypto tests tab)
+  await openGroupTab(page, "Crypto tests", "Results"); // (the results are Results' Crypto tests tab)
   const rows = page.getByTestId("evidence-row");
   await expect(rows).toHaveCount(5);
   evidenceRows = await rows.allInnerTexts();
@@ -164,11 +165,12 @@ test("Evidence: a table of results; a row opens the detail panel; Fixes and Migr
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
   await shots("08-fixes");
 
-  await stepLink(page, "Systems").click();
+  // (Migration plan's three views are the sidebar's links under it, listed while one of them is open)
+  await openMigrationView(page, "Systems");
   await page.getByRole("button", { name: /^Measure status/ }).click();
   await expect(page.getByRole("button", { name: /^Measure again/ })).toBeEnabled({ timeout: 120_000 }); // every system measured
   await shots("09-migration-systems");
-  await stepLink(page, "Roadmap").click();
+  await openMigrationView(page, "Roadmap");
   await expect(page.getByTestId("roadmap-band").first()).toBeVisible();
   await expect(page.getByTestId("detail-panel")).toHaveCount(0); // the Roadmap opens with no panel
   await shots("10-migration-roadmap");
@@ -192,7 +194,7 @@ test("Evidence: a table of results; a row opens the detail panel; Fixes and Migr
   page.off("request", watch);
   expect(changing).toEqual([]);
   expect(await page.getByTestId("roadmap-row").allInnerTexts()).toEqual(rowsBefore);
-  await stepLink(page, "Dependencies").click();
+  await openMigrationView(page, "Dependencies");
   await expect(page.getByTestId("dependencies-view")).toBeVisible();
   await page.getByLabel("Choose a dependency list").setInputFiles(DEPENDENCY_LIST);
   await expect(page.getByTestId("dependency-row").first()).toBeVisible({ timeout: 30_000 });
@@ -213,8 +215,8 @@ test("switch to Migration demo, then back: Acme Pay is exactly as it was left", 
   await expect(verification.getByTestId("overview-fact")).toHaveText(["True 2", "False 1", "Couldn't check 0"]);
   await expect(page.getByTestId("finding-count").filter({ hasText: "False claims" })).toHaveText("False claims 1");
   await shots("02-overview-after");
-  await stepLink(page, "Evidence").click();
-  await openGroupTab(page, "Crypto tests", "Evidence");
+  await stepLink(page, "Results").click();
+  await openGroupTab(page, "Crypto tests", "Results");
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
   expect(await page.getByTestId("evidence-row").allInnerTexts()).toEqual(evidenceRows);
   await stepLink(page, "Verify").click();
@@ -277,8 +279,8 @@ test("New assessment: a fresh pass in Acme Pay; the old one stays open until it 
   const runAll = page.getByRole("button", { name: "Run all" });
   await expect(runAll).toBeDisabled();
   await expect(runAll).toHaveAttribute("title", CLOSED);
-  await stepLink(page, "Evidence").click();
-  await openGroupTab(page, "Crypto tests", "Evidence");
+  await stepLink(page, "Results").click();
+  await openGroupTab(page, "Crypto tests", "Results");
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
   expect(await page.getByTestId("evidence-row").allInnerTexts()).toEqual(evidenceRows); // kept exactly as it was
   await expect(page.getByRole("button", { name: "Download evidence" })).toBeEnabled();

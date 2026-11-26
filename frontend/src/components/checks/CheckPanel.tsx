@@ -3,6 +3,7 @@ import { api, errorMessage, type CheckDetail, type CheckRow, type CheckRun, type
 import { DetailPanel } from "../layout";
 import { FromOttoTag } from "../otto/ProposalCard";
 import { ItemLinkView, RelatedBlock } from "../related";
+import { HistoryFold } from "../evidence/HistoryFold";
 import { ErrorBox, formatTime, ResultBadge, StatusView, WhereFromLine } from "../ui";
 
 /** Phase 5b: one check in the side panel: its newest result in the words of the page it came from, where it came
@@ -113,6 +114,7 @@ export function CheckPanel({
           {error ? <ErrorBox>{error}</ErrorBox> : null}
           {shown && children ? children(shown) : null}
           {shown ? <EarlierRuns runs={shown.runs} /> : null}
+          {shown ? <HistoryFold itemKey={`check:${shown.check.id}`} /> : null}
           {shown ? <RelatedBlock lines={shown.related} /> : null}
         </div>
       ) : null}
@@ -141,11 +143,17 @@ export function AlsoChecks({ items, which }: { items: SameMeasurement[]; which: 
 }
 
 /** Every run of one check, newest first: when, where it came from, its result, and the run's fingerprint. */
-export function EarlierRuns({ runs }: { runs: CheckRun[] }) {
+export function EarlierRuns({ runs, bare = false }: { runs: CheckRun[]; bare?: boolean }) {
   if (runs.length === 0) return null;
   return (
-    <section data-testid="earlier-runs" aria-label="Every run" className="rounded-lg border border-slate-800 p-3">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Every run, newest first</h3>
+    <section
+      data-testid="earlier-runs"
+      aria-label="Every run"
+      className={bare ? "min-w-0" : "rounded-lg border border-slate-800 p-3"}
+    >
+      {bare ? null : (
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Every run, newest first</h3>
+      )}
       <ol className="space-y-1.5">
         {runs.map((r, i) => (
           <li

@@ -10,15 +10,29 @@ const LIST = "mt-1 list-disc space-y-1 pl-5 text-[13px] text-slate-300 marker:te
  * design by its fingerprint, how the test did when it was tried on public copies, every decision on Otto's proposal
  * with who and when, and the Otto ledger entries of the check and of those decisions. Every word is the backend's.
  * It is a record of where the check came from: it has no pass or fail look and no button. */
-export function ResultOttoBlock({ block }: { block?: OttoResultBlock | null }) {
+export function ResultOttoBlock({
+  block,
+  bare = false,
+}: {
+  block?: OttoResultBlock | null;
+  /** Inside a numbered part of the fold, which already carries the title and the From Otto tag: no box and no title. */
+  bare?: boolean;
+}) {
   if (!block) return null;
+  // (inside a numbered part, whose own heading is the fourth level, these are one level down)
+  const Sub = bare ? "h5" : "h4";
   return (
-    <div data-testid="result-otto" className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3">
-      <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-100">
-        <FromOttoTag label={block.label} testId="result-otto-label" />
-        <span>{block.title}</span>
-      </p>
-      <p data-testid="result-otto-line" className="mt-1.5 break-words text-[13px] text-slate-300">
+    <div
+      data-testid="result-otto"
+      className={bare ? "min-w-0" : "min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3"}
+    >
+      {bare ? null : (
+        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-100">
+          <FromOttoTag label={block.label} testId="result-otto-label" />
+          <span>{block.title}</span>
+        </p>
+      )}
+      <p data-testid="result-otto-line" className={`${bare ? "" : "mt-1.5 "}break-words text-[13px] text-slate-300`}>
         {block.line}{" "}
         <ItemLinkView link={block.advisory.link} testId="result-otto-advisory">
           {block.advisory.label}
@@ -27,7 +41,7 @@ export function ResultOttoBlock({ block }: { block?: OttoResultBlock | null }) {
 
       <div className="mt-3 space-y-3">
         <div data-testid="result-otto-design">
-          <h4 className={H}>{block.design.title}</h4>
+          <Sub className={H}>{block.design.title}</Sub>
           <ul className={LIST}>
             {block.design.lines.map((line, i) => (
               <li key={i} className="break-all">
@@ -39,7 +53,7 @@ export function ResultOttoBlock({ block }: { block?: OttoResultBlock | null }) {
 
         {block.trial ? (
           <div data-testid="result-otto-trial">
-            <h4 className={H}>{block.trial.title}</h4>
+            <Sub className={H}>{block.trial.title}</Sub>
             <ul className={LIST}>
               {block.trial.lines.map((line, i) => (
                 <li key={i} className="break-words">
@@ -51,10 +65,10 @@ export function ResultOttoBlock({ block }: { block?: OttoResultBlock | null }) {
         ) : null}
 
         <div data-testid="result-otto-decisions" data-count={block.decisions.count}>
-          <h4 className={H}>
+          <Sub className={H}>
             {block.decisions.title}{" "}
             <span className="font-normal tabular-nums text-slate-500">({block.decisions.count})</span>
-          </h4>
+          </Sub>
           {block.decisions.rows.length > 0 ? (
             <ol className="mt-1 space-y-1 text-[13px] text-slate-300">
               {block.decisions.rows.map((row) => (

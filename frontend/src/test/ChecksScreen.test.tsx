@@ -78,13 +78,27 @@ const section = (key: string) => {
 };
 const rowsIn = (key: string) => within(section(key)).queryAllByTestId("check-row");
 
+const t0 = (group: string) => screen.getAllByRole("tab").find((t) => t.getAttribute("data-group") === group)!;
+
 describe("Checks, the page", () => {
   it("is named Checks, has the four work groups as tabs in order, opens on the first with something in it, and keeps the test plan under Crypto tests", async () => {
     const fetchMock = await open();
     expect(screen.getByRole("heading", { level: 1, name: "Checks" })).not.toBeNull();
     expect(text(screen.getByTestId("page-header"))).toContain(CHECKS_SUBLINE);
     const tabs = within(screen.getByRole("tablist", { name: "Work groups" })).getAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
+    expect(tabs.map((t) => t.firstChild!.textContent)).toEqual([
+      "Verification",
+      "Crypto tests",
+      "Migration",
+      "Dependencies",
+    ]);
+    // Beside its name each tab says how many checks it holds, and how many of them are findings (26 November 2026).
+    const verification = checksView.groups.find((g) => g.key === "verification")!;
+    expect(within(t0("verification")).getByTestId("group-tab-total").textContent).toBe(
+      String(verification.rows.length),
+    );
+    expect(tabs.every((t) => within(t).queryByTestId("group-tab-total") !== null)).toBe(true);
+    expect(within(tabs[0]!).getByTestId("group-tab-findings").textContent).toBe("✕ 1 false");
     // One group's table at a time: the first group with something in it (claims were verified).
     expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false"]);
     expect(shownGroups()).toEqual(["verification"]);
@@ -624,6 +638,26 @@ describe("Checks, Crypto tests in four parts", () => {
     expect(within(part("plan")).getAllByTestId("test-card")).toHaveLength(plan.tests.length);
   });
 
+  it("counts a run of Change watch on no tab: the tab's number and its findings are the same with it and without", async () => {
+    // (26 November 2026, the review: these runs are kept apart from the assessment's own results, and a tab's count is
+    // a count of those)
+    const count = () => {
+      const tab = t0("encryption");
+      return [
+        within(tab).getByTestId("group-tab-total").textContent,
+        within(tab).queryByTestId("group-tab-findings")?.textContent ?? null,
+      ];
+    };
+    await open(withParts({ proofs: [proofBlock] }));
+    const without = count();
+    cleanup();
+    await open(withParts({ proofs: [proofBlock], changes: [watchBlock] }));
+    // The run is on the page, in its own part ...
+    expect(within(part("changes")).getAllByTestId("check-row")).toHaveLength(1);
+    // ... and the tab counts what it counted before.
+    expect(count()).toEqual(without);
+  });
+
   it("adds Tries on a test copy once a server change was tried", async () => {
     await open(withParts({ tries: [tryRow] }));
     expect(parts().map((p) => p.getAttribute("data-part"))).toEqual(["plan", "retests", "proofs", "tries"]);
@@ -649,10 +683,14 @@ describe("Checks, Crypto tests in four parts", () => {
 
   it("says so before any retest, and has Retest new version on the page", async () => {
     await open(withParts({ retests: [] }));
-    expect(within(part("retests")).getByTestId("part-empty").textContent).toBe(NO_RETEST);
+    // A part with nothing in it yet is one folded line (26 November 2026): its name, its count, and its button.
     expect(within(part("retests")).getByTestId("part-count").textContent).toBe("0 versions");
-    expect(blocksIn("retests")).toHaveLength(0);
+    expect(within(part("retests")).queryByTestId("part-empty")).toBeNull();
     expect(await within(part("retests")).findByRole("button", { name: "Retest new version" })).not.toBeNull();
+    // Opened, it says why it is empty.
+    fireEvent.click(within(part("retests")).getAllByRole("button")[0]!);
+    expect(within(part("retests")).getByTestId("part-empty").textContent).toBe(NO_RETEST);
+    expect(blocksIn("retests")).toHaveLength(0);
   });
 
   it("offers the same menu as Evidence, and choosing a version starts the retest from here", async () => {

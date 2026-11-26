@@ -30,6 +30,10 @@ import { OverviewPage } from "./components/pages/OverviewPage";
 import { ProjectsPage } from "./components/pages/ProjectsPage";
 import { SettingsPage } from "./components/pages/SettingsPage";
 import { GuidedBar } from "./components/shell/GuidedBar";
+import { DecisionsPage } from "./components/evidence/DecisionsPage";
+import { EvidenceFilesPage } from "./components/evidence/EvidenceFilesPage";
+import { TimelinePage } from "./components/evidence/TimelinePage";
+import { ObservatoryPage } from "./components/observatory/ObservatoryPage";
 import { Sidebar, type PageAccess } from "./components/shell/Sidebar";
 import { TopBar } from "./components/shell/TopBar";
 import { ErrorBox, formatTime, SecondaryButton } from "./components/ui";
@@ -38,7 +42,6 @@ import { setAlgorithmNames } from "./plainNames";
 import { applyTheme, prefs, type Theme } from "./prefs";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "./readOnly";
 import {
-  type GroupNav,
   HiddenPageNotesContext,
   ItemMissing,
   ItemPageContext,
@@ -68,8 +71,6 @@ export default function App() {
   const [plan, setPlan] = useState<PlanView | null>(null);
   // The fix that is open in Fixes. "View in Fixes" in Evidence or Migration sets it.
   const [fixId, setFixId] = useState<string | null>(null);
-  // 20 November 2026: the tab Checks, Evidence or Fixes shows, and its groups, for the sidebar (the page says them).
-  const [groupNav, setGroupNav] = useState<{ page: Page; nav: GroupNav } | null>(null);
   const [theme, setTheme] = useState<Theme>(prefs.theme);
   const [collapsed, setCollapsed] = useState(prefs.sidebarCollapsed);
   const [copilotShown, setCopilotShown] = useState(prefs.copilotShown);
@@ -336,15 +337,19 @@ export default function App() {
   const access: PageAccess = {
     overview: { open: true },
     "inventory/import": { open: true },
+    observatory: withFile,
     "inventory/verify": withFile,
     advisories: withFile,
     checks: withFile,
-    evidence: withFile,
     fixes: withFile,
-    "change-watch": withFile,
     "migration/systems": withFile,
     "migration/roadmap": withFile,
     "migration/dependencies": withFile,
+    "change-watch": withFile,
+    "evidence/timeline": withFile,
+    evidence: withFile,
+    "evidence/decisions": withFile,
+    "evidence/files": withFile,
   };
   // A page whose data is not there (yet) falls back to Import, as the step bar did.
   const page: Page | null =
@@ -378,7 +383,6 @@ export default function App() {
     if (route.kind !== "assessment") return;
     navigate({ ...route, group, item: null, view: null });
   }
-  const showGroups = (shownOn: Page) => (nav: GroupNav) => setGroupNav({ page: shownOn, nav });
 
   /** Where an answer of Otto's leads (phase 6b): a page, one item on it, and the filters of its table; or Settings. */
   function goTo(where: {
@@ -564,7 +568,6 @@ export default function App() {
         pickProject(p);
       }}
       onNavigate={() => setMenuOpen(false)}
-      groups={page !== null && groupNav?.page === page ? groupNav.nav : null}
       projectId={projectId}
       assessments={projectView?.id === projectId ? projectView.assessments : []}
       onNewAssessment={() => {
@@ -676,6 +679,9 @@ export default function App() {
         }}
       />
     );
+  } else if (page === "observatory") {
+    // The design refactor (26 November 2026): the map of the systems the files describe. It only reads.
+    content = <ObservatoryPage assessmentId={current.id} openItem={routeItem} />;
   } else if (page === "inventory/verify" && imp) {
     // (Continue to checks opens Crypto tests, where the test plan and Run all are: Kevin's decision of 20 November 2026)
     content = (
@@ -705,7 +711,6 @@ export default function App() {
         from={filters.from}
         onFilters={setFilters}
         onGroup={setGroup}
-        onGroupShown={showGroups("checks")}
       />
     );
   } else if (page === "evidence" && plan) {
@@ -718,9 +723,29 @@ export default function App() {
         result={filters.result}
         onFilters={setFilters}
         onGroup={setGroup}
-        onGroupShown={showGroups("evidence")}
       />
     );
+  } else if (page === "evidence/timeline" && plan) {
+    // The design refactor (26 November 2026): Evidence is a section of four views. The first three only read the record.
+    content = (
+      <TimelinePage
+        planId={plan.id}
+        area={route.kind === "assessment" ? (route.group ?? null) : null}
+        onArea={(area) => route.kind === "assessment" && navigate({ ...route, group: area, item: null, view: null })}
+        openItem={routeItem}
+      />
+    );
+  } else if (page === "evidence/decisions" && plan) {
+    content = (
+      <DecisionsPage
+        planId={plan.id}
+        area={route.kind === "assessment" ? (route.group ?? null) : null}
+        onArea={(area) => route.kind === "assessment" && navigate({ ...route, group: area, item: null, view: null })}
+        openItem={routeItem}
+      />
+    );
+  } else if (page === "evidence/files" && plan) {
+    content = <EvidenceFilesPage planId={plan.id} />;
   } else if (page === "fixes" && plan) {
     content = (
       <FixesScreen
@@ -731,7 +756,6 @@ export default function App() {
         onPlanChanged={() => void reloadPlan()}
         group={route.kind === "assessment" ? (route.group ?? null) : null}
         onGroup={setGroup}
-        onGroupShown={showGroups("fixes")}
       />
     );
   } else if (page === "change-watch" && plan) {

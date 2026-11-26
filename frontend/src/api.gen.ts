@@ -78,6 +78,28 @@ export type WatchStatusKey =
   | "gone"
   | "not_watched";
 export type AssistantThread = "testing" | "fixing" | "planning";
+export type RecordAreaKey =
+  "observe" | "advisories" | "checks" | "fixes" | "migration" | "dependencies" | "watch" | "assessment";
+export type RecordKindKey = "runs" | "people" | "system" | "files";
+export type RecordIcon =
+  | "grid"
+  | "file"
+  | "download"
+  | "signoff"
+  | "person"
+  | "live"
+  | "flask"
+  | "list"
+  | "approve"
+  | "merge"
+  | "clock"
+  | "apply"
+  | "rollback";
+export type WhoSource =
+  "account" | "typed" | "default" | "reviewer" | "signoff" | "decides" | "clock" | "author" | "none";
+export type ObservatoryBoxKind =
+  "server" | "program" | "key_exchange_program" | "software" | "service" | "own_software";
+export type ObservatoryFile = "scanner" | "dependencies";
 
 export interface AddTestBody {
   catalog_id: string;
@@ -2719,6 +2741,113 @@ export interface Created {
 export interface DecisionBody {
   reason?: string | null;
 }
+export interface DecisionCard {
+  key: "decisions" | "approvals" | "otto" | "signoff";
+  title: string;
+  value: string;
+  small: string;
+}
+export interface DecisionDay {
+  date: string;
+  count: number;
+  rows: DecisionRow[];
+}
+export interface DecisionRow {
+  /**
+   * The timeline entry of this decision.
+   */
+  id: string;
+  at: string;
+  decision: DecisionWord;
+  on: string;
+  marks: string[];
+  who: RecordWho;
+  /**
+   * Who pressed, where that is another name (an approval as a demo reviewer).
+   */
+  pressed_by: RecordWho | null;
+  area: RecordArea;
+  link: ItemLink | null;
+}
+export interface DecisionWord {
+  key: string;
+  /**
+   * "Approved", "Merged", "Accepted", "Not added", "Applied", "Signed off", ...
+   */
+  label: string;
+}
+/**
+ * One name on a record, and where it came from. A person is never the decider of a result.
+ */
+export interface RecordWho {
+  /**
+   * The name, or "Not recorded (before names were kept)".
+   */
+  name: string;
+  /**
+   * account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name (Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none.
+   */
+  source: "account" | "typed" | "default" | "reviewer" | "signoff" | "decides" | "clock" | "author" | "none";
+  /**
+   * The same, in one plain line.
+   */
+  source_label: string;
+  /**
+   * Demo data: a demo reviewer or the demo developer.
+   */
+  demo: boolean;
+  /**
+   * False where no name was kept.
+   */
+  recorded: boolean;
+  /**
+   * The button it was pressed with ("Run all", "Retest now, on Fixes"), or null.
+   */
+  button: string | null;
+}
+export interface RecordArea {
+  key: "observe" | "advisories" | "checks" | "fixes" | "migration" | "dependencies" | "watch" | "assessment";
+  /**
+   * "Observatory and Verify", "Advisories", "Checks", "Fixes", "Migration plan", ...
+   */
+  label: string;
+}
+export interface DecisionsChosen {
+  area: string;
+}
+export interface DecisionsView {
+  plan_id: number;
+  is_demo: boolean;
+  title: string;
+  subline: string;
+  cards: DecisionCard[];
+  names_note: string;
+  /**
+   * Why no result is in this list.
+   */
+  results_note: string;
+  chosen: DecisionsChosen;
+  areas: RecordFilter[];
+  total: number;
+  /**
+   * Newest first.
+   */
+  days: DecisionDay[];
+  zone: string;
+  empty_text: string | null;
+  disclaimer: string;
+}
+export interface RecordFilter {
+  /**
+   * "all", or an area or kind key.
+   */
+  key: string;
+  label: string;
+  /**
+   * How many entries it would list, with the other filter and the search as they are.
+   */
+  count: number;
+}
 export interface DemoProjectsLoaded {
   added: string[];
   summary: string;
@@ -3041,6 +3170,47 @@ export interface EvidenceExport {
 export interface FileLink {
   url: string;
   filename: string;
+}
+export interface EvidenceFileRow {
+  id: number;
+  at: string;
+  fingerprint: string;
+  fingerprint_label: string;
+  who: RecordWho;
+  json: FileLink;
+  html: FileLink;
+}
+export interface EvidenceFilesCheck {
+  title: string;
+  text: string;
+  command: string;
+  report_note: string;
+}
+/**
+ * The Download evidence button, as Evidence gives it (a shape of its own, so LabView's keeps its name).
+ */
+export interface EvidenceFilesDownload {
+  can_start: boolean;
+  blocked_reason: string | null;
+}
+export interface EvidenceFilesHolds {
+  title: string;
+  items: string[];
+}
+export interface EvidenceFilesView {
+  plan_id: number;
+  is_demo: boolean;
+  title: string;
+  subline: string;
+  /**
+   * Every download, newest first.
+   */
+  files: EvidenceFileRow[];
+  empty_text: string | null;
+  download: EvidenceFilesDownload;
+  check: EvidenceFilesCheck;
+  holds: EvidenceFilesHolds;
+  names_note: string;
 }
 export interface FixApprovers {
   /**
@@ -3525,6 +3695,85 @@ export interface Headline {
   systems: SystemCounts | null;
   blockers: number | null;
 }
+export interface HistoryLine {
+  id: string;
+  /**
+   * Null where the record has no time (a proposal of Otto's is not stored).
+   */
+  at: string | null;
+  icon:
+    | "grid"
+    | "file"
+    | "download"
+    | "signoff"
+    | "person"
+    | "live"
+    | "flask"
+    | "list"
+    | "approve"
+    | "merge"
+    | "clock"
+    | "apply"
+    | "rollback";
+  title: string;
+  /**
+   * This item's own result in that run, or a proof's or a try's word.
+   */
+  result: RecordChip | null;
+  /**
+   * Several results that stand together (a retest's, in a fix's history).
+   */
+  results: RecordChip[];
+  who: RecordWho | null;
+  /**
+   * "started by You, with Run all", "by You", or that no name was kept.
+   */
+  said: string | null;
+  decided_by: string | null;
+  note: string | null;
+  /**
+   * The run's fingerprint (SHA-256), in full.
+   */
+  fingerprint: string | null;
+  source_tag: Source | null;
+  marks: string[];
+  link: ItemLink | null;
+}
+export interface RecordChip {
+  /**
+   * What it is a result of, where several stand together; else null.
+   */
+  name: string | null;
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface HistoryTimeline {
+  /**
+   * The place to open the timeline with.
+   */
+  area: "observe" | "advisories" | "checks" | "fixes" | "migration" | "dependencies" | "watch" | "assessment";
+}
+export interface HistoryView {
+  plan_id: number;
+  is_demo: boolean;
+  key: string;
+  /**
+   * "History of this check", "History of this fix", ...
+   */
+  title: string;
+  /**
+   * The line on top that says what decides a result; null for a fix or a change.
+   */
+  decides: string | null;
+  /**
+   * Newest first; a line with no time comes last.
+   */
+  lines: HistoryLine[];
+  notes: string[];
+  empty_text: string | null;
+  names_note: string;
+  timeline: HistoryTimeline;
+}
 export interface LabRow {
   item_id: number;
   kind:
@@ -3592,6 +3841,10 @@ export interface PlanGroup {
   kind: "server" | "software" | "reference";
   heading: string;
   note: string | null;
+  /**
+   * Where its tests run, in one line: "On your server, localhost:8443", "On a copy of acme-sign 1.4.2, on this computer".
+   */
+  runs_on?: string | null;
 }
 /**
  * The "Not tested, and why" box: every target or test the plan leaves out, one line each.
@@ -3946,6 +4199,642 @@ export interface NewAssessmentBody {
   name?: string | null;
   purpose?: string | null;
   reference?: string | null;
+}
+export interface ObservatoryAlgorithm {
+  key: string;
+  kind_label: string;
+  /**
+   * The plain name drawn first ("Classical signatures"); null when the app has none.
+   */
+  plain: string | null;
+  /**
+   * "ECDSA P-256"
+   */
+  technical: string;
+  named: string;
+  /**
+   * "Used in 2 places: the certificate on ... and the signatures of ...".
+   */
+  used: string;
+  uses: ObservatoryUse[];
+}
+export interface ObservatoryUse {
+  /**
+   * The key of the box (or of the container) that uses the algorithm.
+   */
+  box: string;
+  /**
+   * certificate, protocol, key, signature, key_exchange or direct
+   */
+  through: string;
+}
+export interface ObservatoryBanner {
+  strong: string;
+  text: string;
+  link: ItemLink;
+  link_label: string;
+}
+/**
+ * A result shown beside a check's first result and never in its place: a retest's, labelled with the version it ran
+ * on, or the measurement the app made right after an Apply or a Roll back.
+ */
+export interface ObservatoryBeside {
+  /**
+   * "Retest on acme-sign 1.4.3", "Retest, tested again as it is", "After Apply"
+   */
+  label: string;
+  /**
+   * The result's own word, as Evidence shows it.
+   */
+  word: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  code: string;
+  tag: Source | null;
+  link: ItemLink;
+}
+export interface ObservatoryBox {
+  /**
+   * "server:<address>", "software:<claim ref>", "service:<key>", or "top:<key>" for an untied top entry.
+   */
+  key: string;
+  kind: "server" | "program" | "key_exchange_program" | "software" | "service" | "own_software";
+  title: string;
+  /**
+   * "Server · localhost:8443", "Signing program · in both files", ...
+   */
+  sub: string;
+  address: string | null;
+  in_files: ("scanner" | "dependencies")[];
+  ties: ObservatoryTie[];
+  /**
+   * False: nothing was observed or run here (draw it so).
+   */
+  observed: boolean;
+  /**
+   * "Not tied to ... or to ...", built from the real names; or why it has no spots.
+   */
+  note: string | null;
+  /**
+   * Set when every result in the box rests on the same thing.
+   */
+  tag: Source | null;
+  spots: ObservatorySpot[];
+  link: ItemLink4;
+}
+export interface ObservatoryTie {
+  /**
+   * The top entry of the dependency list that is this box.
+   */
+  label: string;
+  /**
+   * "name_version" (tied by the app) or "user" (set with Part of).
+   */
+  source: string | null;
+  words: string;
+}
+export interface ObservatorySpot {
+  /**
+   * tls_versions, cipher_suites, certificate, key_exchange, signatures, signs, checks_signatures, speed_size, other
+   */
+  key: string;
+  title: string;
+  /**
+   * "The file says TLS 1.3 only", or "Not in your file".
+   */
+  file_says: string;
+  /**
+   * What the file claims here, alone ("ECDSA P-256"); null when it claims nothing.
+   */
+  claimed: string | null;
+  /**
+   * Set when the box has no one tag and every result of this spot rests on the same.
+   */
+  tag: Source | null;
+  /**
+   * At least one check of this spot has a result.
+   */
+  checked: boolean;
+  /**
+   * "Not checked yet" or "Not measured yet" while no check here has a result.
+   */
+  empty_text: string | null;
+  checks: ObservatoryCheck[];
+}
+/**
+ * A check as the map lists it.
+ */
+export interface ObservatoryCheck {
+  /**
+   * "claim-3", "test-12", "status-kex", "status-auth", "status-signatures"
+   */
+  id: string;
+  kind: "claim" | "test" | "status";
+  /**
+   * "The claim", the test's own title, or "Post-quantum status"
+   */
+  name: string;
+  /**
+   * The result's own word, or "Not checked yet" / "Not measured yet".
+   */
+  word: string;
+  /**
+   * The look of the word on its own page; null when the check has not run.
+   */
+  tone: ("pass" | "fail" | "neutral" | "warn") | null;
+  code: string | null;
+  /**
+   * A result exists. False: the word says it has not run.
+   */
+  checked: boolean;
+  /**
+   * It is waiting or running now.
+   */
+  running: boolean;
+  /**
+   * "After Apply" or "After Roll back" when this result is that measurement of the live system; else null.
+   */
+  came_from: string | null;
+  /**
+   * What this result rests on. Draw it only where neither its box nor its spot carries one.
+   */
+  tag: Source | null;
+  link: ItemLink3;
+  /**
+   * The key of its Related block: "claim:3", "test:12", "system:<key>".
+   */
+  related_key: string;
+  beside: ObservatoryBeside[];
+}
+/**
+ * Where the result lives: the claim on Verify, the result on Evidence, the system.
+ */
+export interface ItemLink3 {
+  /**
+   * The page that holds the item, e.g. "evidence", "fixes", "migration/systems".
+   */
+  page: string;
+  /**
+   * The item to open there (a check, claim, fix, system or library id); null for the page.
+   */
+  item: string | null;
+  section?: string | null;
+  /**
+   * The work group to filter the page to.
+   */
+  group?: string | null;
+  /**
+   * Another assessment (the Project overview links into each).
+   */
+  assessment_id?: number | null;
+}
+/**
+ * Opens this box on the Observatory.
+ */
+export interface ItemLink4 {
+  /**
+   * The page that holds the item, e.g. "evidence", "fixes", "migration/systems".
+   */
+  page: string;
+  /**
+   * The item to open there (a check, claim, fix, system or library id); null for the page.
+   */
+  item: string | null;
+  section?: string | null;
+  /**
+   * The work group to filter the page to.
+   */
+  group?: string | null;
+  /**
+   * Another assessment (the Project overview links into each).
+   */
+  assessment_id?: number | null;
+}
+export interface ObservatoryBoxGaps {
+  title: string;
+  items: ObservatoryGap[];
+}
+export interface ObservatoryGap {
+  key: string;
+  text: string;
+  /**
+   * Where the gap can be filled; null where the app has no place for it.
+   */
+  link: ItemLink | null;
+  link_label: string | null;
+}
+export interface ObservatoryCheckFix {
+  /**
+   * The line about a fix that the result's own page shows.
+   */
+  text: string;
+  label: string;
+  link: ItemLink;
+}
+export interface ObservatoryCheckLink {
+  label: string;
+  link: ItemLink;
+}
+export interface ObservatoryCount {
+  key: "live" | "lab" | "file" | "published";
+  label: string;
+  meaning: string;
+  count: number;
+  line: string;
+}
+export interface ObservatoryEmpty {
+  text: string;
+  link: ItemLink;
+  link_label: string;
+}
+export interface ObservatoryFileLine {
+  /**
+   * Where in the file: "services[0]", "dependencies[1]", "line 2".
+   */
+  where: string;
+  /**
+   * The entry, short, as data.
+   */
+  text: string;
+}
+export interface ObservatoryFileLines {
+  title: string;
+  filename: string;
+  lines: ObservatoryFileLine[];
+  more: number;
+}
+export interface ObservatoryFix {
+  label: string;
+  sub: string;
+  link: ItemLink;
+}
+export interface ObservatoryGaps {
+  title: string;
+  note: string;
+  items: ObservatoryGap[];
+}
+export interface ObservatoryLast {
+  /**
+   * "Last observed", "Last run", ...
+   */
+  label: string;
+  at: string;
+}
+export interface ObservatoryLegendItem {
+  kind: "uses" | "live" | "ask" | "unobserved";
+  text: string;
+}
+/**
+ * The libraries of one top entry of the dependency list: one box for a single library, else one group box.
+ */
+export interface ObservatoryLibraries {
+  key: string;
+  kind_label: string;
+  /**
+   * "acme-ledger 5.1.0's libraries · 8", or the one library's name.
+   */
+  title: string;
+  sub: string;
+  /**
+   * The box (or container) they belong to; null for libraries under no entry.
+   */
+  owner: string | null;
+  count: number;
+  /**
+   * Set when every library of the group has the same tag.
+   */
+  tag: Source | null;
+  /**
+   * The first few; the rest are on Dependencies.
+   */
+  rows: ObservatoryLibraryRow[];
+  more: ObservatoryMore | null;
+}
+export interface ObservatoryLibraryRow {
+  /**
+   * The row's id on Dependencies.
+   */
+  id: string;
+  label: string;
+  via_words: string;
+  /**
+   * Dependencies' own summary of its answers ("No to all three").
+   */
+  answers_short: string;
+  tag: Source;
+  link: ItemLink;
+}
+export interface ObservatoryMore {
+  count: number;
+  label: string;
+  link: ItemLink;
+  link_label: string;
+}
+export interface ObservatoryLibrariesNote {
+  title: string;
+  sub: string;
+  text: string;
+  link: ItemLink;
+}
+export interface ObservatoryLine {
+  /**
+   * The key of the box it starts at; "this_computer" or "clients" for the two outside boxes.
+   */
+  start: string;
+  end: string;
+  /**
+   * uses: the files say one uses the other. live: a connection the app made. ask: the files don't say.
+   */
+  kind: "uses" | "live" | "ask";
+  label: string;
+}
+export interface ObservatoryNext {
+  /**
+   * The Migration plan's own line for this system, as its Systems table shows it.
+   */
+  text: string;
+  label: string;
+  link: ItemLink;
+}
+export interface ObservatoryOutside {
+  key: "clients" | "this_computer";
+  title: string;
+  sub: string;
+}
+/**
+ * One box of the map, opened.
+ */
+export interface ObservatoryPanel {
+  key: string;
+  kind_label: string;
+  title: string;
+  sub: string;
+  /**
+   * The service it is drawn in.
+   */
+  part_of: string | null;
+  tag: Source | null;
+  last: ObservatoryLast | null;
+  /**
+   * Built only from counts of the checks' own words.
+   */
+  summary: string;
+  note: string | null;
+  ties: ObservatoryTie[];
+  observed: boolean;
+  spots: ObservatoryPanelSpot[];
+  libraries: ObservatoryLibraries[];
+  /**
+   * The fixes a recorded link ties to this box or to one of its checks.
+   */
+  fixes: ObservatoryFix[];
+  /**
+   * The next step the Migration plan names for this system, once its status was measured; else null.
+   */
+  next: ObservatoryNext | null;
+  gaps: ObservatoryBoxGaps;
+  /**
+   * The lines of the files that name it.
+   */
+  file_lines: ObservatoryFileLines[];
+  /**
+   * The key of its Related block; null for a box that is no system.
+   */
+  related_key: string | null;
+  related: RelatedLine[];
+  link: ItemLink;
+}
+export interface ObservatoryPanelSpot {
+  /**
+   * tls_versions, cipher_suites, certificate, key_exchange, signatures, signs, checks_signatures, speed_size, other
+   */
+  key: string;
+  title: string;
+  /**
+   * "The file says TLS 1.3 only", or "Not in your file".
+   */
+  file_says: string;
+  /**
+   * What the file claims here, alone ("ECDSA P-256"); null when it claims nothing.
+   */
+  claimed: string | null;
+  /**
+   * Set when the box has no one tag and every result of this spot rests on the same.
+   */
+  tag: Source | null;
+  /**
+   * At least one check of this spot has a result.
+   */
+  checked: boolean;
+  /**
+   * "Not checked yet" or "Not measured yet" while no check here has a result.
+   */
+  empty_text: string | null;
+  checks: ObservatoryPanelCheck[];
+}
+/**
+ * A check as a box's panel shows it: the same words as on the map, with its sentence and its links.
+ */
+export interface ObservatoryPanelCheck {
+  /**
+   * "claim-3", "test-12", "status-kex", "status-auth", "status-signatures"
+   */
+  id: string;
+  kind: "claim" | "test" | "status";
+  /**
+   * "The claim", the test's own title, or "Post-quantum status"
+   */
+  name: string;
+  /**
+   * The result's own word, or "Not checked yet" / "Not measured yet".
+   */
+  word: string;
+  /**
+   * The look of the word on its own page; null when the check has not run.
+   */
+  tone: ("pass" | "fail" | "neutral" | "warn") | null;
+  code: string | null;
+  /**
+   * A result exists. False: the word says it has not run.
+   */
+  checked: boolean;
+  /**
+   * It is waiting or running now.
+   */
+  running: boolean;
+  /**
+   * "After Apply" or "After Roll back" when this result is that measurement of the live system; else null.
+   */
+  came_from: string | null;
+  /**
+   * What this result rests on. Draw it only where neither its box nor its spot carries one.
+   */
+  tag: Source | null;
+  link: ItemLink5;
+  /**
+   * The key of its Related block: "claim:3", "test:12", "system:<key>".
+   */
+  related_key: string;
+  beside: ObservatoryPanelBeside[];
+  /**
+   * The plain sentence the result's own page shows.
+   */
+  plain: string | null;
+  at: string | null;
+  fix: ObservatoryCheckFix | null;
+  links: ObservatoryCheckLink[];
+}
+/**
+ * Where the result lives: the claim on Verify, the result on Evidence, the system.
+ */
+export interface ItemLink5 {
+  /**
+   * The page that holds the item, e.g. "evidence", "fixes", "migration/systems".
+   */
+  page: string;
+  /**
+   * The item to open there (a check, claim, fix, system or library id); null for the page.
+   */
+  item: string | null;
+  section?: string | null;
+  /**
+   * The work group to filter the page to.
+   */
+  group?: string | null;
+  /**
+   * Another assessment (the Project overview links into each).
+   */
+  assessment_id?: number | null;
+}
+export interface ObservatoryPanelBeside {
+  /**
+   * "Retest on acme-sign 1.4.3", "Retest, tested again as it is", "After Apply"
+   */
+  label: string;
+  /**
+   * The result's own word, as Evidence shows it.
+   */
+  word: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  code: string;
+  tag: Source | null;
+  link: ItemLink;
+  plain: string | null;
+  at: string | null;
+}
+export interface ObservatoryPlace {
+  key: string;
+  /**
+   * Null when the item is not on the map.
+   */
+  place: ObservatoryPlaceWhere | null;
+}
+export interface ObservatoryPlaceWhere {
+  /**
+   * "On your map"
+   */
+  label: string;
+  /**
+   * The service, the box, the spot.
+   */
+  path: string[];
+  box: string | null;
+  link: ItemLink6;
+  link_label: string;
+}
+/**
+ * Opens the Observatory on that box.
+ */
+export interface ItemLink6 {
+  /**
+   * The page that holds the item, e.g. "evidence", "fixes", "migration/systems".
+   */
+  page: string;
+  /**
+   * The item to open there (a check, claim, fix, system or library id); null for the page.
+   */
+  item: string | null;
+  section?: string | null;
+  /**
+   * The work group to filter the page to.
+   */
+  group?: string | null;
+  /**
+   * Another assessment (the Project overview links into each).
+   */
+  assessment_id?: number | null;
+}
+/**
+ * A container: the service the scanner file describes, with its parts inside; or, when the two files do not name
+ * the same thing, the dependency list's own software, listed apart.
+ */
+export interface ObservatoryService {
+  key: "service" | "listed";
+  /**
+   * The name the file gives it; null when the file names none.
+   */
+  title: string | null;
+  version: string | null;
+  is_demo: boolean;
+  /**
+   * "Named in both files, with the same name and version", "Named in your scanner file", ...
+   */
+  sub: string;
+  in_files: ("scanner" | "dependencies")[];
+  boxes: ObservatoryBox[];
+}
+export interface ObservatoryView {
+  plan_id: number | null;
+  import_id: number | null;
+  title: string;
+  subline: string;
+  /**
+   * empty: no file yet. file_only: nothing has been checked yet. checked: at least one check has a result.
+   */
+  state: "empty" | "file_only" | "checked";
+  empty: ObservatoryEmpty | null;
+  /**
+   * While nothing has been checked: the sentence, and Open Verify.
+   */
+  banner: ObservatoryBanner | null;
+  /**
+   * Always the four tags, in their fixed order: the Overview's counts.
+   */
+  counts: ObservatoryCount[];
+  counts_note: string;
+  map_title: string;
+  /**
+   * What the map was built from, and when it last changed.
+   */
+  built_from: RichPart[];
+  /**
+   * Why the map is drawn from the claims alone (a CSV file, no kept copy).
+   */
+  structure_note: string | null;
+  not_drawn: string | null;
+  outside: ObservatoryOutside[];
+  services: ObservatoryService[];
+  algorithms: ObservatoryAlgorithm[];
+  libraries: ObservatoryLibraries[];
+  /**
+   * While no dependency list has been added.
+   */
+  libraries_note: ObservatoryLibrariesNote | null;
+  lines: ObservatoryLine[];
+  legend: ObservatoryLegendItem[];
+  legend_note: string;
+  gaps: ObservatoryGaps1;
+  /**
+   * Something is running: ask again in a second.
+   */
+  busy: boolean;
+}
+/**
+ * What your files don't say, each with where it can be filled.
+ */
+export interface ObservatoryGaps1 {
+  title: string;
+  note: string;
+  items: ObservatoryGap[];
 }
 export interface Ok {
   ok: true;
@@ -4367,6 +5256,46 @@ export interface PullRequestBody {
     | [string, string, string, string, string, string, string]
     | [string, string, string, string, string, string, string, string];
 }
+export interface RecordCount {
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  count: number;
+}
+export interface RecordFact {
+  label: string;
+  value: string;
+  mono: boolean;
+}
+export interface RecordKind {
+  key: "runs" | "people" | "system" | "files";
+  /**
+   * "Runs and results", "What people did", "Changes to a system", "Files in and out"
+   */
+  label: string;
+}
+export interface RecordRested {
+  title: string;
+  text: string | null;
+  chips: RecordChip[];
+  link: ItemLink | null;
+  link_label: string | null;
+}
+/**
+ * A result word and its tone, exactly as the reviewer's review or the item's own page gives them.
+ */
+export interface RecordResult {
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface RecordRole {
+  /**
+   * "Merged by", "Approved by", "Approved as", "Pressed by", ...
+   */
+  role: string;
+  who: RecordWho;
+  at: string | null;
+  note: string | null;
+}
 export interface RelatedView {
   key: string;
   related: RelatedLine[];
@@ -4405,6 +5334,181 @@ export interface SessionUser {
   login: string;
   name: string | null;
   avatar_url: string | null;
+}
+export interface TimelineApart {
+  count: number;
+  label: string;
+  text: string;
+  area: "observe" | "advisories" | "checks" | "fixes" | "migration" | "dependencies" | "watch" | "assessment";
+}
+export interface TimelineChosen {
+  area: string;
+  kind: string;
+  q: string;
+}
+export interface TimelineDay {
+  /**
+   * YYYY-MM-DD, in the zone the view names.
+   */
+  date: string;
+  count: number;
+  entries: TimelineEntry[];
+}
+/**
+ * One thing that happened. One entry for one press: the runs a press started are in its entry.
+ */
+export interface TimelineEntry {
+  /**
+   * Stable: "press-12", "retest-3", "merge-1", "verify-2", "otto-5", ...
+   */
+  id: string;
+  /**
+   * The moment, as ISO text in UTC; the screen writes it in the viewer's zone.
+   */
+  at: string;
+  area: RecordArea;
+  kind: RecordKind;
+  icon:
+    | "grid"
+    | "file"
+    | "download"
+    | "signoff"
+    | "person"
+    | "live"
+    | "flask"
+    | "list"
+    | "approve"
+    | "merge"
+    | "clock"
+    | "apply"
+    | "rollback";
+  /**
+   * The bold start of the sentence.
+   */
+  lead: string;
+  /**
+   * The rest of the sentence.
+   */
+  rest: RichPart[];
+  who: RecordWho;
+  /**
+   * A second name: the demo reviewer an approval was given as, a commit's author.
+   */
+  also: RecordWho[];
+  /**
+   * "decided by the separate reviewer" for runs, "decided by fixed rules" for Verify; null otherwise.
+   */
+  decided_by: string | null;
+  /**
+   * "From Otto", "Demo data"
+   */
+  marks: string[];
+  /**
+   * The source tags of its runs, each once.
+   */
+  source_tags: Source[];
+  runs: TimelineRun[];
+  /**
+   * Its runs counted by result word.
+   */
+  counts: RecordCount[];
+  /**
+   * A proof's, a try's or a watch run's own word, where it has one.
+   */
+  outcome: RecordResult | null;
+  /**
+   * Runs this press started that have no result yet.
+   */
+  pending: number;
+  link: ItemLink | null;
+  /**
+   * From Change watch: listed under Change watch only, and counted nowhere else.
+   */
+  apart: boolean;
+}
+export interface TimelineRun {
+  run_id: number | null;
+  /**
+   * For a claim checked by Verify (then run_id is null).
+   */
+  verify_run_id: number | null;
+  name: string;
+  ran_on: string;
+  result: RecordResult;
+  source_tag: Source | null;
+  link: ItemLink;
+}
+/**
+ * One entry's story, for a side panel.
+ */
+export interface TimelineEntryDetail {
+  plan_id: number;
+  is_demo: boolean;
+  entry: TimelineEntry;
+  title: string;
+  summary: string;
+  /**
+   * Who: every person involved, each with what they did.
+   */
+  people: RecordRole[];
+  names_note: string;
+  rested_title: string;
+  /**
+   * What it rested on (a merge, an Apply); empty otherwise.
+   */
+  rested: RecordRested[];
+  after_title: string;
+  /**
+   * What came after (a merge, an Apply, a Roll back); empty otherwise.
+   */
+  after: RecordRested[];
+  /**
+   * "Technical record"
+   */
+  record_title: string;
+  /**
+   * Ids, commits and fingerprints, for the folded part.
+   */
+  record: RecordFact[];
+  link_label: string | null;
+}
+export interface TimelineView {
+  plan_id: number;
+  is_demo: boolean;
+  title: string;
+  subline: string;
+  chosen: TimelineChosen;
+  /**
+   * Where: All, then each place.
+   */
+  areas: RecordFilter[];
+  /**
+   * What: Everything, then each kind.
+   */
+  kinds: RecordFilter[];
+  total: number;
+  /**
+   * Newest first.
+   */
+  days: TimelineDay[];
+  /**
+   * The time zone the days are sorted by (the `tz` asked for, or UTC).
+   */
+  zone: string;
+  empty_text: string | null;
+  /**
+   * What Change watch ran and brought in, where it is not listed: how many, and where to see them.
+   */
+  apart: TimelineApart | null;
+  /**
+   * One sentence that says where names come from.
+   */
+  names_note: string;
+  disclaimer: string;
+  /**
+   * Something is running: ask again in a second.
+   */
+  busy: boolean;
 }
 export interface VerifyRun {
   id: number;

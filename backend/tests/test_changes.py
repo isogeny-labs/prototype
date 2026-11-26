@@ -623,6 +623,8 @@ SAID_TABLES = ("assistant_messages",)
 WATCH_TABLES = ("watch_runs", "watch_reviews")
 # Sandbox research, the Watch list's stops and watch-agains: tests/watchlist/test_watchlist_views.py::test_raw_sql_cannot_change_or_delete_a_stop_or_a_watch_again.
 WATCH_LIST_TABLES = ("watchlist_marks",)
+# Who did what (design refactor, decision I): tests/record/test_actions_record.py::test_raw_sql_cannot_change_or_delete_a_press_or_its_tie.
+ACTION_TABLES = ("actions", "action_runs")
 
 
 def test_every_append_only_table_is_covered_by_a_test():
@@ -638,6 +640,7 @@ def test_every_append_only_table_is_covered_by_a_test():
         set(SAID_TABLES),
         set(WATCH_TABLES),
         set(WATCH_LIST_TABLES),
+        set(ACTION_TABLES),
     )
     assert set().union(*groups) == set(APPEND_ONLY_TABLES)
     assert sum(len(g) for g in groups) == len(set().union(*groups))  # no table is counted twice

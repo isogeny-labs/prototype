@@ -293,8 +293,11 @@ test("Continue to checks shows the five suggested tests", async () => {
   await expect(stepLink(page, "3. Tests")).toHaveAttribute("aria-current", "page");
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveCount(1);
   await expectPageOpen(page, "4. Evidence Lab");
-  // (with the four work groups of the open page, Checks, under it)
+  // The design refactor (26 November 2026): the sidebar is the six steps and then Evidence with its four views. The
+  // four work groups of the open page are its tabs and are no longer listed under it: one way to a group, not two.
   await expect(stepNav(page).getByRole("link")).toHaveText(sidebarLinksOn("Checks"));
+  await expect(page.getByTestId("sidebar-groups")).toHaveCount(0);
+  await expect(page.getByRole("tablist", { name: "Work groups" }).getByRole("tab")).toHaveCount(4);
   await expectPageOpen(page, "5. Fixes");
   await shot(page, "09-tests.png");
 });

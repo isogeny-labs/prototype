@@ -29,6 +29,7 @@ import {
   layoutProblems,
   openFreshAssessment,
   openGroupTab,
+  openMigrationView,
   openPageGroup,
   openResult,
   screenshotFolder,
@@ -212,23 +213,44 @@ test("part 1: one finding followed through its tags, from the claim on Import to
   await detail().getByRole("button", { name: "Close details" }).click();
   expect(await layoutProblems(page), "Checks, Verification, panel closed").toEqual([]);
 
-  // ---- Evidence: the result's panel says in one sentence what its tag means for it
-  await openPageGroup(page, "Evidence", "Crypto tests");
-  expect(await oneTagPerResultRow(page.getByTestId("evidence-row"), "Evidence, Crypto tests")).toBe(5);
+  // ---- Results (the page that was Evidence): the result's panel says in one sentence what its tag means for it
+  await openPageGroup(page, "Results", "Crypto tests");
+  expect(await oneTagPerResultRow(page.getByTestId("evidence-row"), "Results, Crypto tests")).toBe(5);
+  // The design refactor (26 November 2026): the list comes in parts, by what each row's result rests on. The part's
+  // heading says the tag once, for the eye, with what it means; a row keeps its own tag for a screen reader only.
+  const parts = page.getByTestId("table-part");
+  await expect(parts).toHaveCount(2);
+  expect(await parts.evaluateAll((all) => all.map((p) => p.getAttribute("data-part")))).toEqual(["live", "lab"]);
+  await expect(parts.getByTestId("table-part-title")).toHaveText(["On your systems", "On copies on this computer"]);
+  await expect(parts.getByTestId("table-part-tag")).toHaveText(["Observed live", "Proven in the lab"]);
+  for (const tag of await parts.getByTestId("table-part-tag").all()) await expect(tag).toBeVisible();
+  await expect(parts.nth(0).getByTestId("evidence-row")).toHaveCount(2); // the two server tests
+  await expect(parts.nth(1).getByTestId("evidence-row")).toHaveCount(3); // the three tests of the signing program
+  for (const part of await parts.all()) {
+    const key = (await part.getAttribute("data-part")) ?? "";
+    for (const row of await part.getByTestId("evidence-row").all())
+      expect(await tagsIn(row), "a row sits in the part of its own tag").toEqual([[key, LABELS[key]]]);
+  }
   const vectors = await openResult(page, "Independent exam (Wycheproof)");
-  await expect(vectors.getByTestId("source-line")).toContainText("Proven in the lab");
+  // (in the panel the tag stands beside the reviewer's word, and the line under the plain sentence says what it means)
+  await expect(vectors.getByTestId("result-glance").getByTestId("source-tag")).toHaveText("Proven in the lab");
+  await expect(vectors.getByTestId("result-glance").getByTestId("source-tag")).toBeVisible();
   await expect(vectors.getByTestId("source-note")).toContainText("Run on a copy of acme-sign 1.4.2 on this computer");
   await expect(vectors.getByTestId("source-note")).toContainText("Your live system was not touched.");
   await shots("05-evidence-result-proven-in-the-lab", vectors.getByTestId("source-line"));
   expect(await layoutProblems(page), "Evidence, panel open").toEqual([]);
-  await noBannedWords("Evidence");
+  await noBannedWords("Results");
 
   // ---- Fixes: the server's fix carries the tag of its finding; the try is a test copy; After Apply reads the server again
   await stepLink(page, "Fixes").click();
   await openGroupTab(page, "Crypto tests", "Fixes");
   await pickFix("Server accepts TLS 1.2");
+  // (the fixes come in parts too: the server's fix sits in the part of its finding, whose heading shows the tag)
+  const livePart = page.locator('[data-testid="table-part"][data-part="live"]');
+  await expect(livePart.getByTestId("table-part-tag")).toBeVisible();
+  await expect(livePart.getByTestId("table-part-tag")).toHaveText("Observed live");
   await expect(
-    page.getByTestId("fix-row").filter({ hasText: "Server accepts TLS 1.2" }).getByTestId("source-tag"),
+    livePart.getByTestId("fix-row").filter({ hasText: "Server accepts TLS 1.2" }).getByTestId("source-tag"),
   ).toHaveText("Observed live");
   await expect(detail().getByTestId("fix-summary").getByTestId("source-line")).toContainText(
     `Observed live Read from ${server}`,
@@ -259,7 +281,7 @@ test("part 1: one finding followed through its tags, from the claim on Import to
 test("part 1: Migration, Dependencies, the signing program's fix and Change watch carry their tags", async () => {
   // ---- Migration: before a measurement a system rests on the file; after it, the server is read and the program run here
   await stepLink(page, "6. Migration").click();
-  await page.getByRole("button", { name: /^Systems/ }).click();
+  await openMigrationView(page, "Systems"); // (Migration plan's views are the sidebar's links under it)
   const systems = page.getByTestId("system-card");
   await expect(systems).toHaveCount(2);
   for (const system of await systems.all()) expect(await tagsIn(system)).toEqual([["file", "From your file"]]);
@@ -278,7 +300,7 @@ test("part 1: Migration, Dependencies, the signing program's fix and Change watc
   expect(await layoutProblems(page), "Migration, Systems").toEqual([]);
 
   // ---- Dependencies: what the maker's release notes say is Published; what the app has not got rests on the list
-  await page.getByRole("button", { name: "Dependencies", exact: true }).click();
+  await openMigrationView(page, "Dependencies");
   const added = page.waitForResponse(
     (r) => /\/api\/plans\/\d+\/dependencies\?/.test(r.url()) && r.request().method() === "POST",
   );
@@ -354,7 +376,7 @@ test("part 1: the Overview counts each group's checks by tag; reading the pages 
   // every page with results, every group tab: one tag per row with a result, and the words of its key
   for (const [step, on] of [
     ["Checks", "Checks"],
-    ["Evidence", "Evidence"],
+    ["Results", "Results"],
   ] as const) {
     await stepLink(page, step).click();
     for (const group of ["Verification", "Crypto tests", "Migration", "Dependencies"]) {
@@ -368,7 +390,7 @@ test("part 1: the Overview counts each group's checks by tag; reading the pages 
   expect(await runCount(), "looking at every page ran nothing").toBe(before);
 
   // the signed evidence file: the tag is words on the pages only; the file holds none, and the verify command confirms it
-  await stepLink(page, "Roadmap").click();
+  await openMigrationView(page, "Roadmap");
   const created = page.waitForResponse(
     (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
   );

@@ -43,6 +43,7 @@ def test_envelope_shape_and_what_is_inside(demo_flow):
     )
     assert envelope["public_key"] == (demo_flow.lab.settings.data_dir / PUBLIC_KEY_FILE).read_text().strip()
     assert sorted(e) == [
+        "actions",  # who did what (design refactor, decision I): the presses this flow made
         "app",
         "assessment",
         "changes",

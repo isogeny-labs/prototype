@@ -203,7 +203,7 @@ describe("Fixes, the page", () => {
     expect(screen.queryByTestId("fix-summary")).toBeNull();
     // Nothing to press but the four tabs.
     expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+    expect(screen.getAllByRole("tab").map((t) => t.firstChild!.textContent)).toEqual([
       "Verification",
       "Crypto tests",
       "Migration",
@@ -757,6 +757,39 @@ describe("Fixes, the confirm box before a merge", () => {
 });
 
 describe("Fixes, the folded sections", () => {
+  it("keeps the change, its proof and the technical details behind one fold: a Cryptanalysis proof for a tested finding", async () => {
+    await open(fixesViews.ready);
+    const fold = screen.getByTestId("fix-proof-fold") as HTMLDetailsElement;
+    // Folded until asked for, with its name and what is inside, in order.
+    expect(fold.tagName).toBe("DETAILS");
+    expect(fold.open).toBe(false);
+    expect(fold.getAttribute("data-kind")).toBe("proof");
+    expect(within(fold).getByTestId("proof-fold-name").textContent).toBe("Cryptanalysis proof");
+    expect(within(fold).getByTestId("proof-fold-inside").textContent).toBe("The change · Proof · Technical details");
+    // Every part is in it, whole, and nowhere else; the summary above it holds the answer and the next step.
+    for (const part of sections()) expect(fold.contains(part), part.getAttribute("data-section")!).toBe(true);
+    expect(sections().map((part) => part.getAttribute("data-part"))).toEqual(["1", "2", "3"]);
+    expect(summary().compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fold.contains(summary())).toBe(false);
+    fireEvent.click(within(fold).getByTestId("proof-fold-toggle"));
+    expect(fold.open).toBe(true);
+    // The small line over the title says what this is and which group it sits in.
+    expect(screen.getByTestId("panel-kicker").textContent).toBe("Fix · Crypto tests");
+  });
+
+  it("calls the fold a Technical record for a finding that was observed, and shows none before there is a record", async () => {
+    await open(fixesViews.ready, {}, TLS_FIX);
+    const fold = screen.getByTestId("fix-proof-fold");
+    expect(fold.getAttribute("data-kind")).toBe("record");
+    expect(within(fold).getByTestId("proof-fold-name").textContent).toBe("Technical record");
+    expect(within(fold).getByTestId("proof-fold-inside").textContent).toBe("The suggestion");
+    cleanup();
+    await open(fixesViews.not_connected);
+    expect(sections()).toHaveLength(0);
+    expect(screen.queryByTestId("fix-proof-fold")).toBeNull();
+    expect(screen.getByTestId("fix-sections-note")).not.toBeNull();
+  });
+
   it("starts with the change open and the others closed; a click opens and closes each", async () => {
     const fetchMock = await open(fixesViews.ready);
     // Each section's title is a heading, and the heading is the button that folds it.
@@ -1126,7 +1159,7 @@ describe("Fixes, a text-only suggestion", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
     // The only buttons left are the two findings, the fold of the suggestion and the panel's close button (and its
     // width handle); the groups are tabs.
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+    expect(screen.getAllByRole("tab").map((t) => t.firstChild!.textContent)).toEqual([
       "Verification",
       "Crypto tests",
       "Migration",
@@ -1354,12 +1387,15 @@ describe("Fixes, the four work groups", () => {
     mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
     render(<Harness start={null} />);
     await screen.findAllByTestId("fix-row");
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+    expect(screen.getAllByRole("tab").map((t) => t.firstChild!.textContent)).toEqual([
       "Verification",
       "Crypto tests",
       "Migration",
       "Dependencies",
     ]);
+    // Each tab says how many fixes it holds (26 November 2026). A fix is no finding by itself, so no tab counts any.
+    expect(screen.getAllByTestId("group-tab-total").map((n) => n.textContent)).toEqual(["0", "2", "0", "0"]);
+    expect(screen.queryByTestId("group-tab-findings")).toBeNull();
     expect(shownGroups()).toEqual(["encryption"]);
     // The counts are the backend's, word for word: the code fix is in review, the text-only one is open.
     expect(within(groupSection("Crypto tests")).getByTestId("group-counts").textContent).toBe(
@@ -1692,6 +1728,26 @@ describe("Fixes, where each fix came from", () => {
     expect(proofTags.map((t) => t.textContent)).toEqual(["Proven in the lab"]);
     expect(proofTags[0]!.closest("p, div")!.textContent).toContain("Proof passed");
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("lists the fixes in parts, by what the finding of each rests on, and counts a developer's change in none", async () => {
+    await open(fixesViews.ready);
+    const parts = screen.getAllByTestId("table-part");
+    expect(
+      parts.map((p) => [
+        p.getAttribute("data-part"),
+        within(p).getByTestId("table-part-title").textContent,
+        within(p).getByTestId("table-part-tag").textContent,
+        within(p)
+          .getAllByTestId("fix-row")
+          .map((r) => within(r).getAllByRole("button")[0]!.textContent),
+      ]),
+    ).toEqual([
+      ["lab", "On copies on this computer", "Proven in the lab", ["acme-sign accepts out-of-range signatures"]],
+      ["live", "On your systems", "Observed live", ["Server accepts TLS 1.2"]],
+    ]);
+    // Every fix is still on the page, each once.
+    expect(rows()).toHaveLength(2);
   });
 
   it("a proof that has not finished has no tag", async () => {

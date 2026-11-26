@@ -236,6 +236,11 @@ def test_a_browser_gets_marks_a_script_gets_utc_and_no_file_or_record_ever_holds
         other = client.get(f"/api/evidence/{again['id']}/json").content
         a, b = json.loads(signed)["evidence"], json.loads(other)["evidence"]
         a.pop("generated_at"), b.pop("generated_at")
+        # (who did what, design refactor, decision I: the first download is a recorded press, so the second file lists
+        # it as its newest entry; nothing else of the two differs)
+        first_download = b["actions"]["actions"].pop()
+        assert first_download["kind"] == "evidence_downloaded"
+        assert first_download["facts"]["export_id"] == export.json()["id"]
         assert a == b
         decisions = [d for p in a["otto"]["proposals"] for d in p["decisions"]]
         assert len(decisions) == 3 and all(

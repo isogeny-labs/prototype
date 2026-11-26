@@ -17,6 +17,7 @@ import {
   FilterSelect,
   GroupSection,
   GroupTabs,
+  tabTotal,
   ItemPageContext,
   PageHeader,
   PartSection,
@@ -30,6 +31,7 @@ import {
 import { AlsoChecks } from "./checks/CheckPanel";
 import { RetestMenu, RetestStatus } from "./lab/RetestMenu";
 import { ItemLinkView } from "./related";
+import { HistoryOfPage } from "./evidence/HistoryFold";
 import { TestsScreen } from "./TestsScreen";
 import { ErrorBox } from "./ui";
 
@@ -276,6 +278,25 @@ export function ChecksScreen({
     [narrowedAny, view, needle, fromFilter, resultFilter],
   );
 
+  // Every tab says how many checks it holds and how many of them are findings, counted from the rows of that tab.
+  const totals = useMemo(
+    () =>
+      view
+        ? Object.fromEntries(
+            view.groups.map((g) => [
+              g.key,
+              // (a run of Change watch is listed on its tab, and counted with nothing else: not on the tab either)
+              tabTotal(
+                tabRows(g)
+                  .filter((r) => r.came_from.key !== "watch")
+                  .map((r) => r.result),
+              ),
+            ]),
+          )
+        : null,
+    [view],
+  );
+
   // Phase 6b: with the Result filter on, the test plan lists only its tests that read that way ("show me failed
   // checks" lists the failed checks and nothing else). A test of the plan is its row "test-<id>" in the list.
   const planOnly = useMemo(() => {
@@ -333,8 +354,15 @@ export function ChecksScreen({
     // (with any filter on, a block that holds a match is open, and one that holds none is left out: it would say that
     // nothing has finished in it)
     const narrowed = needle !== "" || resultFilter !== "all" || fromFilter !== "all";
-    const isOpen = (key: string) => !partFolded[key];
-    const toggle = (key: string) => setPartFolded((f) => ({ ...f, [key]: !f[key] }));
+    // The design refactor (26 November 2026): a part with nothing in it yet (no retest, no fix proof, no try) is one
+    // folded line until there is something in it, or until it is opened. The test plan is always open.
+    const empty: Record<string, boolean> = {
+      retests: parts.retests.count === 0,
+      proofs: parts.proofs.count === 0,
+      tries: (parts.tries?.count ?? 0) === 0,
+    };
+    const isOpen = (key: string) => (partFolded[key] === undefined ? !empty[key] || narrowed : !partFolded[key]);
+    const toggle = (key: string) => setPartFolded((f) => ({ ...f, [key]: isOpen(key) }));
     const blocks = (part: Part) =>
       part.blocks.map((b) => {
         const rows = b.rows.filter(keep);
@@ -429,9 +457,16 @@ export function ChecksScreen({
   return (
     <section aria-label="Checks">
       {thePlan}
-      <PageHeader title="Checks" description={view.subline} />
+      <PageHeader title="Checks" description={view.subline} actions={<HistoryOfPage area="checks" page="Checks" />} />
       {active !== null ? (
-        <GroupTabs groups={view.groups} active={active} onChoose={choose} idBase={tabIds} matches={matches} />
+        <GroupTabs
+          groups={view.groups}
+          active={active}
+          onChoose={choose}
+          idBase={tabIds}
+          matches={matches}
+          totals={totals}
+        />
       ) : null}
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search checks" placeholder="Search checks" />

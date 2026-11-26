@@ -123,13 +123,20 @@ describe("Fixes, a library's fix from Otto: the two proof rows", () => {
     expect(text(summary())).toContain("From Otto");
   });
 
-  it("links the first row to the trial and folds the Otto ledger entries under it; the second row links to where Retest is and has no ledger", async () => {
+  it("links the first row to the trial and keeps the Otto ledger entries in the fold; the second row links to where Retest is", async () => {
     await open(fixesWith([updateFix()]), UPDATE_FIX);
     const [onPublic, here] = proofRows();
     const link = within(onPublic!).getByTestId("proof-row-link");
     expect(link.textContent).toBe("See the trial on Advisories");
     expect(link.getAttribute("href")).toBe("#/a/101/advisories?item=CVE-2024-42460");
-    const ledger = within(onPublic!).getByTestId("advisory-ledger") as HTMLDetailsElement;
+    // The research ledger's entries behind the first row are records: they are in the panel's one fold, folded, and
+    // not under the row (26 November 2026).
+    expect(within(onPublic!).queryByTestId("advisory-ledger")).toBeNull();
+    const fold = screen.getByTestId("fix-proof-fold") as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    expect(text(within(fold).getByTestId("proof-fold-name"))).toBe("Cryptanalysis proof");
+    expect(text(within(fold).getByTestId("proof-fold-inside"))).toBe("The records");
+    const ledger = within(within(fold).getByTestId("fix-records")).getByTestId("advisory-ledger") as HTMLDetailsElement;
     expect(ledger.open).toBe(false);
     expect(text(ledger.querySelector("summary"))).toBe("Otto ledger entries (2)");
     expect(within(ledger).getAllByTestId("advisory-ledger-entry")).toHaveLength(publicPassed.ledger!.entries.length);
@@ -193,7 +200,9 @@ describe("Fixes, a fix of Otto's is a proposal: a person decides", () => {
     const fetchMock = await open(fixesWith([updateFix()]), UPDATE_FIX);
     expect(text(card().getByTestId("proposal-label"))).toBe("From Otto");
     expect(cardStatus()).toBe("Proposed");
-    expect(text(card().getByTestId("proposal-title"))).toBe("Update elliptic to 6.5.7");
+    // The panel's title names the fix, so the card does not write it a second time right under it.
+    expect(card().queryByTestId("proposal-title")).toBeNull();
+    expect(screen.getByRole("heading", { level: 2, name: "Update elliptic to 6.5.7" })).not.toBeNull();
     expect(text(card().getByTestId("proposal-why"))).toContain("its publisher names 6.5.7 as the fixed version");
     expect(text(card().getByTestId("proposal-note"))).toBe(
       "Accept records your decision. It runs nothing and changes nothing on any system.",

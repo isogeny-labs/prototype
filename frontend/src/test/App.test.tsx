@@ -113,10 +113,13 @@ const currentPages = () =>
     .filter((a) => a.getAttribute("aria-current") === "page")
     .map((a) => text(a));
 const goTo = (name: string) => fireEvent.click(sideLink(name));
-/** 20 November 2026: the sidebar lists the four work groups under the open page (Checks, Evidence or Fixes); each opens
- * its tab. A screen reader hears the page with the group ("Crypto tests on Evidence"). */
-const goToGroup = async (group: string, page: string) =>
-  fireEvent.click(await nav().findByRole("link", { name: `${group} on ${page}` }));
+/** The four work groups are the tabs of their page (Checks, Results or Fixes). Since the design refactor (26 November
+ * 2026) the sidebar does not repeat them: a group is opened by its tab. */
+const goToGroup = async (group: string, page?: string) => {
+  // (first the page itself, so that the tab clicked is this page's and not the one that was open a moment ago)
+  if (page) await waitFor(() => expect(currentPages()).toEqual([page === "Evidence" ? "Results" : page]));
+  fireEvent.click(await screen.findByRole("tab", { name: new RegExp(`^${group}`) }));
+};
 
 /** What an assessment (101, Acme Pay) with a file, a Verify run and a plan with results asks the server for. */
 const withResults = (extra: Record<string, unknown> = {}): Routes =>
@@ -152,26 +155,41 @@ describe("app shell", () => {
     expect(screen.getAllByText("Isogeny Labs").length).toBeGreaterThan(0);
     expect(screen.getByTestId("mode-line").textContent).toBe("Demo mode: running our own demo software, not isolated.");
 
-    // Phase 5c: Advisories sits between Inventory and Checks. Phase 6d: Change watch comes after Fixes.
+    // The design refactor (26 November 2026): the pages as six steps in the order the work goes, then Evidence.
     expect(
       nav()
         .getAllByRole("link")
         .map((a) => text(a)),
     ).toEqual([
       "Overview",
-      "Inventory",
       "Import",
+      "Observatory",
       "Verify",
       "Advisories",
       "Checks",
-      "Evidence",
       "Fixes",
+      "Migration plan",
       "Change watch",
-      "Migration",
+      "Timeline",
+      "Results",
+      "Approvals and decisions",
+      "Evidence files",
     ]);
     expect(currentPages()).toEqual(["Import"]);
     // With no file yet, only Overview and Import open; the rest say why not.
-    for (const name of ["Verify", "Advisories", "Checks", "Evidence", "Fixes", "Change watch", "Migration"])
+    for (const name of [
+      "Observatory",
+      "Verify",
+      "Advisories",
+      "Checks",
+      "Fixes",
+      "Migration plan",
+      "Change watch",
+      "Timeline",
+      "Results",
+      "Approvals and decisions",
+      "Evidence files",
+    ])
       expect(isOff(name), name).toBe(true);
     expect(isOff("Overview")).toBe(false);
     expect(isOff("Import")).toBe(false);
@@ -260,7 +278,8 @@ describe("full flow", () => {
 
     // Phase 5b: once a file is in, every page opens (a page with nothing yet says what fills it).
     await waitFor(() => expect(isOff("Checks")).toBe(false));
-    for (const name of ["Verify", "Evidence", "Fixes", "Migration"]) expect(isOff(name), name).toBe(false);
+    for (const name of ["Observatory", "Verify", "Results", "Fixes", "Migration plan", "Timeline"])
+      expect(isOff(name), name).toBe(false);
 
     const verify = screen.getByRole("button", { name: "Verify claims" });
     expect((verify as HTMLButtonElement).disabled).toBe(true);
@@ -289,7 +308,7 @@ describe("full flow", () => {
     expect(calls(fetchMock).filter((c) => c === "POST /api/import/7/plan")).toHaveLength(1);
 
     expect(currentPages()).toEqual(["Checks"]);
-    expect(sideLink("Evidence").getAttribute("aria-current")).toBeNull();
+    expect(sideLink("Results").getAttribute("aria-current")).toBeNull();
     // No "continue" button on Checks: the sidebar is the way forward.
     expect(screen.queryByRole("button", { name: /continue/i })).toBeNull();
   });
@@ -299,38 +318,32 @@ describe("full flow", () => {
     mockApi(withResults());
     render(<App />);
     await screen.findByRole("heading", { name: "Verify" });
-    expect(isOff("Evidence")).toBe(false);
-    goTo("Evidence");
-    // It opens on the first group with something in it (claims were verified); the sidebar lists the four groups under
-    // Evidence, with the open one marked, and each opens its tab.
+    expect(isOff("Results")).toBe(false);
+    goTo("Results");
+    // It opens on the first group with something in it (claims were verified). The four groups are the page's tabs,
+    // with the open one marked; the sidebar does not repeat them.
     await screen.findAllByTestId("group-section");
-    const groupLinks = () => within(screen.getAllByTestId("sidebar-groups")[0]!).getAllByRole("link");
-    await waitFor(() =>
-      expect(groupLinks().map((a) => text(a))).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]),
-    );
-    expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual(["true", null, null, null]);
-    expect(groupLinks()[1]!.getAttribute("href")).toBe("#/a/101/evidence?group=encryption");
+    const tabs = () => screen.getAllByRole("tab");
+    const tabNames = () => tabs().map((t) => t.getAttribute("data-group"));
+    await waitFor(() => expect(tabNames()).toEqual(["verification", "encryption", "migration", "dependencies"]));
+    expect(tabs().map((t) => t.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false"]);
+    expect(screen.queryByTestId("sidebar-groups")).toBeNull();
     await goToGroup("Crypto tests", "Evidence");
     expect(await screen.findAllByTestId("evidence-row")).toHaveLength(5);
+    // a tab chosen on the page goes into the address, so Back returns to the tab before
     expect(window.location.hash).toBe("#/a/101/evidence?group=encryption");
-    expect(currentPages()).toEqual(["Evidence"]);
+    expect(currentPages()).toEqual(["Results"]);
     await waitFor(() =>
-      expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual([null, "true", null, null]),
+      expect(tabs().map((t) => t.getAttribute("aria-selected"))).toEqual(["false", "true", "false", "false"]),
     );
-    // a tab chosen on the page shows in the sidebar too, and goes into the address
-    fireEvent.click(screen.getByRole("tab", { name: "Migration" }));
+    await goToGroup("Migration", "Evidence");
     expect(window.location.hash).toBe("#/a/101/evidence?group=migration");
-    await waitFor(() =>
-      expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual([null, null, "true", null]),
-    );
     expect(screen.getByTestId("otto-panel")).not.toBeNull();
 
     goTo("Checks");
-    // (the groups listed are the open page's: Evidence's are gone)
     await screen.findAllByTestId("group-section");
     await goToGroup("Crypto tests", "Checks");
     expect(await screen.findAllByTestId("test-card")).toHaveLength(5);
-    expect(screen.getAllByTestId("sidebar-groups")).toHaveLength(1);
   });
 
   // Everything the Fixes tests below need: a plan with results, its Evidence and its fixes.
@@ -351,7 +364,7 @@ describe("full flow", () => {
     const fetchMock = mockApi(withFixes());
     render(<App />);
     await screen.findByRole("heading", { name: "Verify" });
-    expect(isOff("Evidence")).toBe(false);
+    expect(isOff("Results")).toBe(false);
     expect(isOff("Fixes")).toBe(false);
     expect(calls(fetchMock)).not.toContain("GET /api/plans/1/fixes");
 
@@ -364,10 +377,10 @@ describe("full flow", () => {
     expect(screen.getByTestId("otto-panel")).not.toBeNull();
     expect(screen.getByTestId("mode-line")).not.toBeNull();
 
-    goTo("Evidence");
+    goTo("Results");
     await goToGroup("Crypto tests", "Evidence");
     expect(await screen.findAllByTestId("evidence-row")).toHaveLength(5);
-    expect(currentPages()).toEqual(["Evidence"]);
+    expect(currentPages()).toEqual(["Results"]);
   });
 
   it("View in Fixes on an Evidence line opens Fixes with that fix selected", async () => {
@@ -389,7 +402,7 @@ describe("full flow", () => {
     expect(selected()).toEqual([null, "true"]);
 
     // And the signing finding's line opens its own fix.
-    goTo("Evidence");
+    goTo("Results");
     await goToGroup("Crypto tests", "Evidence");
     await screen.findAllByTestId("evidence-row");
     expandRow("Official test vectors");
@@ -406,7 +419,7 @@ describe("full flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Server accepts TLS 1\.2/ }));
     expect(screen.getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(TLS_FIX);
 
-    goTo("Evidence");
+    goTo("Results");
     await screen.findAllByTestId("group-section");
     goTo("Fixes");
     expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(TLS_FIX);
@@ -472,7 +485,7 @@ describe("full flow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retest now" }));
     expect(await screen.findByTestId("lab-columns")).not.toBeNull();
-    expect(currentPages()).toEqual(["Evidence"]);
+    expect(currentPages()).toEqual(["Results"]);
     // It lands on the result it retests, its before and after, not only on the page.
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/evidence?item=test-3"));
     expect(screen.queryByTestId("fix-summary")).toBeNull();
@@ -555,7 +568,7 @@ describe("full flow", () => {
     mockApi(withResults());
     const first = render(<App />);
     await screen.findByRole("heading", { name: "Verify" });
-    goTo("Evidence");
+    goTo("Results");
     await goToGroup("Crypto tests", "Evidence");
     await screen.findAllByTestId("evidence-row");
     first.unmount();
@@ -573,7 +586,7 @@ describe("full flow", () => {
     await screen.findByRole("heading", { name: "Verify" });
     for (const [name, testId] of [
       ["Checks", "test-card"],
-      ["Evidence", "evidence-row"],
+      ["Results", "evidence-row"],
       ["Fixes", "fix-summary"],
     ] as const) {
       goTo(name);
@@ -687,8 +700,8 @@ describe("Migration pages", () => {
     );
     render(<App />);
     await screen.findByRole("heading", { name: "Import" });
-    for (const name of ["Migration", "Evidence", "Fixes"]) expect(isOff(name), name).toBe(false);
-    goTo("Migration");
+    for (const name of ["Migration plan", "Results", "Fixes"]) expect(isOff(name), name).toBe(false);
+    goTo("Migration plan");
     expect(await screen.findByRole("heading", { level: 1, name: "Migration plan" })).not.toBeNull();
     expect(currentPages()).toEqual(["Systems"]);
     // The page tells the app the plan may have changed, so the app asks for the plan summary again.
@@ -706,7 +719,7 @@ describe("Migration pages", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "Import" });
     await waitFor(() => expect(isOff("Fixes")).toBe(false));
-    expect(isOff("Evidence")).toBe(false);
+    expect(isOff("Results")).toBe(false);
     goTo("Fixes");
     expect(await screen.findByTestId("fix-summary")).not.toBeNull();
   });
@@ -727,7 +740,7 @@ describe("Migration pages", () => {
     );
     render(<App />);
     await screen.findByRole("heading", { name: "Import" });
-    goTo("Migration");
+    goTo("Migration plan");
     await screen.findByRole("heading", { level: 1, name: "Migration plan" });
     expect(isOff("Fixes")).toBe(false);
     const asked = () => calls(fetchMock).filter((c) => c === "GET /api/import/7/plan").length;
@@ -769,7 +782,7 @@ describe("Migration pages", () => {
     mockApi(base({ "GET /api/import/7/plan": { body: plan }, "GET /api/import/7/migration": { body: migrationView } }));
     const first = render(<App />);
     await screen.findByRole("heading", { name: "Import" });
-    goTo("Migration");
+    goTo("Migration plan");
     await screen.findByRole("heading", { level: 1, name: "Migration plan" });
     first.unmount();
 

@@ -1,0 +1,188 @@
+# Design refactor: the report
+
+For Kevin. Written 26 November 2026, after the build. The plan this follows is `docs/plans/design-refactor.md`.
+
+**Nothing is merged.** The work is on the branch `claude/amazing-planck-e90m60`, in pull request 18, and it stays there until you say so.
+
+## In one paragraph
+
+Everything you approved today is built, with a short list of smaller items left for later (they are named below). A result, an advisory and a fix now each open short: the answer, then what it shows and doesn't, then one dropdown that holds every record whole. The sidebar is a path of six numbered steps, and observing is its own step with a new page, the Observatory, which draws your systems as a map. Evidence is a section of four views, not one screen, and it now records who pressed every button that decides or changes something. No result, check, rule or answer key was changed.
+
+## What you will see
+
+### 1. Every proof opens short, and the proof is one click away
+
+A result's panel used to be one long column with everything open. Now it reads in three layers, always in the same order:
+
+1. **At a glance.** The result word, one plain sentence, where it ran, the control, and the next step with its button.
+2. **What this shows, and what it doesn't.** Always open.
+3. **One dropdown**, shut until you click it. It is called **Cryptanalysis proof** when something was tested on a copy, and **Technical record** when it was observed or only read from your file. It holds every record whole: nothing was left out, it is one click away.
+
+The same three layers are on an advisory's panel and on a fix's panel. On a library's fix the two proof rows keep their exact words ("Proven on public copies", "Proven in this assessment"), drawn as step 1 and step 2, with the note under the second.
+
+A result, as it opens:
+
+![A result's panel, folded](../screenshots/design-refactor/06-a-result-folded-light.png)
+
+The same result with its Cryptanalysis proof opened:
+
+![A result with its Cryptanalysis proof open](../screenshots/design-refactor/07-a-result-with-its-cryptanalysis-proof-open-light.png)
+
+A result that was observed on a server, with its Technical record:
+
+![An observed result with its Technical record](../screenshots/design-refactor/09-an-observed-result-with-its-technical-record-light.png)
+
+A fix, as it opens, and with its dropdown open:
+
+![A fix, folded](../screenshots/design-refactor/11-a-fix-folded-light.png)
+
+![A fix with its fold open](../screenshots/design-refactor/12-a-fix-with-its-fold-open-light.png)
+
+### 2. The sidebar is a path
+
+Overview, then **1 Bring in** (Import), **2 Observe** (Observatory, Verify), **3 Test** (Advisories, Checks), **4 Fix** (Fixes), **5 Plan the move** (Migration plan), **6 Keep watching** (Change watch), and then **Evidence** with its four views. Every page is listed once. The four work groups are tabs on their page and no longer repeated in the sidebar, so "Migration" and "Dependencies" never appear twice.
+
+Each tab now says how many items it holds and how many are findings ("Crypto tests 5 · ✕ 3 failed"). On Results and Fixes the rows come in labelled parts: **On your systems**, **On copies on this computer**, **Said by the maker**, **Only in your file**, and **No result yet**.
+
+![The sidebar: six steps, then Evidence](../screenshots/design-refactor/01-sidebar-six-steps-then-evidence-light.png)
+
+### 3. The Observatory: your systems as a map
+
+A new page under step 2. It draws the service your scanner file describes, the parts it is made of, where each part uses cryptography, and what each check found there, in the check's own words. Lines show what uses what, and the one connection the app itself made. Before anything is checked the map is drawn from the file alone and says so; it fills in as checks run. Under it is a list of what your files don't say. A box opens a panel with its checks, its fixes and the lines of the file that name it. There is also a List view of the same thing, for a screen reader or for printing.
+
+It is not a result and not a score, and it starts nothing.
+
+Before anything is checked:
+
+![The Observatory before anything was checked](../screenshots/design-refactor/02-observatory-before-anything-was-checked-light.png)
+
+After Verify and Run all:
+
+![The Observatory after Verify and Run all](../screenshots/design-refactor/03-observatory-after-verify-and-run-all-light.png)
+
+A box opened, and the List view:
+
+![A box of the map opened](../screenshots/design-refactor/04-observatory-a-box-open-light.png)
+
+![The Observatory as a list](../screenshots/design-refactor/05-observatory-list-light.png)
+
+### 4. Evidence is the full record
+
+You asked whether Evidence only took the latest run. Every run was always kept, but the page showed only the newest result of each check, and approvals, decisions and downloads were spread over five pages. Now Evidence has four views:
+
+- **Timeline.** Everything that happened, newest first, by day. One entry for one press: "Run all: the 5 tests in the plan", with the results counted. You can filter by page (Where) and by kind (What), and search. An entry opens its story: who, the runs it started, what it rested on, what came after.
+- **Results.** The page that was called Evidence. It has a new switch, **Now** or **By version**, which puts every test on every version it ran on side by side.
+- **Approvals and decisions.** Every decision a person made, with who and when. Results are not in this list, and the page says why: no person decides a result.
+- **Evidence files.** Every download with its fingerprint and who downloaded it, and how to check a file.
+
+Every panel has **History of this** check, fix, system or advisory. Checks, Advisories, Fixes, Migration plan and Dependencies each have **History of** that page in their header.
+
+![The Timeline](../screenshots/design-refactor/13-timeline-light.png)
+
+![An entry of the Timeline opened](../screenshots/design-refactor/14-timeline-an-entry-open-light.png)
+
+![Results by version, after a retest](../screenshots/design-refactor/10-results-by-version-after-a-retest-light.png)
+
+![Approvals and decisions](../screenshots/design-refactor/15-approvals-and-decisions-light.png)
+
+![Evidence files, after a download](../screenshots/design-refactor/17-evidence-files-after-a-download-light.png)
+
+![History of this check](../screenshots/design-refactor/08-history-of-this-check-light.png)
+
+### 5. Who did what
+
+Every press that decides or changes something is now recorded: who, when, which button and what it started. The name comes from one place: the logged-in account where the app has one, otherwise the name typed in Settings (Who decides), otherwise "You". These records are also in the signed evidence file, and the verify command checks them. A record made before today says "Not recorded (before names were kept)". Nothing is filled in after the fact.
+
+A result never shows a person as its decider. Every run says "decided by the separate reviewer".
+
+### 6. Calmer pages
+
+Advisories opens with four numbers and then the list; its background lines are folded into one line. On Checks, an empty part (no retest yet, no fix proof yet) is one folded line. Panel titles have a line to themselves, so they no longer break one word per line.
+
+## What the plan named that I did not build
+
+These are smaller items. Each is listed in the SPEC as not built, so nothing claims otherwise.
+
+| The plan said | What is there instead |
+|---|---|
+| The test plan on Checks drawn in two parts, by where each test runs | Each test says where it runs, in one line ("On your server, localhost:8443" or "On a copy of acme-sign 1.4.2, on this computer"). The list itself is not split. |
+| "Why it matters" opening under a row | It stays on the row, as before. |
+| The two research buttons in the Advisories header | They stay in the New advisories block, as before. |
+| On the Overview: three cards for the three questions, a small copy of the map, one count by tag | The Overview is as it was, with a new link to the map. The Observatory has the four counts. |
+| The three layers on a change of Change watch | Its panel is as it was. |
+| Three shapes of label (result, what it rests on, where it came from) | Only the tag at the head of each part. The labels themselves look as before. |
+| Links that jump to a part inside the dropdown | Not built. |
+| The second author's asking code on a switch beside the first | It stays under the first, as before. |
+| Numbers on the sidebar (proposals waiting, open fixes) | Not built. |
+| "What it shows" and "what it doesn't" in two columns | One block, as before. |
+| The trail on every panel | It is on a result, an advisory and a fix. Not on a system, a library or a claim. |
+| "Show on the map" on every result | It is on the results of a server or a signing program on the Results page. |
+| The map in the downloadable report | Not built (the plan had already left this out). |
+
+I left these out to keep the build to what could be tested properly today. None of them changes a result. Tell me which you want and I will plan them.
+
+One more thing to know: the Otto panel still calls the Results page "Evidence" in its sentences. The address did not change, so every old link still works.
+
+## How it was checked
+
+Everything below ran on this computer on the final code. This computer has no Docker, so the app ran in demo mode, and the walks and answers that need isolated mode skipped themselves, each with a message saying so.
+
+| Check | Result |
+|---|---|
+| The accuracy check (`python -m app.accuracy --mode demo`) | 18 of 18, 47 of 47, 1 of 1 (the other 32 answers of that key need isolated mode), 186 of 186. Otto is not graded yet, because its answer key is not in the repository. These are the same numbers as before the build. |
+| Backend tests, quick set, with Otto | 2,569 passed, 4 skipped, 6 failed (the six are explained below) |
+| Backend tests, quick set, without Otto (the way GitHub runs them) | 2,443 passed, 130 skipped (126 of them need Otto, and the run says so), and the same 6 failed |
+| Screen tests | 993 passed. The type check and the build pass. |
+| End-to-end walks in a real browser | The whole set: 114 passed, 6 skipped (they need Docker), none failed, in 40 minutes. After the last two fixes (below) I ran the eight walks they touch again: 18 passed, 1 skipped (needs Docker). |
+| Lint, code style, type check, generated files up to date | All pass. No new type problem. |
+
+**What failed, and why it is not from this build.** Two things fail on `mvp/crypto-simple` too, without any of my changes, and this branch does not touch them:
+
+- Six tests of `test_devcontainer.py`, which test the start script's Python set-up, fail in this cloud computer. Their own test sandbox hides ordinary commands such as `rm` here.
+- `test_sidechannel.py` can't be loaded at all: it asks the shared test helpers for a function they don't have. That's why the "Backend" check on GitHub is red, on this pull request and on `mvp/crypto-simple` alike. I ran the quick set without that one file.
+
+Both are worth fixing in a pull request of their own. I left them alone so this one stays the design refactor only.
+
+**The quick set is slower.** Your rules say the quick backend set stays under 5 minutes. Before this build it already took 5 minutes 42 seconds here. Now it takes 6 minutes 44 seconds without Otto, and 7 minutes 46 seconds with Otto (that run shared the computer with another run). The new tests check that the new pages only read. Getting back under 5 minutes means moving the slowest tests to the slow set. That's a small job of its own, and I can do it next.
+
+**A walk that failed on GitHub, and its fix.** On GitHub one walk (Change watch) failed once: it read the Results page's rows a moment before the page had taken in its new address. I changed the walks' shared helper so it waits for the page to take in the address first. That changes only the walks, not the app. The walk passes here, and the next GitHub run will show the fix there. (When I ran it again here it failed once more, but for my own reason: a copy of the app from one of my throwaway tests was still running on its port. With that copy stopped, it passed.)
+
+**A fault the last pictures showed, and its fix.** On the map, two lines were drawn straight across the name of the Acme Pay service. The name now stands on the page's own colour above the lines, so a line passes behind it and comes out just above the part it reaches. The pictures in this report were taken after that fix.
+
+## What the independent review found
+
+A separate reviewer read the whole build against the SPEC and your rules. It reported 13 findings. None was about a wrong result. What it found, and what was done:
+
+| # | What the review found | What was done |
+|---|---|---|
+| 1 | "History of this check" read "nothing has happened" for a claim's row, and failed for the rows of a retest, a fix proof or a Change watch run. | Fixed, with a test for each kind of row. |
+| 2 | The "✕ N failed" number on a tab counted Change watch's runs, which your rules keep apart. | Fixed: a tab leaves them out. |
+| 3 | The record said "with New assessment" when the button pressed was New project or Load demo projects. That wording also went into the signed file. | Fixed: it names the button that was pressed. |
+| 4 | The Observatory's List left out the libraries, the ties and each service's line, and had one sentence of its own that could be false. | Fixed: the List shows what the Map shows, and that sentence is gone. |
+| 5 | The Observatory's first line said every claim is checked "on your live systems". A signing program is checked on a copy. | Fixed. |
+| 6 | No end-to-end walk and no width measurement for the new pages. | Added. The width measurement then found two real layout faults on the Observatory (see below), both fixed. |
+| 7 | With one program, once a proposal was accepted the panel no longer said that accepting runs nothing. | Fixed: the sentence is always on the panel. |
+| 8 | "Show on the map" was drawn for results that have no place on the map. | Fixed: only for results of a server or a signing program. |
+| 9 | The fourth number on Advisories was labelled as counting checks; it counts advisories. | Fixed. |
+| 10 | Approvals and decisions said "Applied" for an Apply the server refused. | Fixed: it reads "Not applied: the server refused the settings". |
+| 11 | If recording a press failed after the button's own work succeeded, the button would answer with an error. | Changed: the button's answer wins, and the press is left unrecorded with one line in the log. This is a choice, so it is under "Your calls" below. |
+| 12 | The SPEC's list of what was not built missed four items, and three built things were not written in it. | Fixed. |
+| 13 | "Open" on a fix proof's run or a Change watch run in the Timeline landed on a page with nothing open. | Fixed: it opens Checks, where that row is. |
+
+**Two layout faults the new width measurement found.** With both the Otto panel and a box's panel open at 1440 pixels, the map has about a third of the page. Its two top boxes overlapped and result chips stuck out of their boxes; the List view scrolled sideways. Both are fixed: the map and the list now lay themselves out by their own width, and a line of the map is led round the side where it would cross another box. The layout walk now checks this on every run.
+
+It also confirmed what it found sound: the answer keys, the reviewer, the wireframes, the research data and the package lists are untouched; no new network call; no "secure", score or severity in any new text; folding dropped no record; the new reads write nothing; the two new tables are add-only and have one writer; an older evidence file still verifies.
+
+## Your calls
+
+These are choices I made where you may want something else. Each is a small change either way.
+
+1. **When recording a press fails.** If the button's own work succeeded (an Apply, a Merge, a Run all) but writing down who pressed it failed, the button still says it worked, and the press is left unrecorded with one line in the app's log. The other way would be to show an error, but then you might press a second time on something that already happened. I chose the first. Such a press then reads "Not recorded" in the Timeline. `docs/LIMITS.md` says so.
+2. **Whose name is on Otto's decisions.** A decision on Otto's proposals is still recorded under the name typed in Settings (Who decides), or "You", as you decided on 19 November. Everything else now takes the logged-in account first where the app has one (the hosted app logs in with GitHub). So on the hosted app, an Accept could read "You" while a Merge in the same session reads your GitHub name. Making Otto's decisions follow the account too is a one-line change, but it changes what the Otto panel and Settings say, so I left it for you.
+3. **The Observatory's four numbers** are the Overview's own counts: every check of the assessment by what it rests on, including retests and fix proofs, which the map does not draw as boxes. So the numbers can be larger than the chips you see on the map. The page says this under the numbers. The other way would be to count only what the map draws.
+
+## What I need from you
+
+1. Look at the pictures, or run the app (`./run-demo.sh`), and tell me what you want changed.
+2. Tell me about the three calls above, if you want any of them the other way.
+3. When you are happy, tell me to merge. I will not merge before you say so.

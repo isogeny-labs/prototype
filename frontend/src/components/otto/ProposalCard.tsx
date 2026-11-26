@@ -47,6 +47,7 @@ export function ProposalCard({
   onDecided,
   showTitle = true,
   showWhere = false,
+  compact = false,
 }: {
   planId: number;
   proposal: OttoProposal;
@@ -56,6 +57,9 @@ export function ProposalCard({
   showTitle?: boolean;
   /** On a list of every proposal: the way to the page it lives on. */
   showWhere?: boolean;
+  /** The design refactor (26 November 2026): in a panel that already shows the test and holds its proof in the fold
+   * (an advisory's panel), the card leaves out its own copy of both: the lines that repeat the test, and the proof. */
+  compact?: boolean;
 }) {
   const [busy, setBusy] = useState<Decision | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +105,7 @@ export function ProposalCard({
         <span className="text-xs text-slate-500">{proposal.why_label}: </span>
         {proposal.why}
       </p>
-      {proposal.lines.length > 0 ? (
+      {proposal.lines.length > 0 && !compact ? (
         <ul
           data-testid="proposal-lines"
           className="mt-1.5 list-disc space-y-1 pl-5 text-[13px] text-slate-300 marker:text-slate-500"
@@ -114,7 +118,7 @@ export function ProposalCard({
         </ul>
       ) : null}
       {/* Sandbox research (a prototype): how the proposed test was proven, folded. It only shows; it decides nothing. */}
-      {proposal.proof ? <ProofBlock proof={proposal.proof} /> : null}
+      {proposal.proof && !compact ? <ProofBlock proof={proposal.proof} /> : null}
       {proposal.decided_line ? (
         <p data-testid="proposal-decided" className="mt-2 break-words text-[13px] text-slate-300">
           {proposal.decided_line}

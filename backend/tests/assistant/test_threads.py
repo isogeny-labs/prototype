@@ -29,6 +29,7 @@ def test_every_page_of_an_assessment_has_its_thread_and_the_overview_has_none():
     assert threads.PAGE_THREAD["overview"] is None
     assert {p for p, t in threads.PAGE_THREAD.items() if t == "testing"} == {
         "inventory/import",
+        "observatory",  # the design refactor (26 November 2026): the map of the systems, under Observe
         "inventory/verify",
         "advisories",
         "checks",
@@ -37,6 +38,13 @@ def test_every_page_of_an_assessment_has_its_thread_and_the_overview_has_none():
     }
     assert {p for p, t in threads.PAGE_THREAD.items() if t == "fixing"} == {"fixes", "migration/dependencies"}
     assert {p for p, t in threads.PAGE_THREAD.items() if t == "planning"} == {"migration/systems", "migration/roadmap"}
+    # The three views of Evidence that only read the record keep the tab you had, as the Overview does.
+    assert {p for p, t in threads.PAGE_THREAD.items() if t is None} == {
+        "overview",
+        "evidence/timeline",
+        "evidence/decisions",
+        "evidence/files",
+    }
 
 
 def test_each_kind_of_proposal_arrives_in_one_thread_and_fits_the_pages_the_plan_names():

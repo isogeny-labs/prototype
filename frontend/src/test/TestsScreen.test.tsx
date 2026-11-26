@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { PlanView } from "../api";
@@ -93,6 +93,44 @@ describe("Tests screen", () => {
     expect(body.children).toHaveLength(5);
     expect(screen.getAllByRole("table")).toHaveLength(1);
     expect(list.map((c) => within(c).getByRole("heading").tagName)).toEqual(["H2", "H2", "H2", "H2", "H2"]);
+  });
+
+  it("says on each test where it runs, in the flat plan: on your server, or on a copy on this computer", async () => {
+    // (26 November 2026: observing and testing are told apart on every row; under a target's own heading the heading
+    // says it, and the row does not repeat it)
+    const server = {
+      key: "server:localhost:8443",
+      kind: "server" as const,
+      heading: "Server: localhost:8443",
+      note: null,
+    };
+    const program = {
+      key: "software:lib-acme-sign",
+      kind: "software" as const,
+      heading: "Signing program: acme-sign 1.4.2",
+      note: null,
+    };
+    const where = {
+      [server.key]: "On your server, localhost:8443",
+      [program.key]: "On a copy of acme-sign 1.4.2, on this computer",
+    };
+    const told: PlanView = {
+      ...plan,
+      groups: [server, program].map((g) => ({ ...g, runs_on: where[g.key]! })),
+      tests: plan.tests.map((t) => ({
+        ...t,
+        group: ["tls_versions", "certificate"].includes(t.kind) ? server.key : program.key,
+      })),
+    };
+    open({}, told);
+    const cards = await shownCards();
+    expect(cards.map((card) => within(card).getByTestId("card-runs-on").textContent)).toEqual(
+      told.tests.map((t) => where[t.group!]),
+    );
+    cleanup();
+    // Grouped under target headings, the heading says it: no second line on the card.
+    open({}, { ...told, grouped: true });
+    for (const card of await shownCards()) expect(within(card).queryByTestId("card-runs-on")).toBeNull();
   });
 
   it("carries the one fixed line about what passing means, and uses the word 'secure' nowhere else", async () => {

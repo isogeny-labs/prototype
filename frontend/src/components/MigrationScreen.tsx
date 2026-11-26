@@ -12,6 +12,7 @@ import {
 } from "../api";
 import { DependenciesView } from "./dependencies/DependenciesView";
 import { RelatedFor } from "./related";
+import { HistoryFold, HistoryOfPage } from "./evidence/HistoryFold";
 import { downloadEvidence } from "./evidenceDownload";
 import { Roadmap } from "./migration/Roadmap";
 import { SystemDetail } from "./migration/SystemDetail";
@@ -385,6 +386,7 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged, tab: shown
           onChanged={reloadAfterChange}
         />
       ) : null}
+      {system ? <HistoryFold itemKey={`system:${system.key}`} /> : null}
       {system ? <RelatedFor itemKey={`system:${system.key}`} /> : null}
     </DetailPanel>
   );
@@ -401,6 +403,12 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged, tab: shown
         }
         actions={
           <div className="flex max-w-xs flex-col items-end gap-1.5">
+            {/* The record of this page, one click away: the timeline with this page's entries chosen. */}
+            {tab === "dependencies" ? (
+              <HistoryOfPage area="dependencies" page="Dependencies" />
+            ) : (
+              <HistoryOfPage area="migration" page="Migration plan" />
+            )}
             <SecondaryButton
               disabled={acting || !measure.enabled}
               onClick={() => void act(() => api.measureMigration(current.plan_id), false)}
@@ -434,36 +442,40 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged, tab: shown
         {current.disclaimer}
       </p>
 
-      <div
-        role="group"
-        aria-label="Migration views"
-        className="mt-5 inline-flex gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1"
-      >
-        <button
-          type="button"
-          aria-pressed={tab === "systems"}
-          onClick={() => setTab("systems")}
-          className={tabClass(tab === "systems")}
+      {/* The design refactor (26 November 2026): inside the app the three views are listed in the sidebar under
+          "Migration plan", so the page has no second strip. Where the screen stands alone it keeps its own switch. */}
+      {onTab ? null : (
+        <div
+          role="group"
+          aria-label="Migration views"
+          className="mt-5 inline-flex gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1"
         >
-          {current.tabs.systems}
-        </button>
-        <button
-          type="button"
-          aria-pressed={tab === "roadmap"}
-          onClick={() => setTab("roadmap")}
-          className={tabClass(tab === "roadmap")}
-        >
-          {current.tabs.roadmap}
-        </button>
-        <button
-          type="button"
-          aria-pressed={tab === "dependencies"}
-          onClick={() => setTab("dependencies")}
-          className={tabClass(tab === "dependencies")}
-        >
-          {current.tabs.dependencies}
-        </button>
-      </div>
+          <button
+            type="button"
+            aria-pressed={tab === "systems"}
+            onClick={() => setTab("systems")}
+            className={tabClass(tab === "systems")}
+          >
+            {current.tabs.systems}
+          </button>
+          <button
+            type="button"
+            aria-pressed={tab === "roadmap"}
+            onClick={() => setTab("roadmap")}
+            className={tabClass(tab === "roadmap")}
+          >
+            {current.tabs.roadmap}
+          </button>
+          <button
+            type="button"
+            aria-pressed={tab === "dependencies"}
+            onClick={() => setTab("dependencies")}
+            className={tabClass(tab === "dependencies")}
+          >
+            {current.tabs.dependencies}
+          </button>
+        </div>
+      )}
 
       <div className="mt-5">
         {tab === "dependencies" ? (

@@ -23,6 +23,7 @@ import { FromOttoTag } from "../otto/ProposalCard";
 import { ErrorBox, NameText, SecondaryButton, SourceTag, StatusView, WhereFromTag } from "../ui";
 import { AlgoName } from "../plainName";
 import { RelatedFor } from "../related";
+import { HistoryFold } from "../evidence/HistoryFold";
 import { AnswerChip, BlocksMarker, DependencyDetail, OttoMarker } from "./DependencyRowCard";
 
 type RowFilter = "all" | "blocks" | "answered" | "unanswered";
@@ -299,6 +300,7 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
           onDecided={() => void act(() => api.getDependencies(importId))}
         />
       ) : null}
+      {selected ? <HistoryFold itemKey={`library:${selected.id}`} /> : null}
       {selected ? <RelatedFor itemKey={`library:${selected.id}`} /> : null}
     </DetailPanel>
   );

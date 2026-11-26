@@ -1,8 +1,10 @@
 import type { AdvisoryHereRow, AdvisoryRow, OttoProposal } from "../../api";
 import { DetailPanel } from "../layout";
-import { ProofBlock, SandboxCopyLabel } from "../otto/ProofBlock";
+import { HistoryFold } from "../evidence/HistoryFold";
+import { ProofTiles, SandboxCopyLabel, proofParts, type FoldPart } from "../otto/ProofBlock";
 import { ProposalCard } from "../otto/ProposalCard";
-import { ItemLinkView, RelatedBlock, useRelated } from "../related";
+import { ProofFold, ProofPart, Trail } from "../proof";
+import { ItemLinkView, RelatedFold, useRelated } from "../related";
 import { formatTime, StatusChip, WhereFromLine } from "../ui";
 import { NewTag } from "./AdvisoryTable";
 import { BLOCK, BLOCK_TITLE, LedgerView, QuoteView, ShortHash, SourcesView, TrialView } from "./parts";
@@ -38,7 +40,8 @@ function HereRow({
       {proposal ? (
         <div className="mt-2">
           {/* The program's name heads this row, so the card needs no title of its own. */}
-          <ProposalCard planId={planId} proposal={proposal} onDecided={onDecided} showTitle={false} />
+          {/* The test stands above and its proof is in the fold below: the card leaves out its own copy of both. */}
+          <ProposalCard planId={planId} proposal={proposal} onDecided={onDecided} showTitle={false} compact />
         </div>
       ) : null}
       {result ? (
@@ -92,10 +95,28 @@ function HereRow({
   );
 }
 
-/** Phase 5c: one advisory in the side panel, in the view's own words and order: what it says, the publisher's own
- * line and sources, its test (or why it has none), Otto's proposed check for each program of this assessment (with
- * Accept and Reject, each decided by itself) and that check's result, the fix, what Otto asked Claude, and Related.
- * A decision is a person's click and runs nothing; the panel itself starts nothing and words no result. */
+/** A quoted line of the publisher's about versions (a raw field of a record), folded under one line. */
+function VersionQuote({ quote, testId }: { quote: Parameters<typeof QuoteView>[0]["quote"]; testId: string }) {
+  return (
+    <details data-testid={testId} className="min-w-0 text-xs text-slate-400">
+      <summary className="cursor-pointer font-medium text-slate-300 hover:text-slate-100">
+        The publisher&apos;s own line on this
+      </summary>
+      <div className="mt-1.5 text-sm">
+        <QuoteView quote={quote} />
+      </div>
+    </details>
+  );
+}
+
+/** Phase 5c: one advisory in the side panel. Since the design refactor (26 November 2026) it reads in three layers.
+ * In the open: what the advisory says with the publisher's own line, its test with its status and reason (and, for a
+ * test tried on sandbox copies, the three counts and what they do not show), Otto's proposed check for each program
+ * of this assessment (Accept and Reject, each decided by itself) with that check's result, and the fix. Behind one
+ * fold, whole: the test's question, cases, control and rule, the trial part by part, what was frozen, the code that
+ * asked the library, the public copies, Otto's ledger entries and what Claude was asked. The fold is a "Cryptanalysis
+ * proof" for an advisory whose test was proven on public copies, and a "Technical record" otherwise. A decision is a
+ * person's click and runs nothing; the panel itself starts nothing and words no result. */
 export function AdvisoryPanel({
   planId,
   row,
@@ -113,6 +134,90 @@ export function AdvisoryPanel({
   const panel = row.panel;
   const test = panel.test;
   const noTest = panel.no_test;
+  const proof = test?.proof ?? noTest?.proof ?? null;
+  const trial = test?.trial ?? noTest?.trial ?? null;
+  const ledger = test?.ledger ?? noTest?.ledger ?? null;
+
+  // "Accepting adds the check to the test plan and runs nothing" is said once: with one program, whose proposal says
+  // it under its own buttons, the block does not say it a second time above them. With several programs the block's
+  // line stays, because it also says that each is decided by itself.
+  // Once the proposal is decided its card's note is about Undo or Reconsider, so the block says the sentence again.
+  const only = panel.here.rows.length === 1 ? (panel.here.rows[0]!.proposal ?? null) : null;
+  const saidUnderTheButtons =
+    only !== null && Boolean(only.note) && only.buttons.some((button) => button.key === "accept");
+
+  // The fold's parts, in order. The first is the test itself; the trial is the proof's own parts where the test was
+  // tried on sandbox copies, and the view's counts line by line otherwise; the records come last.
+  const parts: FoldPart[] = [
+    ...(test
+      ? [
+          {
+            key: "test",
+            name: "The test",
+            title: test.title,
+            body: (
+              // The view sends each of these as a sentence without a name; the names follow the ones Evidence shows for a locked test.
+              <dl data-testid="advisory-test-details" className="space-y-2 text-[13px]">
+                {(
+                  [
+                    ["Question", test.question],
+                    ["Cases", test.cases_line],
+                    ["Control", test.control],
+                    ["Pass/fail rule", test.rule],
+                  ] as const
+                ).map(([name, words]) => (
+                  <div key={name} className={PAIR}>
+                    <dt className={DT}>{name}</dt>
+                    <dd className={DD}>{words}</dd>
+                  </div>
+                ))}
+                <div className={PAIR}>
+                  <dt className={DT}>Design fingerprint</dt>
+                  <dd className={DD}>
+                    <ShortHash value={test.design_fingerprint} />
+                  </dd>
+                </div>
+              </dl>
+            ),
+          },
+        ]
+      : []),
+    ...(proof
+      ? proofParts(proof)
+      : trial
+        ? [{ key: "trial", name: "The trial", title: trial.title, body: <TrialView trial={trial} bare /> }]
+        : []),
+    {
+      key: "records",
+      name: "The records",
+      title: "The records",
+      body: (
+        <div className="space-y-3">
+          {ledger ? <LedgerView ledger={ledger} /> : null}
+          <details data-testid="advisory-claude" className={BLOCK}>
+            <summary className={`cursor-pointer hover:text-slate-200 ${BLOCK_TITLE}`}>{panel.claude.title}</summary>
+            <ol className="mt-2 space-y-2">
+              {panel.claude.steps.map((s, i) => (
+                <li key={i} data-testid="advisory-step" data-source={s.source} className="text-[13px] text-slate-300">
+                  <span className="block break-words">{s.line}</span>
+                  <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
+                    <span>
+                      Prompt SHA-256 <ShortHash value={s.prompt_sha256} />
+                    </span>
+                    <span>
+                      Answer SHA-256 <ShortHash value={s.answer_sha256} />
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-2 break-words text-xs text-slate-400">{panel.claude.note}</p>
+          </details>
+        </div>
+      ),
+    },
+  ];
+
   return (
     // This wrapper has no box of its own: it names the whole panel (its heading and close button too) for a link or
     // a test to find, and the panel lays itself out beside the table as on every other page.
@@ -120,6 +225,7 @@ export function AdvisoryPanel({
       <DetailPanel
         open
         item={row.id}
+        kicker="Advisory"
         title={
           <>
             {row.name}
@@ -137,6 +243,8 @@ export function AdvisoryPanel({
         onClose={onClose}
       >
         <div className="space-y-4 text-sm">
+          <Trail lines={related} here={{ kind: "advisory", name: "Advisory", label: row.name, sub: row.test.label }} />
+
           <p data-testid="advisory-sentence" className="break-words text-slate-200">
             {panel.sentence}
           </p>
@@ -149,9 +257,9 @@ export function AdvisoryPanel({
           ) : null}
 
           {panel.affected ? (
-            <div data-testid="advisory-affected" className="min-w-0 space-y-2">
+            <div data-testid="advisory-affected" className="min-w-0 space-y-1.5">
               <p className="break-words text-slate-200">{panel.affected.line}</p>
-              <QuoteView quote={panel.affected.quote} />
+              <VersionQuote quote={panel.affected.quote} testId="advisory-affected-quote" />
             </div>
           ) : null}
 
@@ -180,6 +288,7 @@ export function AdvisoryPanel({
             </p>
           ) : null}
 
+          {/* The test, in the open: where it stands and why. Its question, cases, control and rule are in the fold. */}
           {test ? (
             <section data-testid="advisory-test-block" aria-label={test.title} className={BLOCK}>
               <div className="flex flex-wrap items-center gap-2">
@@ -190,36 +299,15 @@ export function AdvisoryPanel({
               <p data-testid="advisory-test-reason" className="mt-1.5 break-words text-slate-300">
                 {row.test.reason}
               </p>
-              {/* The view sends each of these as a sentence without a name; the names follow the ones Evidence shows for a locked test. */}
-              <dl className="mt-3 space-y-2 text-[13px]">
-                {(
-                  [
-                    ["Question", test.question],
-                    ["Cases", test.cases_line],
-                    ["Control", test.control],
-                    ["Pass/fail rule", test.rule],
-                  ] as const
-                ).map(([name, words]) => (
-                  <div key={name} className={PAIR}>
-                    <dt className={DT}>{name}</dt>
-                    <dd className={DD}>{words}</dd>
-                  </div>
-                ))}
-                <div className={PAIR}>
-                  <dt className={DT}>Design fingerprint</dt>
-                  <dd className={DD}>
-                    <ShortHash value={test.design_fingerprint} />
-                  </dd>
+              {test.proof ? (
+                <div data-testid="advisory-proof-glance" className="mt-3 space-y-2">
+                  <p className="text-[13px] font-semibold text-slate-100">{test.proof.title}</p>
+                  <ProofTiles proof={test.proof} />
+                  <p data-testid="proof-not-shown" className="break-words text-[13px] text-slate-300">
+                    {test.proof.not_shown}
+                  </p>
                 </div>
-              </dl>
-              <div className="mt-3">
-                <TrialView trial={test.trial} />
-              </div>
-              {/* The whole proof stands with the proposal below; where no program has one, it stands here. */}
-              {test.proof && !panel.here.rows.some((h) => h.proposal?.proof) ? <ProofBlock proof={test.proof} /> : null}
-              <div className="mt-3">
-                <LedgerView ledger={test.ledger} />
-              </div>
+              ) : null}
             </section>
           ) : null}
 
@@ -229,23 +317,17 @@ export function AdvisoryPanel({
               <p data-testid="advisory-test-reason" className="mt-1.5 break-words text-slate-300">
                 {noTest.reason}
               </p>
-              {noTest.trial ? (
-                <div className="mt-3">
-                  <TrialView trial={noTest.trial} />
-                </div>
-              ) : null}
-              {noTest.proof ? <ProofBlock proof={noTest.proof} /> : null}
-              {noTest.ledger ? (
-                <div className="mt-3">
-                  <LedgerView ledger={noTest.ledger} />
-                </div>
+              {noTest.proof ? (
+                <p data-testid="proof-not-shown" className="mt-2 break-words text-[13px] text-slate-300">
+                  {noTest.proof.not_shown}
+                </p>
               ) : null}
             </section>
           ) : null}
 
           <section data-testid="advisory-here" aria-label={panel.here.title} className={BLOCK}>
             <h3 className={BLOCK_TITLE}>{panel.here.title}</h3>
-            {panel.here.note ? (
+            {panel.here.note && !saidUnderTheButtons ? (
               <p data-testid="advisory-here-note" className="mt-1.5 break-words text-xs text-slate-400">
                 {panel.here.note}
               </p>
@@ -262,6 +344,15 @@ export function AdvisoryPanel({
               </p>
             ) : null}
           </section>
+
+          {/* Every record behind the test, whole, behind one fold. */}
+          <ProofFold kind={test ? "proof" : "record"} inside={parts.map((p) => p.name)} testId="advisory-proof-fold">
+            {parts.map((p, i) => (
+              <ProofPart key={p.key} n={i + 1} title={p.title} extra={p.extra} testId={`proof-part-${p.key}`}>
+                {p.body}
+              </ProofPart>
+            ))}
+          </ProofFold>
 
           <section
             data-testid="advisory-fix"
@@ -288,8 +379,8 @@ export function AdvisoryPanel({
               ))}
             </div>
             {panel.fix.quote ? (
-              <div className="mt-3">
-                <QuoteView quote={panel.fix.quote} />
+              <div className="mt-2">
+                <VersionQuote quote={panel.fix.quote} testId="advisory-fix-quote" />
               </div>
             ) : null}
             {panel.fix.here ? (
@@ -302,29 +393,11 @@ export function AdvisoryPanel({
             ) : null}
           </section>
 
-          <details data-testid="advisory-claude" className={BLOCK}>
-            <summary className={`cursor-pointer hover:text-slate-200 ${BLOCK_TITLE}`}>{panel.claude.title}</summary>
-            <ol className="mt-2 space-y-2">
-              {panel.claude.steps.map((s, i) => (
-                <li key={i} data-testid="advisory-step" data-source={s.source} className="text-[13px] text-slate-300">
-                  <span className="block break-words">{s.line}</span>
-                  <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
-                    <span>
-                      Prompt SHA-256 <ShortHash value={s.prompt_sha256} />
-                    </span>
-                    <span>
-                      Answer SHA-256 <ShortHash value={s.answer_sha256} />
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-2 break-words text-xs text-slate-400">{panel.claude.note}</p>
-          </details>
+          <HistoryFold itemKey={panel.related_key ?? null} />
 
           {related && related.length > 0 ? (
             <div data-testid="advisory-related">
-              <RelatedBlock lines={related} />
+              <RelatedFold lines={related} />
             </div>
           ) : null}
         </div>

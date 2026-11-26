@@ -722,6 +722,40 @@ def test_the_page_labels_the_answers_use_are_the_pages_own():
     assert PAGE_LABELS["checks"] == "Checks" and set(commands.CHIPS) == set(PAGES)
 
 
+# ---------------------------------------------------------------- the design refactor's pages (26 November 2026)
+
+
+@pytest.mark.parametrize(
+    "sentence, page",
+    [
+        ("open the observatory", "observatory"),
+        ("show me the map", "observatory"),
+        ("open timeline", "evidence/timeline"),
+        ("open the history", "evidence/timeline"),
+        ("open approvals", "evidence/decisions"),
+        ("go to decisions", "evidence/decisions"),
+        ("open approvals and decisions", "evidence/decisions"),
+        ("open evidence files", "evidence/files"),
+        # the Results view keeps the two names it always answered to
+        ("open results", "evidence"),
+        ("open evidence", "evidence"),
+    ],
+)
+def test_the_new_pages_are_opened_by_their_names_and_opening_is_all_it_is(sentence, page):
+    read = commands.read(sentence)
+    assert (read["key"], read["page"]) == ("open_page", page)
+
+
+def test_every_example_beside_a_page_is_a_sentence_the_rules_read_and_the_map_offers_none_that_starts_something():
+    for page, chips in commands.CHIPS.items():
+        for chip in chips:
+            assert commands.read(chip)["key"] is not None, (page, chip)  # (a sentence the rules can't read has no key)
+    # The Observatory and the three views that only read the record start nothing, and neither does an example beside
+    # them: each of theirs opens a page, filters a table or asks what the panel can do.
+    for page in ("observatory", "evidence/timeline", "evidence/decisions", "evidence/files"):
+        assert {commands.read(chip)["key"] for chip in commands.CHIPS[page]} <= {"open_page", "filter", "help"}, page
+
+
 # ---------------------------------------------------------------- after the separate review of 6b (19 November 2026)
 
 

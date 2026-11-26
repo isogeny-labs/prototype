@@ -18,6 +18,10 @@ PAGE_FOR = {
         "Import brings in the file from your scanning tool that lists where encryption is used and how. It is read as data "
         "only; nothing in it is run."
     ),
+    "observatory": (
+        "The Observatory draws the systems your files describe as a map, and marks where each one uses cryptography. Every "
+        "mark repeats a check's own word. Looking at it runs nothing."
+    ),
     "inventory/verify": "Verify checks each claim from the file against the real system and says True, False or Couldn't check, with the evidence.",
     "advisories": (
         "Advisories lists every published advisory in the installed test packs. Where one has a test that fits a signing program "
@@ -25,6 +29,18 @@ PAGE_FOR = {
     ),
     "checks": "Checks lists every check in this assessment, wherever it was started. The test plan is under Crypto tests.",
     "evidence": "Evidence holds every result: what was run, what came back, what it shows and what it doesn't. The signed evidence file is downloaded here.",
+    "evidence/timeline": (
+        "The Timeline lists everything that happened in this assessment, newest first: every run and what it found, every "
+        "decision with who made it, every change to a system, and every file in and out."
+    ),
+    "evidence/decisions": (
+        "Approvals and decisions lists every decision a person made in this assessment, with who and when. No person "
+        "approves a result: the separate reviewer decides each one."
+    ),
+    "evidence/files": (
+        "Evidence files lists every download of the signed evidence file, with its fingerprint and who downloaded it, and "
+        "says how to check a file."
+    ),
     "fixes": (
         "Fixes lists the fixes for the findings in Evidence, and what the migration plan needs done. A code change is ready for review "
         "only after its proof has passed."

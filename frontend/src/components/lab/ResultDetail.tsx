@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import type { EvidenceBlock, FixLine, LabResult, MeasurementResult, MetaItem } from "../../api";
 import { AdvisoriesBox } from "../AdvisoriesBox";
+import { FromOttoTag } from "../otto/ProposalCard";
 import { ResultOttoBlock } from "../otto/ResultOttoBlock";
-import { ResultBadge, SecondaryButton, SourceTag, Spinner, formatTime, WhereFromLine } from "../ui";
+import { Glance, GlanceFact, ProofFold, ProofPart, proofKindOf } from "../proof";
+import { ResultBadge, SecondaryButton, SourceTag, Spinner, formatTime, WhereFromTag } from "../ui";
 
 function Box({ title, tag, children }: { title: string; tag?: string | null; children: ReactNode }) {
   return (
@@ -182,6 +184,11 @@ interface Props {
   /** The result's one plain sentence, as its row in the Evidence table shows it. Beside an open panel that table is
    * drawn narrow, without the sentence, so the panel of a row carries it (Evidence passes it; nothing else does). */
   plain?: string | null;
+  /** The row's one line about the control ("Control: a deliberately broken signer failed this test, as expected."),
+   * for the answer card. The control's full paragraph is inside the fold. */
+  controlLine?: string | null;
+  /** One more quiet fact for the answer card (where this result sits on the map). */
+  place?: ReactNode;
   busy: boolean;
   /** Without these two (the Migration step), the Mark reviewed and Dig deeper buttons are not drawn. */
   onMarkReviewed?: (runId: number) => void;
@@ -189,119 +196,222 @@ interface Props {
   onViewFix: (fixId: string) => void;
 }
 
-/** Everything behind one reviewed result. All wording and every verdict come from the backend. */
-export function ResultDetail({ result, heading, plain, busy, onMarkReviewed, onDigDeeper, onViewFix }: Props) {
+/** Everything behind one reviewed result, in three layers (the design refactor, 26 November 2026). First the answer:
+ * the reviewer's word, the plain sentence, what it rests on, the control in one line and the next step. Then what it
+ * shows and what it doesn't. Then one fold, shut until it is opened, that holds every record whole: the technical
+ * summary and what happened, the evidence, the control, the test as it was locked, the run record, and for an advisory
+ * check its advisory and where the check came from. The fold is a "Cryptanalysis proof" for a result proven on a copy
+ * and a "Technical record" otherwise. All wording and every verdict come from the backend. */
+export function ResultDetail({
+  result,
+  heading,
+  plain,
+  controlLine,
+  place,
+  busy,
+  onMarkReviewed,
+  onDigDeeper,
+  onViewFix,
+}: Props) {
   const locked = result.locked_test;
   const record = result.run_record;
   const research = result.research;
+  const tag = result.source_tag;
+  const advisories = result.advisories && result.advisories.items.length > 0 ? result.advisories : null;
+  const otto = result.otto ?? null;
+
+  // The parts of the fold, in order; the last two only where the result has them.
+  const parts: { key: string; name: string; title: ReactNode; extra?: ReactNode; body: ReactNode }[] = [
+    {
+      key: "happened",
+      name: "What happened",
+      title: "What happened",
+      body: (
+        <div className="space-y-3">
+          <p data-testid="technical-summary" className="text-[13px] text-slate-300">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Technical summary</span>{" "}
+            {result.summary}
+          </p>
+          {result.what_happened.length > 0 ? (
+            <div data-testid="what-happened">
+              <Paragraphs lines={result.what_happened} />
+            </div>
+          ) : null}
+          {result.evidence.map((block, i) => (
+            <Block key={i} block={block} />
+          ))}
+        </div>
+      ),
+    },
+    {
+      key: "control",
+      name: "The control",
+      title: "The control",
+      body: (
+        <div data-testid="control-outcome" data-outcome={result.control.outcome}>
+          <p className="text-sm text-slate-300">{result.control.text}</p>
+        </div>
+      ),
+    },
+    {
+      key: "locked",
+      name: "The locked test",
+      title: locked.title,
+      body: (
+        <>
+          <dl data-testid="locked-test" className="text-xs">
+            {locked.fields.map((field, i) => (
+              <div key={i}>
+                <dt className={i === 0 ? "text-slate-500" : DT}>{field.label}</dt>
+                <dd className="text-slate-200">
+                  {field.lines.map((line, j) => (
+                    <span key={j} className="block">
+                      {line}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            ))}
+            <dt className={DT}>Locked</dt>
+            <dd className="text-slate-200">
+              <time dateTime={locked.locked_at}>{formatTime(locked.locked_at)}</time>, {locked.locked_text}
+            </dd>
+            <dt className={DT}>{locked.fingerprint_label}</dt>
+            <dd data-testid="spec-fingerprint" className="break-all font-mono text-slate-200">
+              {locked.fingerprint}
+            </dd>
+          </dl>
+          <p className="mt-2 text-xs text-slate-400">{locked.note}</p>
+        </>
+      ),
+    },
+    {
+      key: "record",
+      name: "The run record",
+      title: record.title,
+      body: (
+        <>
+          <dl className="text-xs">
+            <dt className="text-slate-500">Command</dt>
+            <dd className="break-words font-mono text-slate-200">{record.command}</dd>
+            {record.outputs.map((out, i) => (
+              <div key={i}>
+                <dt className={DT}>{out.title}</dt>
+                <dd>
+                  <Pre>{out.text}</Pre>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <Meta items={record.meta} />
+        </>
+      ),
+    },
+    ...(advisories
+      ? [
+          {
+            key: "advisories",
+            name: "The advisory",
+            title: advisories.title,
+            extra: advisories.tag ? <SourceTag>{advisories.tag}</SourceTag> : undefined,
+            body: <AdvisoriesBox advisories={advisories} bare />,
+          },
+        ]
+      : []),
+    ...(otto
+      ? [
+          {
+            key: "otto",
+            name: "Where the check came from",
+            title: otto.title,
+            extra: <FromOttoTag label={otto.label} testId="result-otto-label" />,
+            body: <ResultOttoBlock block={otto} bare />,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <section
       data-testid="result-detail"
       data-run-id={result.run_id}
       aria-label={heading ?? "Result details"}
-      className="mt-3.5 flex flex-col gap-4 border-t border-slate-800 pt-3.5"
+      className="mt-1 flex flex-col gap-4 first:mt-0 [&+&]:mt-6 [&+&]:border-t [&+&]:border-slate-800 [&+&]:pt-6"
     >
       {heading ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">{heading}</h3>
+        <h3 data-testid="result-heading" className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          {heading}
+        </h3>
+      ) : null}
+
+      {/* Layer 1: the answer. */}
+      <Glance testId="result-glance">
+        <div className="flex flex-wrap items-center gap-2">
           <ResultBadge label={result.label} tone={result.tone} />
+          {/* 22 November 2026: where this result came from, beside the reviewer's word */}
+          <WhereFromTag tag={tag} />
+          {result.finished_at ? (
+            <time dateTime={result.finished_at} className="ml-auto text-xs text-slate-400">
+              {formatTime(result.finished_at)}
+            </time>
+          ) : null}
         </div>
-      ) : null}
-
-      {plain ? (
-        <p data-testid="result-plain" className="break-words text-sm leading-snug text-slate-200">
-          {plain}
-        </p>
-      ) : null}
-
-      {/* 22 November 2026: where this result came from, with what that means for it (only where the view says) */}
-      <WhereFromLine tag={result.source_tag} />
-
-      <p data-testid="technical-summary" className="text-[13px] text-slate-300">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Technical summary</span>{" "}
-        {result.summary}
-      </p>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <h4 className={H}>What happened</h4>
-          <Paragraphs lines={result.what_happened.length > 0 ? result.what_happened : [result.summary]} />
+        {plain ? (
+          <p data-testid="result-plain" className="mt-3 break-words text-base font-medium leading-snug text-slate-50">
+            {plain}
+          </p>
+        ) : null}
+        <div className="mt-3 space-y-1.5">
+          {tag ? (
+            <GlanceFact
+              icon={tag.key === "lab" ? "tests" : tag.key === "live" ? "signal" : "file"}
+              testId="source-line"
+            >
+              <span data-testid="source-note" data-source={tag.key}>
+                {tag.note ?? tag.meaning}
+              </span>
+            </GlanceFact>
+          ) : null}
+          {controlLine ? (
+            <GlanceFact icon="ring" testId="control-line">
+              {controlLine}
+            </GlanceFact>
+          ) : null}
+          {place}
         </div>
-        <div>
-          <h4 className={H}>{result.shows_title}</h4>
-          <Paragraphs lines={result.shows} />
-        </div>
-      </div>
 
-      <div>
-        <h4 className={H}>Evidence</h4>
-        <div className="space-y-3">
-          {result.evidence.map((block, i) => (
-            <Block key={i} block={block} />
-          ))}
-
-          <Box title={record.title}>
-            <dl className="text-xs">
-              <dt className={DT}>Command</dt>
-              <dd className="break-words font-mono text-slate-200">{record.command}</dd>
-              {record.outputs.map((out, i) => (
-                <div key={i}>
-                  <dt className={DT}>{out.title}</dt>
-                  <dd>
-                    <Pre>{out.text}</Pre>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <Meta items={record.meta} />
-          </Box>
-
-          <Box title={locked.title}>
-            <dl data-testid="locked-test" className="text-xs">
-              {locked.fields.map((field, i) => (
-                <div key={i}>
-                  <dt className={DT}>{field.label}</dt>
-                  <dd className="text-slate-200">
-                    {field.lines.map((line, j) => (
-                      <span key={j} className="block">
-                        {line}
-                      </span>
-                    ))}
-                  </dd>
-                </div>
-              ))}
-              <dt className={DT}>Locked</dt>
-              <dd className="text-slate-200">
-                <time dateTime={locked.locked_at}>{formatTime(locked.locked_at)}</time>, {locked.locked_text}
-              </dd>
-              <dt className={DT}>{locked.fingerprint_label}</dt>
-              <dd data-testid="spec-fingerprint" className="break-all font-mono text-slate-200">
-                {locked.fingerprint}
-              </dd>
-            </dl>
-            <p className="mt-2 text-xs text-slate-400">{locked.note}</p>
-          </Box>
-        </div>
-      </div>
-
-      <div data-testid="control-outcome" data-outcome={result.control.outcome}>
-        <h4 className={H}>Control</h4>
-        <p className="text-sm text-slate-300">{result.control.text}</p>
-      </div>
-
-      <AdvisoriesBox advisories={result.advisories} />
-
-      <ResultOttoBlock block={result.otto} />
-
-      {result.fix_line ? (
-        <FixLineView line={result.fix_line} onViewFix={onViewFix} />
-      ) : result.suggested_fix !== null ? (
-        <div data-testid="suggested-fix" className="rounded-lg border border-sky-400/35 bg-sky-400/5 p-3">
-          <h4 className={H}>{result.fix_title}</h4>
-          <p className="text-sm text-slate-300">{result.suggested_fix}</p>
-        </div>
-      ) : null}
+        {result.fix_line || result.suggested_fix !== null || (onMarkReviewed && onDigDeeper) ? (
+          <div className="mt-4 space-y-3 border-t border-slate-800 pt-3">
+            {result.fix_line ? (
+              <FixLineView line={result.fix_line} onViewFix={onViewFix} />
+            ) : result.suggested_fix !== null ? (
+              <div data-testid="suggested-fix" className="rounded-lg border border-sky-400/35 bg-sky-400/5 p-3">
+                <h4 className={H}>{result.fix_title}</h4>
+                <p className="text-sm text-slate-300">{result.suggested_fix}</p>
+              </div>
+            ) : null}
+            {onMarkReviewed && onDigDeeper ? (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <SecondaryButton
+                  pressed={result.reviewed !== null}
+                  disabled={busy || result.reviewed !== null}
+                  onClick={() => onMarkReviewed(result.run_id)}
+                >
+                  {result.reviewed ? "Reviewed" : "Mark reviewed"}
+                </SecondaryButton>
+                <SecondaryButton disabled={busy || research !== null} onClick={() => onDigDeeper(result.run_id)}>
+                  {research ? "Dig deeper: queued" : "Dig deeper"}
+                </SecondaryButton>
+                {result.reviewed ? (
+                  <span data-testid="reviewed-note" className="text-xs text-slate-400">
+                    {result.reviewed.text} <time dateTime={result.reviewed.at}>{formatTime(result.reviewed.at)}</time>
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Glance>
 
       {research ? (
         <div
@@ -334,25 +444,20 @@ export function ResultDetail({ result, heading, plain, busy, onMarkReviewed, onD
         </div>
       ) : null}
 
-      {onMarkReviewed && onDigDeeper ? (
-        <div className="flex flex-wrap items-center gap-2.5">
-          <SecondaryButton
-            pressed={result.reviewed !== null}
-            disabled={busy || result.reviewed !== null}
-            onClick={() => onMarkReviewed(result.run_id)}
-          >
-            {result.reviewed ? "Reviewed" : "Mark reviewed"}
-          </SecondaryButton>
-          <SecondaryButton disabled={busy || research !== null} onClick={() => onDigDeeper(result.run_id)}>
-            {research ? "Dig deeper: queued" : "Dig deeper"}
-          </SecondaryButton>
-          {result.reviewed ? (
-            <span data-testid="reviewed-note" className="text-xs text-slate-400">
-              {result.reviewed.text} <time dateTime={result.reviewed.at}>{formatTime(result.reviewed.at)}</time>
-            </span>
-          ) : null}
-        </div>
-      ) : null}
+      {/* Layer 2: what it shows, and what it doesn't. Always in the open. */}
+      <div data-testid="result-shows" className="min-w-0 rounded-xl border border-slate-800 px-4 py-3">
+        <h4 className={H}>{result.shows_title}</h4>
+        <Paragraphs lines={result.shows} />
+      </div>
+
+      {/* Layer 3: every record, whole, behind one fold. */}
+      <ProofFold kind={proofKindOf(tag)} inside={parts.map((p) => p.name)}>
+        {parts.map((p, i) => (
+          <ProofPart key={p.key} n={i + 1} title={p.title} extra={p.extra} testId={`proof-part-${p.key}`}>
+            {p.body}
+          </ProofPart>
+        ))}
+      </ProofFold>
     </section>
   );
 }

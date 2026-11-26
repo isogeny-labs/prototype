@@ -247,6 +247,39 @@ export type {
   AdvisoryStep,
   Source,
   SourceCount,
+  // The design refactor (26 November 2026): Evidence as the full record
+  RecordWho,
+  RecordArea,
+  RecordFilter,
+  RecordResult,
+  RecordChip,
+  RecordRole,
+  RecordRested,
+  RecordFact,
+  TimelineView,
+  TimelineDay,
+  TimelineEntry,
+  TimelineRun,
+  TimelineEntryDetail,
+  DecisionsView,
+  DecisionRow,
+  DecisionCard,
+  EvidenceFilesView,
+  EvidenceFileRow,
+  HistoryView,
+  HistoryLine,
+  // ... and the Observatory
+  ObservatoryView,
+  ObservatoryService,
+  ObservatoryBox,
+  ObservatorySpot,
+  ObservatoryCheck,
+  ObservatoryAlgorithm,
+  ObservatoryLibraries,
+  ObservatoryLine,
+  ObservatoryPanel,
+  ObservatoryPanelCheck,
+  ObservatoryPlace,
 } from "./api.gen";
 import { notifyChanged } from "./changes";
 import { TIMES_ASK, TIMES_HEADER, withLocalTimes } from "./time";
@@ -281,7 +314,32 @@ import type {
   OttoProposalsView,
   AssistantView,
   AssistantReply,
+  TimelineView,
+  TimelineEntryDetail,
+  DecisionsView,
+  EvidenceFilesView,
+  HistoryView,
+  ObservatoryView,
+  ObservatoryPanel,
+  ObservatoryPlace,
 } from "./api.gen";
+
+/** "?a=1&b=2" from the values that are set; nothing for none. */
+function query(values: Record<string, string | null | undefined>): string {
+  const params = new URLSearchParams();
+  for (const [name, value] of Object.entries(values)) if (value) params.set(name, value);
+  const text = params.toString();
+  return text ? `?${text}` : "";
+}
+
+/** The viewer's own time zone, as the browser names it (an IANA name), or none where it can't say. */
+function viewerZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -584,6 +642,29 @@ export const api = {
     }),
 
   exportEvidence: (planId: number) => request<EvidenceExport>(`/api/plans/${planId}/evidence`, { method: "POST" }),
+
+  // The design refactor (26 November 2026): Evidence as the full record. Five reads; none changes or starts anything.
+  // The days of the Timeline and of Approvals and decisions are the viewer's own, so the browser names its time zone.
+  getTimeline: (planId: number, chosen: { area?: string | null; kind?: string | null; q?: string | null } = {}) =>
+    request<TimelineView>(
+      `/api/plans/${planId}/timeline${query({ area: chosen.area, kind: chosen.kind, q: chosen.q, tz: viewerZone() })}`,
+    ),
+  getTimelineEntry: (planId: number, entryId: string) =>
+    request<TimelineEntryDetail>(`/api/plans/${planId}/timeline/${encodeURIComponent(entryId)}`),
+  getDecisions: (planId: number, area?: string | null) =>
+    request<DecisionsView>(`/api/plans/${planId}/decisions${query({ area, tz: viewerZone() })}`),
+  getEvidenceFiles: (planId: number) => request<EvidenceFilesView>(`/api/plans/${planId}/evidence-files`),
+  /** The history of one item, keyed as the Related block keys its panel ("test:12", "fix:...", "system:..."). */
+  getHistory: (planId: number, key: string) => request<HistoryView>(`/api/plans/${planId}/history${query({ key })}`),
+
+  // The Observatory (26 November 2026): the map of the systems as the files describe them. Three reads.
+  getObservatory: (assessmentId: number) => request<ObservatoryView>(`/api/assessments/${assessmentId}/observatory`),
+  /** One box of the map. Its key may hold colons and slashes: it is the rest of the address. */
+  getObservatoryBox: (planId: number, box: string) =>
+    request<ObservatoryPanel>(`/api/plans/${planId}/observatory/${box.split("/").map(encodeURIComponent).join("/")}`),
+  /** Where the item a side panel is about sits on the map, by the key its Related block uses. */
+  getObservatoryPlace: (planId: number, key: string) =>
+    request<ObservatoryPlace>(`/api/plans/${planId}/observatory/place${query({ key })}`),
 
   // Change watch (phase 6d). The read, and its two actions; neither action sends anything but its own address.
   getChangeWatch: (planId: number) => request<ChangeWatchView>(`/api/plans/${planId}/change-watch`),

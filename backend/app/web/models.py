@@ -325,6 +325,11 @@ class PlanGroup(Shape):
     kind: Literal["server", "software", "reference"]
     heading: str
     note: str | None
+    runs_on: str | None = Field(
+        default=None,
+        description='Where its tests run, in one line: "On your server, localhost:8443", '
+        '"On a copy of acme-sign 1.4.2, on this computer".',
+    )
 
 
 class NotTested(Shape):
@@ -3648,6 +3653,698 @@ class AssistantView(Shape):
     elsewhere: AssistantElsewhere
     waiting: int = Field(description="Undecided suggestions on this page plus elsewhere.")
     busy: bool = Field(description="Something is running: ask again in a second.")
+
+
+# ---------------------------------------------------------------- Evidence as the full record (design refactor, section 6)
+# The Timeline, one entry's story, Approvals and decisions, Evidence files and the history in an item's panel. Reads
+# only: they repeat what the records say. Every result word here is the reviewer's, or its own page's, as given.
+
+RecordAreaKey = Literal["observe", "advisories", "checks", "fixes", "migration", "dependencies", "watch", "assessment"]
+RecordKindKey = Literal["runs", "people", "system", "files"]
+RecordIcon = Literal[
+    "grid",
+    "file",
+    "download",
+    "signoff",
+    "person",
+    "live",
+    "flask",
+    "list",
+    "approve",
+    "merge",
+    "clock",
+    "apply",
+    "rollback",
+]
+WhoSource = Literal["account", "typed", "default", "reviewer", "signoff", "decides", "clock", "author", "none"]
+
+
+class RecordWho(Shape):
+    """One name on a record, and where it came from. A person is never the decider of a result."""
+
+    name: str = Field(description='The name, or "Not recorded (before names were kept)".')
+    source: WhoSource = Field(
+        description="account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the "
+        "reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name "
+        "(Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none."
+    )
+    source_label: str = Field(description="The same, in one plain line.")
+    demo: bool = Field(description="Demo data: a demo reviewer or the demo developer.")
+    recorded: bool = Field(description="False where no name was kept.")
+    button: str | None = Field(
+        description='The button it was pressed with ("Run all", "Retest now, on Fixes"), or null.'
+    )
+
+
+class RecordArea(Shape):
+    key: RecordAreaKey
+    label: str = Field(description='"Observatory and Verify", "Advisories", "Checks", "Fixes", "Migration plan", ...')
+
+
+class RecordKind(Shape):
+    key: RecordKindKey
+    label: str = Field(description='"Runs and results", "What people did", "Changes to a system", "Files in and out"')
+
+
+class RecordResult(Shape):
+    """A result word and its tone, exactly as the reviewer's review or the item's own page gives them."""
+
+    label: str
+    tone: Tone
+
+
+class RecordChip(Shape):
+    name: str | None = Field(description="What it is a result of, where several stand together; else null.")
+    label: str
+    tone: Tone
+
+
+class RecordCount(Shape):
+    label: str
+    tone: Tone
+    count: int
+
+
+class RecordFilter(Shape):
+    key: str = Field(description='"all", or an area or kind key.')
+    label: str
+    count: int = Field(description="How many entries it would list, with the other filter and the search as they are.")
+
+
+class TimelineRun(Shape):
+    run_id: int | None
+    verify_run_id: int | None = Field(description="For a claim checked by Verify (then run_id is null).")
+    name: str
+    ran_on: str
+    result: RecordResult
+    source_tag: Source | None
+    link: ItemLink
+
+
+class TimelineEntry(Shape):
+    """One thing that happened. One entry for one press: the runs a press started are in its entry."""
+
+    id: str = Field(description='Stable: "press-12", "retest-3", "merge-1", "verify-2", "otto-5", ...')
+    at: str = Field(description="The moment, as ISO text in UTC; the screen writes it in the viewer's zone.")
+    area: RecordArea
+    kind: RecordKind
+    icon: RecordIcon
+    lead: str = Field(description="The bold start of the sentence.")
+    rest: RichText = Field(description="The rest of the sentence.")
+    who: RecordWho
+    also: list[RecordWho] = Field(
+        description="A second name: the demo reviewer an approval was given as, a commit's author."
+    )
+    decided_by: str | None = Field(
+        description='"decided by the separate reviewer" for runs, "decided by fixed rules" for Verify; null otherwise.'
+    )
+    marks: list[str] = Field(description='"From Otto", "Demo data"')
+    source_tags: list[Source] = Field(description="The source tags of its runs, each once.")
+    runs: list[TimelineRun]
+    counts: list[RecordCount] = Field(description="Its runs counted by result word.")
+    outcome: RecordResult | None = Field(description="A proof's, a try's or a watch run's own word, where it has one.")
+    pending: int = Field(description="Runs this press started that have no result yet.")
+    link: ItemLink | None
+    apart: bool = Field(description="From Change watch: listed under Change watch only, and counted nowhere else.")
+
+
+class TimelineDay(Shape):
+    date: str = Field(description="YYYY-MM-DD, in the zone the view names.")
+    count: int
+    entries: list[TimelineEntry]
+
+
+class TimelineChosen(Shape):
+    area: str
+    kind: str
+    q: str
+
+
+class TimelineApart(Shape):
+    count: int
+    label: str
+    text: str
+    area: RecordAreaKey
+
+
+class TimelineView(Shape):
+    plan_id: int
+    is_demo: bool
+    title: str
+    subline: str
+    chosen: TimelineChosen
+    areas: list[RecordFilter] = Field(description="Where: All, then each place.")
+    kinds: list[RecordFilter] = Field(description="What: Everything, then each kind.")
+    total: int
+    days: list[TimelineDay] = Field(description="Newest first.")
+    zone: str = Field(description="The time zone the days are sorted by (the `tz` asked for, or UTC).")
+    empty_text: str | None
+    apart: TimelineApart | None = Field(
+        description="What Change watch ran and brought in, where it is not listed: how many, and where to see them."
+    )
+    names_note: str = Field(description="One sentence that says where names come from.")
+    disclaimer: str
+    busy: bool = Field(description="Something is running: ask again in a second.")
+
+
+class RecordRole(Shape):
+    role: str = Field(description='"Merged by", "Approved by", "Approved as", "Pressed by", ...')
+    who: RecordWho
+    at: str | None
+    note: str | None
+
+
+class RecordRested(Shape):
+    title: str
+    text: str | None
+    chips: list[RecordChip]
+    link: ItemLink | None
+    link_label: str | None
+
+
+class RecordFact(Shape):
+    label: str
+    value: str
+    mono: bool
+
+
+class TimelineEntryDetail(Shape):
+    """One entry's story, for a side panel."""
+
+    plan_id: int
+    is_demo: bool
+    entry: TimelineEntry
+    title: str
+    summary: str
+    people: list[RecordRole] = Field(description="Who: every person involved, each with what they did.")
+    names_note: str
+    rested_title: str
+    rested: list[RecordRested] = Field(description="What it rested on (a merge, an Apply); empty otherwise.")
+    after_title: str
+    after: list[RecordRested] = Field(description="What came after (a merge, an Apply, a Roll back); empty otherwise.")
+    record_title: str = Field(description='"Technical record"')
+    record: list[RecordFact] = Field(description="Ids, commits and fingerprints, for the folded part.")
+    link_label: str | None
+
+
+class DecisionWord(Shape):
+    key: str
+    label: str = Field(description='"Approved", "Merged", "Accepted", "Not added", "Applied", "Signed off", ...')
+
+
+class DecisionRow(Shape):
+    id: str = Field(description="The timeline entry of this decision.")
+    at: str
+    decision: DecisionWord
+    on: str
+    marks: list[str]
+    who: RecordWho  # the name the decision was recorded under
+    pressed_by: RecordWho | None = Field(
+        description="Who pressed, where that is another name (an approval as a demo reviewer)."
+    )
+    area: RecordArea
+    link: ItemLink | None
+
+
+class DecisionDay(Shape):
+    date: str
+    count: int
+    rows: list[DecisionRow]
+
+
+class DecisionCard(Shape):
+    key: Literal["decisions", "approvals", "otto", "signoff"]
+    title: str
+    value: str
+    small: str
+
+
+class DecisionsChosen(Shape):
+    area: str
+
+
+class DecisionsView(Shape):
+    plan_id: int
+    is_demo: bool
+    title: str
+    subline: str
+    cards: list[DecisionCard]
+    names_note: str
+    results_note: str = Field(description="Why no result is in this list.")
+    chosen: DecisionsChosen
+    areas: list[RecordFilter]
+    total: int
+    days: list[DecisionDay] = Field(description="Newest first.")
+    zone: str
+    empty_text: str | None
+    disclaimer: str
+
+
+class EvidenceFileRow(Shape):
+    id: int
+    at: str
+    fingerprint: str
+    fingerprint_label: str
+    who: RecordWho  # who downloaded it
+    # "json" would shadow BaseModel.json, so the attribute is json_ and the key stays "json".
+    json_: FileLink = Field(alias="json")
+    html: FileLink
+
+
+class EvidenceFilesCheck(Shape):
+    title: str
+    text: str
+    command: str
+    report_note: str
+
+
+class EvidenceFilesHolds(Shape):
+    title: str
+    items: list[str]
+
+
+class EvidenceFilesDownload(Shape):
+    """The Download evidence button, as Evidence gives it (a shape of its own, so LabView's keeps its name)."""
+
+    can_start: bool
+    blocked_reason: str | None
+
+
+class EvidenceFilesView(Shape):
+    plan_id: int
+    is_demo: bool
+    title: str
+    subline: str
+    files: list[EvidenceFileRow] = Field(description="Every download, newest first.")
+    empty_text: str | None
+    download: EvidenceFilesDownload
+    check: EvidenceFilesCheck
+    holds: EvidenceFilesHolds
+    names_note: str
+
+
+class HistoryLine(Shape):
+    id: str
+    at: str | None = Field(description="Null where the record has no time (a proposal of Otto's is not stored).")
+    icon: RecordIcon
+    title: str
+    result: RecordChip | None = Field(description="This item's own result in that run, or a proof's or a try's word.")
+    results: list[RecordChip] = Field(
+        description="Several results that stand together (a retest's, in a fix's history)."
+    )
+    who: RecordWho | None
+    said: str | None = Field(description='"started by You, with Run all", "by You", or that no name was kept.')
+    decided_by: str | None
+    note: str | None
+    fingerprint: str | None = Field(description="The run's fingerprint (SHA-256), in full.")
+    source_tag: Source | None
+    marks: list[str]
+    link: ItemLink | None
+
+
+class HistoryTimeline(Shape):
+    area: RecordAreaKey = Field(description="The place to open the timeline with.")
+
+
+class HistoryView(Shape):
+    plan_id: int
+    is_demo: bool
+    key: str
+    title: str = Field(description='"History of this check", "History of this fix", ...')
+    decides: str | None = Field(
+        description="The line on top that says what decides a result; null for a fix or a change."
+    )
+    lines: list[HistoryLine] = Field(description="Newest first; a line with no time comes last.")
+    notes: list[str]
+    empty_text: str | None
+    names_note: str
+    timeline: HistoryTimeline
+
+
+# ---------------------------------------------------------------- the Observatory (design refactor, section 5)
+# A map of the systems as the files describe them, where the cryptography is, and what each check found there
+# (app/observatory, app/present/observatory.py). It only reads, and words no result of its own: every result word is
+# the one its own page shows. The page's name in a link is "observatory"; a box is opened with item=<box key>.
+
+ObservatoryBoxKind = Literal["server", "program", "key_exchange_program", "software", "service", "own_software"]
+ObservatoryFile = Literal["scanner", "dependencies"]
+
+
+class ObservatoryBeside(Shape):
+    """A result shown beside a check's first result and never in its place: a retest's, labelled with the version it ran
+    on, or the measurement the app made right after an Apply or a Roll back."""
+
+    label: str = Field(description='"Retest on acme-sign 1.4.3", "Retest, tested again as it is", "After Apply"')
+    word: str = Field(description="The result's own word, as Evidence shows it.")
+    tone: Tone
+    code: str
+    tag: Source | None
+    link: ItemLink
+
+
+class ObservatoryCheckCore(Shape):
+    """One check of a spot, by name, with the word of its own page: a claim (Verify's True, False or Couldn't check), a
+    test of the plan (Evidence's Passed, Failed, Measured ...) or one track of the system's post-quantum status (the
+    Migration plan's Classical, Hybrid ...). A check that has not run says so and has no look."""
+
+    id: str = Field(description='"claim-3", "test-12", "status-kex", "status-auth", "status-signatures"')
+    kind: Literal["claim", "test", "status"]
+    name: str = Field(description='"The claim", the test\'s own title, or "Post-quantum status"')
+    word: str = Field(description='The result\'s own word, or "Not checked yet" / "Not measured yet".')
+    tone: Tone | None = Field(description="The look of the word on its own page; null when the check has not run.")
+    code: str | None
+    checked: bool = Field(description="A result exists. False: the word says it has not run.")
+    running: bool = Field(description="It is waiting or running now.")
+    came_from: str | None = Field(
+        description='"After Apply" or "After Roll back" when this result is that measurement of the live system; else null.'
+    )
+    tag: Source | None = Field(
+        description="What this result rests on. Draw it only where neither its box nor its spot carries one."
+    )
+    link: ItemLink = Field(
+        description="Where the result lives: the claim on Verify, the result on Evidence, the system."
+    )
+    related_key: str = Field(description='The key of its Related block: "claim:3", "test:12", "system:<key>".')
+
+
+class ObservatoryCheck(ObservatoryCheckCore):
+    """A check as the map lists it."""
+
+    beside: list[ObservatoryBeside]
+
+
+class ObservatorySpotCore(Shape):
+    """One place cryptography sits in a box ("TLS versions", "Certificate", "Signs"), with its checks by name."""
+
+    key: str = Field(
+        description="tls_versions, cipher_suites, certificate, key_exchange, signatures, signs, checks_signatures, speed_size, other"
+    )
+    title: str
+    file_says: str = Field(description='"The file says TLS 1.3 only", or "Not in your file".')
+    claimed: str | None = Field(
+        description='What the file claims here, alone ("ECDSA P-256"); null when it claims nothing.'
+    )
+    tag: Source | None = Field(
+        description="Set when the box has no one tag and every result of this spot rests on the same."
+    )
+    checked: bool = Field(description="At least one check of this spot has a result.")
+    empty_text: str | None = Field(
+        description='"Not checked yet" or "Not measured yet" while no check here has a result.'
+    )
+
+
+class ObservatorySpot(ObservatorySpotCore):
+    checks: list[ObservatoryCheck]
+
+
+class ObservatoryTie(Shape):
+    label: str = Field(description="The top entry of the dependency list that is this box.")
+    source: str | None = Field(description='"name_version" (tied by the app) or "user" (set with Part of).')
+    words: str
+
+
+class ObservatoryBox(Shape):
+    key: str = Field(
+        description='"server:<address>", "software:<claim ref>", "service:<key>", or "top:<key>" for an untied top entry.'
+    )
+    kind: ObservatoryBoxKind
+    title: str
+    sub: str = Field(description='"Server · localhost:8443", "Signing program · in both files", ...')
+    address: str | None
+    in_files: list[ObservatoryFile]
+    ties: list[ObservatoryTie]
+    observed: bool = Field(description="False: nothing was observed or run here (draw it so).")
+    note: str | None = Field(
+        description='"Not tied to ... or to ...", built from the real names; or why it has no spots.'
+    )
+    tag: Source | None = Field(description="Set when every result in the box rests on the same thing.")
+    spots: list[ObservatorySpot]
+    link: ItemLink = Field(description="Opens this box on the Observatory.")
+
+
+class ObservatoryService(Shape):
+    """A container: the service the scanner file describes, with its parts inside; or, when the two files do not name
+    the same thing, the dependency list's own software, listed apart."""
+
+    key: Literal["service", "listed"]
+    title: str | None = Field(description="The name the file gives it; null when the file names none.")
+    version: str | None
+    is_demo: bool
+    sub: str = Field(
+        description='"Named in both files, with the same name and version", "Named in your scanner file", ...'
+    )
+    in_files: list[ObservatoryFile]
+    boxes: list[ObservatoryBox]
+
+
+class ObservatoryOutside(Shape):
+    key: Literal["clients", "this_computer"]
+    title: str
+    sub: str
+
+
+class ObservatoryUse(Shape):
+    box: str = Field(description="The key of the box (or of the container) that uses the algorithm.")
+    through: str = Field(description="certificate, protocol, key, signature, key_exchange or direct")
+
+
+class ObservatoryAlgorithm(Shape):
+    key: str
+    kind_label: str
+    plain: str | None = Field(
+        description='The plain name drawn first ("Classical signatures"); null when the app has none.'
+    )
+    technical: str = Field(description='"ECDSA P-256"')
+    named: str
+    used: str = Field(description='"Used in 2 places: the certificate on ... and the signatures of ...".')
+    uses: list[ObservatoryUse]
+
+
+class ObservatoryLibraryRow(Shape):
+    id: str = Field(description="The row's id on Dependencies.")
+    label: str
+    via_words: str
+    answers_short: str = Field(description='Dependencies\' own summary of its answers ("No to all three").')
+    tag: Source
+    link: ItemLink
+
+
+class ObservatoryMore(Shape):
+    count: int
+    label: str
+    link: ItemLink
+    link_label: str
+
+
+class ObservatoryLibraries(Shape):
+    """The libraries of one top entry of the dependency list: one box for a single library, else one group box."""
+
+    key: str
+    kind_label: str
+    title: str = Field(description="\"acme-ledger 5.1.0's libraries · 8\", or the one library's name.")
+    sub: str
+    owner: str | None = Field(description="The box (or container) they belong to; null for libraries under no entry.")
+    count: int
+    tag: Source | None = Field(description="Set when every library of the group has the same tag.")
+    rows: list[ObservatoryLibraryRow] = Field(description="The first few; the rest are on Dependencies.")
+    more: ObservatoryMore | None
+
+
+class ObservatoryLine(Shape):
+    start: str = Field(
+        description='The key of the box it starts at; "this_computer" or "clients" for the two outside boxes.'
+    )
+    end: str
+    kind: Literal["uses", "live", "ask"] = Field(
+        description="uses: the files say one uses the other. live: a connection the app made. ask: the files don't say."
+    )
+    label: str
+
+
+class ObservatoryCount(Shape):
+    key: SourceKey
+    label: str
+    meaning: str
+    count: int
+    line: str
+
+
+class ObservatoryGap(Shape):
+    key: str
+    text: str
+    link: ItemLink | None = Field(description="Where the gap can be filled; null where the app has no place for it.")
+    link_label: str | None
+
+
+class ObservatoryGaps(Shape):
+    title: str
+    note: str
+    items: list[ObservatoryGap]
+
+
+class ObservatoryBoxGaps(Shape):
+    title: str
+    items: list[ObservatoryGap]
+
+
+class ObservatoryBanner(Shape):
+    strong: str
+    text: str
+    link: ItemLink
+    link_label: str
+
+
+class ObservatoryEmpty(Shape):
+    text: str
+    link: ItemLink
+    link_label: str
+
+
+class ObservatoryLegendItem(Shape):
+    kind: Literal["uses", "live", "ask", "unobserved"]
+    text: str
+
+
+class ObservatoryLibrariesNote(Shape):
+    title: str
+    sub: str
+    text: str
+    link: ItemLink
+
+
+class ObservatoryView(Shape):
+    plan_id: int | None
+    import_id: int | None
+    title: str
+    subline: str
+    state: Literal["empty", "file_only", "checked"] = Field(
+        description="empty: no file yet. file_only: nothing has been checked yet. checked: at least one check has a result."
+    )
+    empty: ObservatoryEmpty | None
+    banner: ObservatoryBanner | None = Field(
+        description="While nothing has been checked: the sentence, and Open Verify."
+    )
+    counts: list[ObservatoryCount] = Field(
+        description="Always the four tags, in their fixed order: the Overview's counts."
+    )
+    counts_note: str
+    map_title: str
+    built_from: RichText = Field(description="What the map was built from, and when it last changed.")
+    structure_note: str | None = Field(
+        description="Why the map is drawn from the claims alone (a CSV file, no kept copy)."
+    )
+    not_drawn: str | None
+    outside: list[ObservatoryOutside]
+    services: list[ObservatoryService]
+    algorithms: list[ObservatoryAlgorithm]
+    libraries: list[ObservatoryLibraries]
+    libraries_note: ObservatoryLibrariesNote | None = Field(description="While no dependency list has been added.")
+    lines: list[ObservatoryLine]
+    legend: list[ObservatoryLegendItem]
+    legend_note: str
+    gaps: ObservatoryGaps = Field(description="What your files don't say, each with where it can be filled.")
+    busy: bool = Field(description="Something is running: ask again in a second.")
+
+
+class ObservatoryPanelBeside(ObservatoryBeside):
+    plain: str | None
+    at: str | None
+
+
+class ObservatoryCheckFix(Shape):
+    text: str = Field(description="The line about a fix that the result's own page shows.")
+    label: str
+    link: ItemLink
+
+
+class ObservatoryCheckLink(Shape):
+    label: str
+    link: ItemLink
+
+
+class ObservatoryPanelCheck(ObservatoryCheckCore):
+    """A check as a box's panel shows it: the same words as on the map, with its sentence and its links."""
+
+    beside: list[ObservatoryPanelBeside]
+    plain: str | None = Field(description="The plain sentence the result's own page shows.")
+    at: str | None
+    fix: ObservatoryCheckFix | None
+    links: list[ObservatoryCheckLink]
+
+
+class ObservatoryPanelSpot(ObservatorySpotCore):
+    checks: list[ObservatoryPanelCheck]
+
+
+class ObservatoryFileLine(Shape):
+    where: str = Field(description='Where in the file: "services[0]", "dependencies[1]", "line 2".')
+    text: str = Field(description="The entry, short, as data.")
+
+
+class ObservatoryFileLines(Shape):
+    title: str
+    filename: str
+    lines: list[ObservatoryFileLine]
+    more: int
+
+
+class ObservatoryFix(Shape):
+    label: str
+    sub: str
+    link: ItemLink
+
+
+class ObservatoryLast(Shape):
+    label: str = Field(description='"Last observed", "Last run", ...')
+    at: str
+
+
+class ObservatoryNext(Shape):
+    text: str = Field(description="The Migration plan's own line for this system, as its Systems table shows it.")
+    label: str
+    link: ItemLink
+
+
+class ObservatoryPanel(Shape):
+    """One box of the map, opened."""
+
+    key: str
+    kind_label: str
+    title: str
+    sub: str
+    part_of: str | None = Field(description="The service it is drawn in.")
+    tag: Source | None
+    last: ObservatoryLast | None
+    summary: str = Field(description="Built only from counts of the checks' own words.")
+    note: str | None
+    ties: list[ObservatoryTie]
+    observed: bool
+    spots: list[ObservatoryPanelSpot]
+    libraries: list[ObservatoryLibraries]
+    fixes: list[ObservatoryFix] = Field(
+        description="The fixes a recorded link ties to this box or to one of its checks."
+    )
+    next: ObservatoryNext | None = Field(
+        description="The next step the Migration plan names for this system, once its status was measured; else null."
+    )
+    gaps: ObservatoryBoxGaps
+    file_lines: list[ObservatoryFileLines] = Field(description="The lines of the files that name it.")
+    related_key: str | None = Field(description="The key of its Related block; null for a box that is no system.")
+    related: list[RelatedLine]
+    link: ItemLink
+
+
+class ObservatoryPlaceWhere(Shape):
+    label: str = Field(description='"On your map"')
+    path: list[str] = Field(description="The service, the box, the spot.")
+    box: str | None
+    link: ItemLink = Field(description="Opens the Observatory on that box.")
+    link_label: str
+
+
+class ObservatoryPlace(Shape):
+    key: str
+    place: ObservatoryPlaceWhere | None = Field(description="Null when the item is not on the map.")
 
 
 def _rebuild_all() -> None:

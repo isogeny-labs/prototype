@@ -202,12 +202,15 @@ export function NewAdvisories({
           {lookup.sandbox_line}
         </p>
       ) : null}
-      <p
-        data-testid="new-advisories-covers"
-        className="mt-3 break-words border-t border-slate-800 pt-3 text-xs text-slate-500"
-      >
-        {lookup.covers}
-      </p>
+      {/* (26 November 2026: what the loop covers is a long paragraph; it is whole, one click away) */}
+      <details data-testid="new-advisories-covers-fold" className="mt-3 border-t border-slate-800 pt-2.5">
+        <summary className="cursor-pointer text-xs font-medium text-slate-400 hover:text-slate-200">
+          What this covers
+        </summary>
+        <p data-testid="new-advisories-covers" className="mt-1.5 break-words text-xs text-slate-500">
+          {lookup.covers}
+        </p>
+      </details>
 
       {dialog && box ? (
         <Modal title={dialog.title} onClose={close} testId={box === "look" ? "look-dialog" : "research-dialog"}>

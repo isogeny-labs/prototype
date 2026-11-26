@@ -2833,6 +2833,430 @@
           }
         }
       }
+    },
+    "/api/plans/{plan_id}/timeline": {
+      "get": {
+        "summary": "Timeline",
+        "description": "Everything that happened in the assessment, newest first, by day.",
+        "operationId": "timeline_api_plans__plan_id__timeline_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "area",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One of the places (observe, advisories, checks, fixes, ...), or all.",
+              "title": "Area"
+            },
+            "description": "One of the places (observe, advisories, checks, fixes, ...), or all."
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "runs, people, system or files, or all.",
+              "title": "Kind"
+            },
+            "description": "runs, people, system or files, or all."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words to search the entries for.",
+              "title": "Q"
+            },
+            "description": "Words to search the entries for."
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The viewer's time zone (an IANA name), to sort entries into days.",
+              "title": "Tz"
+            },
+            "description": "The viewer's time zone (an IANA name), to sort entries into days."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/timeline/{entry_id}": {
+      "get": {
+        "summary": "Timeline Entry",
+        "description": "One entry's story: who, what it rested on, what came after, and the facts of its record.",
+        "operationId": "timeline_entry_api_plans__plan_id__timeline__entry_id__get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEntryDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/decisions": {
+      "get": {
+        "summary": "Decisions",
+        "description": "Every decision a person made in the assessment, newest first, by day.",
+        "operationId": "decisions_api_plans__plan_id__decisions_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "area",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One of the places (observe, advisories, checks, fixes, ...), or all.",
+              "title": "Area"
+            },
+            "description": "One of the places (observe, advisories, checks, fixes, ...), or all."
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The viewer's time zone (an IANA name), to sort entries into days.",
+              "title": "Tz"
+            },
+            "description": "The viewer's time zone (an IANA name), to sort entries into days."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/evidence-files": {
+      "get": {
+        "summary": "Evidence Files",
+        "description": "Every download of the signed evidence file, how to check a file, and what it holds.",
+        "operationId": "evidence_files_api_plans__plan_id__evidence_files_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceFilesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/history": {
+      "get": {
+        "summary": "History",
+        "description": "The history of one item, keyed as the Related block keys its panel (test:12, fix:..., change:..., system:...).",
+        "operationId": "history_api_plans__plan_id__history_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 720,
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/observatory": {
+      "get": {
+        "summary": "Observatory",
+        "description": "The map: the boxes, where the cryptography is in each with its checks by name, the lines, the four counts by\ntag and what the files don't say.",
+        "operationId": "observatory_api_plans__plan_id__observatory_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservatoryView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assessments/{assessment_id}/observatory": {
+      "get": {
+        "summary": "Observatory Of Assessment",
+        "description": "The same map by the assessment. It also answers before the assessment has a file (state \"empty\", with the\nway to Import) and before its test plan was made.",
+        "operationId": "observatory_of_assessment_api_assessments__assessment_id__observatory_get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservatoryView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/observatory/place": {
+      "get": {
+        "summary": "Place",
+        "description": "Where the item a side panel is about sits on the map, by the key its Related block uses; `place` is null\nwhen the item is not on the map.",
+        "operationId": "place_api_plans__plan_id__observatory_place_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 700,
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservatoryPlace"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/observatory/{box}": {
+      "get": {
+        "summary": "Box",
+        "description": "The panel of one box of the map (its key may hold colons and slashes: it is the rest of the address).",
+        "operationId": "box_api_plans__plan_id__observatory__box__get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "box",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Box"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservatoryPanel"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8872,6 +9296,266 @@
         "type": "object",
         "title": "DecisionBody"
       },
+      "DecisionCard": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "decisions",
+              "approvals",
+              "otto",
+              "signoff"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "small": {
+            "type": "string",
+            "title": "Small"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "value",
+          "small"
+        ],
+        "title": "DecisionCard"
+      },
+      "DecisionDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "date",
+          "count",
+          "rows"
+        ],
+        "title": "DecisionDay"
+      },
+      "DecisionRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The timeline entry of this decision."
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/DecisionWord"
+          },
+          "on": {
+            "type": "string",
+            "title": "On"
+          },
+          "marks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Marks"
+          },
+          "who": {
+            "$ref": "#/components/schemas/RecordWho"
+          },
+          "pressed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordWho"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who pressed, where that is another name (an approval as a demo reviewer)."
+          },
+          "area": {
+            "$ref": "#/components/schemas/RecordArea"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "decision",
+          "on",
+          "marks",
+          "who",
+          "pressed_by",
+          "area",
+          "link"
+        ],
+        "title": "DecisionRow"
+      },
+      "DecisionWord": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Approved\", \"Merged\", \"Accepted\", \"Not added\", \"Applied\", \"Signed off\", ..."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "DecisionWord"
+      },
+      "DecisionsChosen": {
+        "properties": {
+          "area": {
+            "type": "string",
+            "title": "Area"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "area"
+        ],
+        "title": "DecisionsChosen"
+      },
+      "DecisionsView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionCard"
+            },
+            "type": "array",
+            "title": "Cards"
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note"
+          },
+          "results_note": {
+            "type": "string",
+            "title": "Results Note",
+            "description": "Why no result is in this list."
+          },
+          "chosen": {
+            "$ref": "#/components/schemas/DecisionsChosen"
+          },
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/RecordFilter"
+            },
+            "type": "array",
+            "title": "Areas"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionDay"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "Newest first."
+          },
+          "zone": {
+            "type": "string",
+            "title": "Zone"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "title",
+          "subline",
+          "cards",
+          "names_note",
+          "results_note",
+          "chosen",
+          "areas",
+          "total",
+          "days",
+          "zone",
+          "empty_text",
+          "disclaimer"
+        ],
+        "title": "DecisionsView"
+      },
       "DemoChangeItem": {
         "properties": {
           "key": {
@@ -10504,6 +11188,192 @@
         ],
         "title": "EvidenceExport"
       },
+      "EvidenceFileRow": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint"
+          },
+          "fingerprint_label": {
+            "type": "string",
+            "title": "Fingerprint Label"
+          },
+          "who": {
+            "$ref": "#/components/schemas/RecordWho"
+          },
+          "json": {
+            "$ref": "#/components/schemas/FileLink"
+          },
+          "html": {
+            "$ref": "#/components/schemas/FileLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "fingerprint",
+          "fingerprint_label",
+          "who",
+          "json",
+          "html"
+        ],
+        "title": "EvidenceFileRow"
+      },
+      "EvidenceFilesCheck": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "command": {
+            "type": "string",
+            "title": "Command"
+          },
+          "report_note": {
+            "type": "string",
+            "title": "Report Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "text",
+          "command",
+          "report_note"
+        ],
+        "title": "EvidenceFilesCheck"
+      },
+      "EvidenceFilesDownload": {
+        "properties": {
+          "can_start": {
+            "type": "boolean",
+            "title": "Can Start"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "can_start",
+          "blocked_reason"
+        ],
+        "title": "EvidenceFilesDownload",
+        "description": "The Download evidence button, as Evidence gives it (a shape of its own, so LabView's keeps its name)."
+      },
+      "EvidenceFilesHolds": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "items"
+        ],
+        "title": "EvidenceFilesHolds"
+      },
+      "EvidenceFilesView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceFileRow"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "Every download, newest first."
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          },
+          "download": {
+            "$ref": "#/components/schemas/EvidenceFilesDownload"
+          },
+          "check": {
+            "$ref": "#/components/schemas/EvidenceFilesCheck"
+          },
+          "holds": {
+            "$ref": "#/components/schemas/EvidenceFilesHolds"
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "title",
+          "subline",
+          "files",
+          "empty_text",
+          "download",
+          "check",
+          "holds",
+          "names_note"
+        ],
+        "title": "EvidenceFilesView"
+      },
       "FileLink": {
         "properties": {
           "url": {
@@ -11845,6 +12715,276 @@
           "blockers"
         ],
         "title": "Headline"
+      },
+      "HistoryLine": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At",
+            "description": "Null where the record has no time (a proposal of Otto's is not stored)."
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "grid",
+              "file",
+              "download",
+              "signoff",
+              "person",
+              "live",
+              "flask",
+              "list",
+              "approve",
+              "merge",
+              "clock",
+              "apply",
+              "rollback"
+            ],
+            "title": "Icon"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordChip"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This item's own result in that run, or a proof's or a try's word."
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/RecordChip"
+            },
+            "type": "array",
+            "title": "Results",
+            "description": "Several results that stand together (a retest's, in a fix's history)."
+          },
+          "who": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordWho"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Said",
+            "description": "\"started by You, with Run all\", \"by You\", or that no name was kept."
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fingerprint",
+            "description": "The run's fingerprint (SHA-256), in full."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "marks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Marks"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "icon",
+          "title",
+          "result",
+          "results",
+          "who",
+          "said",
+          "decided_by",
+          "note",
+          "fingerprint",
+          "source_tag",
+          "marks",
+          "link"
+        ],
+        "title": "HistoryLine"
+      },
+      "HistoryTimeline": {
+        "properties": {
+          "area": {
+            "type": "string",
+            "enum": [
+              "observe",
+              "advisories",
+              "checks",
+              "fixes",
+              "migration",
+              "dependencies",
+              "watch",
+              "assessment"
+            ],
+            "title": "Area",
+            "description": "The place to open the timeline with."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "area"
+        ],
+        "title": "HistoryTimeline"
+      },
+      "HistoryView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"History of this check\", \"History of this fix\", ..."
+          },
+          "decides": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decides",
+            "description": "The line on top that says what decides a result; null for a fix or a change."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryLine"
+            },
+            "type": "array",
+            "title": "Lines",
+            "description": "Newest first; a line with no time comes last."
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note"
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/HistoryTimeline"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "key",
+          "title",
+          "decides",
+          "lines",
+          "notes",
+          "empty_text",
+          "names_note",
+          "timeline"
+        ],
+        "title": "HistoryView"
       },
       "Impact": {
         "properties": {
@@ -15171,6 +16311,1945 @@
         "title": "NotTested",
         "description": "The \"Not tested, and why\" box: every target or test the plan leaves out, one line each."
       },
+      "ObservatoryAlgorithm": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "plain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plain",
+            "description": "The plain name drawn first (\"Classical signatures\"); null when the app has none."
+          },
+          "technical": {
+            "type": "string",
+            "title": "Technical",
+            "description": "\"ECDSA P-256\""
+          },
+          "named": {
+            "type": "string",
+            "title": "Named"
+          },
+          "used": {
+            "type": "string",
+            "title": "Used",
+            "description": "\"Used in 2 places: the certificate on ... and the signatures of ...\"."
+          },
+          "uses": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryUse"
+            },
+            "type": "array",
+            "title": "Uses"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind_label",
+          "plain",
+          "technical",
+          "named",
+          "used",
+          "uses"
+        ],
+        "title": "ObservatoryAlgorithm"
+      },
+      "ObservatoryBanner": {
+        "properties": {
+          "strong": {
+            "type": "string",
+            "title": "Strong"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "strong",
+          "text",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryBanner"
+      },
+      "ObservatoryBeside": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Retest on acme-sign 1.4.3\", \"Retest, tested again as it is\", \"After Apply\""
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The result's own word, as Evidence shows it."
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "word",
+          "tone",
+          "code",
+          "tag",
+          "link"
+        ],
+        "title": "ObservatoryBeside",
+        "description": "A result shown beside a check's first result and never in its place: a retest's, labelled with the version it ran\non, or the measurement the app made right after an Apply or a Roll back."
+      },
+      "ObservatoryBox": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "\"server:<address>\", \"software:<claim ref>\", \"service:<key>\", or \"top:<key>\" for an untied top entry."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "server",
+              "program",
+              "key_exchange_program",
+              "software",
+              "service",
+              "own_software"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub",
+            "description": "\"Server · localhost:8443\", \"Signing program · in both files\", ..."
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "in_files": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "scanner",
+                "dependencies"
+              ]
+            },
+            "type": "array",
+            "title": "In Files"
+          },
+          "ties": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryTie"
+            },
+            "type": "array",
+            "title": "Ties"
+          },
+          "observed": {
+            "type": "boolean",
+            "title": "Observed",
+            "description": "False: nothing was observed or run here (draw it so)."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "\"Not tied to ... or to ...\", built from the real names; or why it has no spots."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when every result in the box rests on the same thing."
+          },
+          "spots": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatorySpot"
+            },
+            "type": "array",
+            "title": "Spots"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "Opens this box on the Observatory."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "title",
+          "sub",
+          "address",
+          "in_files",
+          "ties",
+          "observed",
+          "note",
+          "tag",
+          "spots",
+          "link"
+        ],
+        "title": "ObservatoryBox"
+      },
+      "ObservatoryBoxGaps": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryGap"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "items"
+        ],
+        "title": "ObservatoryBoxGaps"
+      },
+      "ObservatoryCheck": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "\"claim-3\", \"test-12\", \"status-kex\", \"status-auth\", \"status-signatures\""
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "claim",
+              "test",
+              "status"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "\"The claim\", the test's own title, or \"Post-quantum status\""
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The result's own word, or \"Not checked yet\" / \"Not measured yet\"."
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "fail",
+                  "neutral",
+                  "warn"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone",
+            "description": "The look of the word on its own page; null when the check has not run."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "Checked",
+            "description": "A result exists. False: the word says it has not run."
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running",
+            "description": "It is waiting or running now."
+          },
+          "came_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Came From",
+            "description": "\"After Apply\" or \"After Roll back\" when this result is that measurement of the live system; else null."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What this result rests on. Draw it only where neither its box nor its spot carries one."
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "Where the result lives: the claim on Verify, the result on Evidence, the system."
+          },
+          "related_key": {
+            "type": "string",
+            "title": "Related Key",
+            "description": "The key of its Related block: \"claim:3\", \"test:12\", \"system:<key>\"."
+          },
+          "beside": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryBeside"
+            },
+            "type": "array",
+            "title": "Beside"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "word",
+          "tone",
+          "code",
+          "checked",
+          "running",
+          "came_from",
+          "tag",
+          "link",
+          "related_key",
+          "beside"
+        ],
+        "title": "ObservatoryCheck",
+        "description": "A check as the map lists it."
+      },
+      "ObservatoryCheckFix": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The line about a fix that the result's own page shows."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "label",
+          "link"
+        ],
+        "title": "ObservatoryCheckFix"
+      },
+      "ObservatoryCheckLink": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "link"
+        ],
+        "title": "ObservatoryCheckLink"
+      },
+      "ObservatoryCount": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "live",
+              "lab",
+              "file",
+              "published"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "meaning": {
+            "type": "string",
+            "title": "Meaning"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "meaning",
+          "count",
+          "line"
+        ],
+        "title": "ObservatoryCount"
+      },
+      "ObservatoryEmpty": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryEmpty"
+      },
+      "ObservatoryFileLine": {
+        "properties": {
+          "where": {
+            "type": "string",
+            "title": "Where",
+            "description": "Where in the file: \"services[0]\", \"dependencies[1]\", \"line 2\"."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The entry, short, as data."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "where",
+          "text"
+        ],
+        "title": "ObservatoryFileLine"
+      },
+      "ObservatoryFileLines": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryFileLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "more": {
+            "type": "integer",
+            "title": "More"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "filename",
+          "lines",
+          "more"
+        ],
+        "title": "ObservatoryFileLines"
+      },
+      "ObservatoryFix": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "sub",
+          "link"
+        ],
+        "title": "ObservatoryFix"
+      },
+      "ObservatoryGap": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the gap can be filled; null where the app has no place for it."
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "text",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryGap"
+      },
+      "ObservatoryGaps": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryGap"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "note",
+          "items"
+        ],
+        "title": "ObservatoryGaps"
+      },
+      "ObservatoryLast": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Last observed\", \"Last run\", ..."
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "at"
+        ],
+        "title": "ObservatoryLast"
+      },
+      "ObservatoryLegendItem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "uses",
+              "live",
+              "ask",
+              "unobserved"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "ObservatoryLegendItem"
+      },
+      "ObservatoryLibraries": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"acme-ledger 5.1.0's libraries · 8\", or the one library's name."
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "The box (or container) they belong to; null for libraries under no entry."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when every library of the group has the same tag."
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLibraryRow"
+            },
+            "type": "array",
+            "title": "Rows",
+            "description": "The first few; the rest are on Dependencies."
+          },
+          "more": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryMore"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind_label",
+          "title",
+          "sub",
+          "owner",
+          "count",
+          "tag",
+          "rows",
+          "more"
+        ],
+        "title": "ObservatoryLibraries",
+        "description": "The libraries of one top entry of the dependency list: one box for a single library, else one group box."
+      },
+      "ObservatoryLibrariesNote": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "sub",
+          "text",
+          "link"
+        ],
+        "title": "ObservatoryLibrariesNote"
+      },
+      "ObservatoryLibraryRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The row's id on Dependencies."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "via_words": {
+            "type": "string",
+            "title": "Via Words"
+          },
+          "answers_short": {
+            "type": "string",
+            "title": "Answers Short",
+            "description": "Dependencies' own summary of its answers (\"No to all three\")."
+          },
+          "tag": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "via_words",
+          "answers_short",
+          "tag",
+          "link"
+        ],
+        "title": "ObservatoryLibraryRow"
+      },
+      "ObservatoryLine": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start",
+            "description": "The key of the box it starts at; \"this_computer\" or \"clients\" for the two outside boxes."
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "uses",
+              "live",
+              "ask"
+            ],
+            "title": "Kind",
+            "description": "uses: the files say one uses the other. live: a connection the app made. ask: the files don't say."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "kind",
+          "label"
+        ],
+        "title": "ObservatoryLine"
+      },
+      "ObservatoryMore": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "count",
+          "label",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryMore"
+      },
+      "ObservatoryNext": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The Migration plan's own line for this system, as its Systems table shows it."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "label",
+          "link"
+        ],
+        "title": "ObservatoryNext"
+      },
+      "ObservatoryOutside": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "clients",
+              "this_computer"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "sub"
+        ],
+        "title": "ObservatoryOutside"
+      },
+      "ObservatoryPanel": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "part_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Of",
+            "description": "The service it is drawn in."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryLast"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Built only from counts of the checks' own words."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "ties": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryTie"
+            },
+            "type": "array",
+            "title": "Ties"
+          },
+          "observed": {
+            "type": "boolean",
+            "title": "Observed"
+          },
+          "spots": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryPanelSpot"
+            },
+            "type": "array",
+            "title": "Spots"
+          },
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLibraries"
+            },
+            "type": "array",
+            "title": "Libraries"
+          },
+          "fixes": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryFix"
+            },
+            "type": "array",
+            "title": "Fixes",
+            "description": "The fixes a recorded link ties to this box or to one of its checks."
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryNext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The next step the Migration plan names for this system, once its status was measured; else null."
+          },
+          "gaps": {
+            "$ref": "#/components/schemas/ObservatoryBoxGaps"
+          },
+          "file_lines": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryFileLines"
+            },
+            "type": "array",
+            "title": "File Lines",
+            "description": "The lines of the files that name it."
+          },
+          "related_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Key",
+            "description": "The key of its Related block; null for a box that is no system."
+          },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedLine"
+            },
+            "type": "array",
+            "title": "Related"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind_label",
+          "title",
+          "sub",
+          "part_of",
+          "tag",
+          "last",
+          "summary",
+          "note",
+          "ties",
+          "observed",
+          "spots",
+          "libraries",
+          "fixes",
+          "next",
+          "gaps",
+          "file_lines",
+          "related_key",
+          "related",
+          "link"
+        ],
+        "title": "ObservatoryPanel",
+        "description": "One box of the map, opened."
+      },
+      "ObservatoryPanelBeside": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Retest on acme-sign 1.4.3\", \"Retest, tested again as it is\", \"After Apply\""
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The result's own word, as Evidence shows it."
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "plain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plain"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "word",
+          "tone",
+          "code",
+          "tag",
+          "link",
+          "plain",
+          "at"
+        ],
+        "title": "ObservatoryPanelBeside"
+      },
+      "ObservatoryPanelCheck": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "\"claim-3\", \"test-12\", \"status-kex\", \"status-auth\", \"status-signatures\""
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "claim",
+              "test",
+              "status"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "\"The claim\", the test's own title, or \"Post-quantum status\""
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The result's own word, or \"Not checked yet\" / \"Not measured yet\"."
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "fail",
+                  "neutral",
+                  "warn"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone",
+            "description": "The look of the word on its own page; null when the check has not run."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "Checked",
+            "description": "A result exists. False: the word says it has not run."
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running",
+            "description": "It is waiting or running now."
+          },
+          "came_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Came From",
+            "description": "\"After Apply\" or \"After Roll back\" when this result is that measurement of the live system; else null."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What this result rests on. Draw it only where neither its box nor its spot carries one."
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "Where the result lives: the claim on Verify, the result on Evidence, the system."
+          },
+          "related_key": {
+            "type": "string",
+            "title": "Related Key",
+            "description": "The key of its Related block: \"claim:3\", \"test:12\", \"system:<key>\"."
+          },
+          "beside": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryPanelBeside"
+            },
+            "type": "array",
+            "title": "Beside"
+          },
+          "plain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plain",
+            "description": "The plain sentence the result's own page shows."
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryCheckFix"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryCheckLink"
+            },
+            "type": "array",
+            "title": "Links"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "word",
+          "tone",
+          "code",
+          "checked",
+          "running",
+          "came_from",
+          "tag",
+          "link",
+          "related_key",
+          "beside",
+          "plain",
+          "at",
+          "fix",
+          "links"
+        ],
+        "title": "ObservatoryPanelCheck",
+        "description": "A check as a box's panel shows it: the same words as on the map, with its sentence and its links."
+      },
+      "ObservatoryPanelSpot": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "tls_versions, cipher_suites, certificate, key_exchange, signatures, signs, checks_signatures, speed_size, other"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "file_says": {
+            "type": "string",
+            "title": "File Says",
+            "description": "\"The file says TLS 1.3 only\", or \"Not in your file\"."
+          },
+          "claimed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed",
+            "description": "What the file claims here, alone (\"ECDSA P-256\"); null when it claims nothing."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the box has no one tag and every result of this spot rests on the same."
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "Checked",
+            "description": "At least one check of this spot has a result."
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text",
+            "description": "\"Not checked yet\" or \"Not measured yet\" while no check here has a result."
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryPanelCheck"
+            },
+            "type": "array",
+            "title": "Checks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "file_says",
+          "claimed",
+          "tag",
+          "checked",
+          "empty_text",
+          "checks"
+        ],
+        "title": "ObservatoryPanelSpot"
+      },
+      "ObservatoryPlace": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryPlaceWhere"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the item is not on the map."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "place"
+        ],
+        "title": "ObservatoryPlace"
+      },
+      "ObservatoryPlaceWhere": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"On your map\""
+          },
+          "path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Path",
+            "description": "The service, the box, the spot."
+          },
+          "box": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "Opens the Observatory on that box."
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "path",
+          "box",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryPlaceWhere"
+      },
+      "ObservatoryService": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "service",
+              "listed"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "The name the file gives it; null when the file names none."
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub",
+            "description": "\"Named in both files, with the same name and version\", \"Named in your scanner file\", ..."
+          },
+          "in_files": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "scanner",
+                "dependencies"
+              ]
+            },
+            "type": "array",
+            "title": "In Files"
+          },
+          "boxes": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryBox"
+            },
+            "type": "array",
+            "title": "Boxes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "version",
+          "is_demo",
+          "sub",
+          "in_files",
+          "boxes"
+        ],
+        "title": "ObservatoryService",
+        "description": "A container: the service the scanner file describes, with its parts inside; or, when the two files do not name\nthe same thing, the dependency list's own software, listed apart."
+      },
+      "ObservatorySpot": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "tls_versions, cipher_suites, certificate, key_exchange, signatures, signs, checks_signatures, speed_size, other"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "file_says": {
+            "type": "string",
+            "title": "File Says",
+            "description": "\"The file says TLS 1.3 only\", or \"Not in your file\"."
+          },
+          "claimed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed",
+            "description": "What the file claims here, alone (\"ECDSA P-256\"); null when it claims nothing."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the box has no one tag and every result of this spot rests on the same."
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "Checked",
+            "description": "At least one check of this spot has a result."
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text",
+            "description": "\"Not checked yet\" or \"Not measured yet\" while no check here has a result."
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryCheck"
+            },
+            "type": "array",
+            "title": "Checks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "file_says",
+          "claimed",
+          "tag",
+          "checked",
+          "empty_text",
+          "checks"
+        ],
+        "title": "ObservatorySpot"
+      },
+      "ObservatoryTie": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "The top entry of the dependency list that is this box."
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source",
+            "description": "\"name_version\" (tied by the app) or \"user\" (set with Part of)."
+          },
+          "words": {
+            "type": "string",
+            "title": "Words"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "source",
+          "words"
+        ],
+        "title": "ObservatoryTie"
+      },
+      "ObservatoryUse": {
+        "properties": {
+          "box": {
+            "type": "string",
+            "title": "Box",
+            "description": "The key of the box (or of the container) that uses the algorithm."
+          },
+          "through": {
+            "type": "string",
+            "title": "Through",
+            "description": "certificate, protocol, key, signature, key_exchange or direct"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "box",
+          "through"
+        ],
+        "title": "ObservatoryUse"
+      },
+      "ObservatoryView": {
+        "properties": {
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "import_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "file_only",
+              "checked"
+            ],
+            "title": "State",
+            "description": "empty: no file yet. file_only: nothing has been checked yet. checked: at least one check has a result."
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryEmpty"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "banner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryBanner"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While nothing has been checked: the sentence, and Open Verify."
+          },
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryCount"
+            },
+            "type": "array",
+            "title": "Counts",
+            "description": "Always the four tags, in their fixed order: the Overview's counts."
+          },
+          "counts_note": {
+            "type": "string",
+            "title": "Counts Note"
+          },
+          "map_title": {
+            "type": "string",
+            "title": "Map Title"
+          },
+          "built_from": {
+            "items": {
+              "$ref": "#/components/schemas/RichPart"
+            },
+            "type": "array",
+            "title": "Built From",
+            "description": "What the map was built from, and when it last changed."
+          },
+          "structure_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structure Note",
+            "description": "Why the map is drawn from the claims alone (a CSV file, no kept copy)."
+          },
+          "not_drawn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Drawn"
+          },
+          "outside": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryOutside"
+            },
+            "type": "array",
+            "title": "Outside"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryService"
+            },
+            "type": "array",
+            "title": "Services"
+          },
+          "algorithms": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryAlgorithm"
+            },
+            "type": "array",
+            "title": "Algorithms"
+          },
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLibraries"
+            },
+            "type": "array",
+            "title": "Libraries"
+          },
+          "libraries_note": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryLibrariesNote"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While no dependency list has been added."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "legend": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLegendItem"
+            },
+            "type": "array",
+            "title": "Legend"
+          },
+          "legend_note": {
+            "type": "string",
+            "title": "Legend Note"
+          },
+          "gaps": {
+            "$ref": "#/components/schemas/ObservatoryGaps",
+            "description": "What your files don't say, each with where it can be filled."
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "Something is running: ask again in a second."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "import_id",
+          "title",
+          "subline",
+          "state",
+          "empty",
+          "banner",
+          "counts",
+          "counts_note",
+          "map_title",
+          "built_from",
+          "structure_note",
+          "not_drawn",
+          "outside",
+          "services",
+          "algorithms",
+          "libraries",
+          "libraries_note",
+          "lines",
+          "legend",
+          "legend_note",
+          "gaps",
+          "busy"
+        ],
+        "title": "ObservatoryView"
+      },
       "Ok": {
         "properties": {
           "ok": {
@@ -16816,6 +19895,18 @@
               }
             ],
             "title": "Note"
+          },
+          "runs_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs On",
+            "description": "Where its tests run, in one line: \"On your server, localhost:8443\", \"On a copy of acme-sign 1.4.2, on this computer\"."
           }
         },
         "additionalProperties": false,
@@ -17670,6 +20761,370 @@
           "tag"
         ],
         "title": "RanOnFingerprint"
+      },
+      "RecordArea": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "observe",
+              "advisories",
+              "checks",
+              "fixes",
+              "migration",
+              "dependencies",
+              "watch",
+              "assessment"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Observatory and Verify\", \"Advisories\", \"Checks\", \"Fixes\", \"Migration plan\", ..."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "RecordArea"
+      },
+      "RecordChip": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "What it is a result of, where several stand together; else null."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "label",
+          "tone"
+        ],
+        "title": "RecordChip"
+      },
+      "RecordCount": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone",
+          "count"
+        ],
+        "title": "RecordCount"
+      },
+      "RecordFact": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "mono": {
+            "type": "boolean",
+            "title": "Mono"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "mono"
+        ],
+        "title": "RecordFact"
+      },
+      "RecordFilter": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "\"all\", or an area or kind key."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "How many entries it would list, with the other filter and the search as they are."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "count"
+        ],
+        "title": "RecordFilter"
+      },
+      "RecordKind": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "runs",
+              "people",
+              "system",
+              "files"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Runs and results\", \"What people did\", \"Changes to a system\", \"Files in and out\""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "RecordKind"
+      },
+      "RecordRested": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "chips": {
+            "items": {
+              "$ref": "#/components/schemas/RecordChip"
+            },
+            "type": "array",
+            "title": "Chips"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "text",
+          "chips",
+          "link",
+          "link_label"
+        ],
+        "title": "RecordRested"
+      },
+      "RecordResult": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone"
+        ],
+        "title": "RecordResult",
+        "description": "A result word and its tone, exactly as the reviewer's review or the item's own page gives them."
+      },
+      "RecordRole": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "\"Merged by\", \"Approved by\", \"Approved as\", \"Pressed by\", ..."
+          },
+          "who": {
+            "$ref": "#/components/schemas/RecordWho"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "who",
+          "at",
+          "note"
+        ],
+        "title": "RecordRole"
+      },
+      "RecordWho": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "The name, or \"Not recorded (before names were kept)\"."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "account",
+              "typed",
+              "default",
+              "reviewer",
+              "signoff",
+              "decides",
+              "clock",
+              "author",
+              "none"
+            ],
+            "title": "Source",
+            "description": "account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name (Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none."
+          },
+          "source_label": {
+            "type": "string",
+            "title": "Source Label",
+            "description": "The same, in one plain line."
+          },
+          "demo": {
+            "type": "boolean",
+            "title": "Demo",
+            "description": "Demo data: a demo reviewer or the demo developer."
+          },
+          "recorded": {
+            "type": "boolean",
+            "title": "Recorded",
+            "description": "False where no name was kept."
+          },
+          "button": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Button",
+            "description": "The button it was pressed with (\"Run all\", \"Retest now, on Fixes\"), or null."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "source",
+          "source_label",
+          "demo",
+          "recorded",
+          "button"
+        ],
+        "title": "RecordWho",
+        "description": "One name on a record, and where it came from. A person is never the decider of a result."
       },
       "RelatedItem": {
         "properties": {
@@ -19701,6 +23156,536 @@
           "code"
         ],
         "title": "TextSuggestionWhereRow"
+      },
+      "TimelineApart": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "area": {
+            "type": "string",
+            "enum": [
+              "observe",
+              "advisories",
+              "checks",
+              "fixes",
+              "migration",
+              "dependencies",
+              "watch",
+              "assessment"
+            ],
+            "title": "Area"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "count",
+          "label",
+          "text",
+          "area"
+        ],
+        "title": "TimelineApart"
+      },
+      "TimelineChosen": {
+        "properties": {
+          "area": {
+            "type": "string",
+            "title": "Area"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "q": {
+            "type": "string",
+            "title": "Q"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "area",
+          "kind",
+          "q"
+        ],
+        "title": "TimelineChosen"
+      },
+      "TimelineDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date",
+            "description": "YYYY-MM-DD, in the zone the view names."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "date",
+          "count",
+          "entries"
+        ],
+        "title": "TimelineDay"
+      },
+      "TimelineEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable: \"press-12\", \"retest-3\", \"merge-1\", \"verify-2\", \"otto-5\", ..."
+          },
+          "at": {
+            "type": "string",
+            "title": "At",
+            "description": "The moment, as ISO text in UTC; the screen writes it in the viewer's zone."
+          },
+          "area": {
+            "$ref": "#/components/schemas/RecordArea"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RecordKind"
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "grid",
+              "file",
+              "download",
+              "signoff",
+              "person",
+              "live",
+              "flask",
+              "list",
+              "approve",
+              "merge",
+              "clock",
+              "apply",
+              "rollback"
+            ],
+            "title": "Icon"
+          },
+          "lead": {
+            "type": "string",
+            "title": "Lead",
+            "description": "The bold start of the sentence."
+          },
+          "rest": {
+            "items": {
+              "$ref": "#/components/schemas/RichPart"
+            },
+            "type": "array",
+            "title": "Rest",
+            "description": "The rest of the sentence."
+          },
+          "who": {
+            "$ref": "#/components/schemas/RecordWho"
+          },
+          "also": {
+            "items": {
+              "$ref": "#/components/schemas/RecordWho"
+            },
+            "type": "array",
+            "title": "Also",
+            "description": "A second name: the demo reviewer an approval was given as, a commit's author."
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By",
+            "description": "\"decided by the separate reviewer\" for runs, \"decided by fixed rules\" for Verify; null otherwise."
+          },
+          "marks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Marks",
+            "description": "\"From Otto\", \"Demo data\""
+          },
+          "source_tags": {
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            },
+            "type": "array",
+            "title": "Source Tags",
+            "description": "The source tags of its runs, each once."
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineRun"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/RecordCount"
+            },
+            "type": "array",
+            "title": "Counts",
+            "description": "Its runs counted by result word."
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A proof's, a try's or a watch run's own word, where it has one."
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending",
+            "description": "Runs this press started that have no result yet."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "apart": {
+            "type": "boolean",
+            "title": "Apart",
+            "description": "From Change watch: listed under Change watch only, and counted nowhere else."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "area",
+          "kind",
+          "icon",
+          "lead",
+          "rest",
+          "who",
+          "also",
+          "decided_by",
+          "marks",
+          "source_tags",
+          "runs",
+          "counts",
+          "outcome",
+          "pending",
+          "link",
+          "apart"
+        ],
+        "title": "TimelineEntry",
+        "description": "One thing that happened. One entry for one press: the runs a press started are in its entry."
+      },
+      "TimelineEntryDetail": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "entry": {
+            "$ref": "#/components/schemas/TimelineEntry"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/RecordRole"
+            },
+            "type": "array",
+            "title": "People",
+            "description": "Who: every person involved, each with what they did."
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note"
+          },
+          "rested_title": {
+            "type": "string",
+            "title": "Rested Title"
+          },
+          "rested": {
+            "items": {
+              "$ref": "#/components/schemas/RecordRested"
+            },
+            "type": "array",
+            "title": "Rested",
+            "description": "What it rested on (a merge, an Apply); empty otherwise."
+          },
+          "after_title": {
+            "type": "string",
+            "title": "After Title"
+          },
+          "after": {
+            "items": {
+              "$ref": "#/components/schemas/RecordRested"
+            },
+            "type": "array",
+            "title": "After",
+            "description": "What came after (a merge, an Apply, a Roll back); empty otherwise."
+          },
+          "record_title": {
+            "type": "string",
+            "title": "Record Title",
+            "description": "\"Technical record\""
+          },
+          "record": {
+            "items": {
+              "$ref": "#/components/schemas/RecordFact"
+            },
+            "type": "array",
+            "title": "Record",
+            "description": "Ids, commits and fingerprints, for the folded part."
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "entry",
+          "title",
+          "summary",
+          "people",
+          "names_note",
+          "rested_title",
+          "rested",
+          "after_title",
+          "after",
+          "record_title",
+          "record",
+          "link_label"
+        ],
+        "title": "TimelineEntryDetail",
+        "description": "One entry's story, for a side panel."
+      },
+      "TimelineRun": {
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "verify_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Run Id",
+            "description": "For a claim checked by Verify (then run_id is null)."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "ran_on": {
+            "type": "string",
+            "title": "Ran On"
+          },
+          "result": {
+            "$ref": "#/components/schemas/RecordResult"
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "verify_run_id",
+          "name",
+          "ran_on",
+          "result",
+          "source_tag",
+          "link"
+        ],
+        "title": "TimelineRun"
+      },
+      "TimelineView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "chosen": {
+            "$ref": "#/components/schemas/TimelineChosen"
+          },
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/RecordFilter"
+            },
+            "type": "array",
+            "title": "Areas",
+            "description": "Where: All, then each place."
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/RecordFilter"
+            },
+            "type": "array",
+            "title": "Kinds",
+            "description": "What: Everything, then each kind."
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineDay"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "Newest first."
+          },
+          "zone": {
+            "type": "string",
+            "title": "Zone",
+            "description": "The time zone the days are sorted by (the `tz` asked for, or UTC)."
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          },
+          "apart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelineApart"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What Change watch ran and brought in, where it is not listed: how many, and where to see them."
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note",
+            "description": "One sentence that says where names come from."
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "Something is running: ask again in a second."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "title",
+          "subline",
+          "chosen",
+          "areas",
+          "kinds",
+          "total",
+          "days",
+          "zone",
+          "empty_text",
+          "apart",
+          "names_note",
+          "disclaimer",
+          "busy"
+        ],
+        "title": "TimelineView"
       },
       "TrackStatus": {
         "properties": {
@@ -21754,6 +25739,84 @@
         ],
         "type": "string",
         "title": "AssistantThread"
+      },
+      "RecordAreaKey": {
+        "enum": [
+          "observe",
+          "advisories",
+          "checks",
+          "fixes",
+          "migration",
+          "dependencies",
+          "watch",
+          "assessment"
+        ],
+        "type": "string",
+        "title": "RecordAreaKey"
+      },
+      "RecordKindKey": {
+        "enum": [
+          "runs",
+          "people",
+          "system",
+          "files"
+        ],
+        "type": "string",
+        "title": "RecordKindKey"
+      },
+      "RecordIcon": {
+        "enum": [
+          "grid",
+          "file",
+          "download",
+          "signoff",
+          "person",
+          "live",
+          "flask",
+          "list",
+          "approve",
+          "merge",
+          "clock",
+          "apply",
+          "rollback"
+        ],
+        "type": "string",
+        "title": "RecordIcon"
+      },
+      "WhoSource": {
+        "enum": [
+          "account",
+          "typed",
+          "default",
+          "reviewer",
+          "signoff",
+          "decides",
+          "clock",
+          "author",
+          "none"
+        ],
+        "type": "string",
+        "title": "WhoSource"
+      },
+      "ObservatoryBoxKind": {
+        "enum": [
+          "server",
+          "program",
+          "key_exchange_program",
+          "software",
+          "service",
+          "own_software"
+        ],
+        "type": "string",
+        "title": "ObservatoryBoxKind"
+      },
+      "ObservatoryFile": {
+        "enum": [
+          "scanner",
+          "dependencies"
+        ],
+        "type": "string",
+        "title": "ObservatoryFile"
       }
     }
   }

@@ -26,11 +26,13 @@ interface Props {
   onToggle: (section: FixSection) => void;
 }
 
-/** The folded parts under the summary. Each shows its title and one line; a click opens or closes it. */
+/** A fix's records, part by part: the suggestion, the change, its proof, the technical details. Each shows its number,
+ * its title and one line; a click opens or closes it. Since the design refactor (26 November 2026) they stand inside
+ * the panel's one fold ("Cryptanalysis proof" or "Technical record"), nothing left out. */
 export function FixSections({ sections, advisories, isOpen, onToggle }: Props) {
   return (
     <>
-      {sections.map((section) => {
+      {sections.map((section, i) => {
         const open = isOpen(section);
         const bodyId = `fix-section-${section.key}`;
         return (
@@ -38,7 +40,8 @@ export function FixSections({ sections, advisories, isOpen, onToggle }: Props) {
             key={section.key}
             data-testid="fix-section"
             data-section={section.key}
-            className="rounded-xl border border-slate-800 bg-slate-900/40"
+            data-part={i + 1}
+            className="rounded-lg border border-slate-800 bg-slate-900/40"
           >
             <h3>
               <button
@@ -46,21 +49,29 @@ export function FixSections({ sections, advisories, isOpen, onToggle }: Props) {
                 aria-expanded={open}
                 aria-controls={bodyId}
                 onClick={() => onToggle(section)}
-                className="grid w-full grid-cols-[16px_1fr] items-start gap-3 rounded-xl p-4 text-left"
+                className="grid w-full grid-cols-[20px_1fr_auto] items-start gap-2.5 rounded-lg px-3 py-2.5 text-left"
               >
-                <span aria-hidden="true" className="pt-[3px] font-mono text-xs text-slate-300">
-                  {open ? "▾" : "▸"}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[15px] font-semibold text-slate-100">{section.title}</span>
-                  <span data-testid="fix-section-line" className="mt-0.5 block text-sm text-slate-300">
+                <span
+                  aria-hidden="true"
+                  data-step={i + 1}
+                  className="mt-0.5 inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border border-slate-600 text-[11px] font-semibold text-slate-300 before:content-[attr(data-step)]"
+                />
+                {/* (drawn by the style sheet, so the button's name stays its title and its line) */}
+                <span
+                  aria-hidden="true"
+                  data-word={open ? "Hide" : "Show"}
+                  className="col-start-3 row-start-1 pt-0.5 text-xs text-slate-400 before:content-[attr(data-word)]"
+                />
+                <span className="col-start-2 row-start-1 min-w-0">
+                  <span className="block text-sm font-semibold text-slate-100">{section.title}</span>
+                  <span data-testid="fix-section-line" className="mt-0.5 block text-[13px] text-slate-300">
                     {section.line}
                   </span>
                 </span>
               </button>
             </h3>
             {open ? (
-              <div id={bodyId} className="flex flex-col gap-4 border-t border-slate-800 px-4 pb-4 pt-3.5">
+              <div id={bodyId} className="flex flex-col gap-4 border-t border-slate-800 px-3 pb-3 pt-3">
                 <Body section={section} advisories={advisories} />
               </div>
             ) : null}

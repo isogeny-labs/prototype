@@ -140,6 +140,13 @@ export interface Column<T> {
   minWidth?: number;
 }
 
+/** One labelled part of a table: its heading (drawn across every column) and its rows. */
+export interface TablePart<T> {
+  key: string;
+  head: ReactNode;
+  rows: T[];
+}
+
 /** Phase 5b: what the table beside a panel knows: whether the panel is open (then it shows its compact form), and the
  * panel's width, which the person can change and which is remembered in this browser for every page. */
 interface PanelState {
@@ -169,6 +176,7 @@ export function DataTable<T>({
   rowAttrs,
   headTestId,
   compactColumns,
+  parts,
 }: {
   label: string;
   columns: Column<T>[];
@@ -185,10 +193,53 @@ export function DataTable<T>({
   /** Phase 5b: the columns shown while the detail panel is open beside the table: the name, one summary status and its
    * key marker. The other columns are in the panel. */
   compactColumns?: Column<T>[];
+  /** The design refactor (26 November 2026): the rows in labelled parts, each with a heading across the table. A part
+   * is a heading, never a filter: every row given is drawn, in its part, in the order it came. */
+  parts?: (rows: T[]) => TablePart<T>[];
 }) {
   const panelOpen = usePanelOpen();
   const compact = panelOpen && compactColumns !== undefined;
   const shown = compact ? compactColumns : columns;
+  const drawRow = (row: T) => {
+    const key = rowKey(row);
+    const selected = selectedKey === key;
+    return (
+      <tr
+        key={key}
+        data-testid={rowTestId}
+        data-key={key}
+        {...(rowAttrs ? rowAttrs(row) : {})}
+        aria-selected={onRowClick ? selected : undefined}
+        tabIndex={onRowClick ? 0 : undefined}
+        onClick={onRowClick ? () => onRowClick(row) : undefined}
+        onKeyDown={
+          onRowClick
+            ? (e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onRowClick(row);
+                }
+              }
+            : undefined
+        }
+        className={`border-b border-slate-800/70 last:border-b-0 ${
+          onRowClick ? "cursor-pointer transition-colors hover:bg-slate-800/40" : ""
+        } ${selected ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""}`}
+      >
+        {shown.map((c) => (
+          <td
+            key={c.key}
+            style={c.minWidth ? { minWidth: c.minWidth } : undefined}
+            className={`px-4 py-3 align-top ${c.className ?? ""}`}
+          >
+            {c.render(row)}
+          </td>
+        ))}
+      </tr>
+    );
+  };
+  const inParts = parts && rows.length > 0 ? parts(rows).filter((part) => part.rows.length > 0) : null;
   return (
     <div
       data-testid="data-table"
@@ -216,55 +267,35 @@ export function DataTable<T>({
             ))}
           </tr>
         </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={shown.length} className="px-4 py-8 text-center text-sm text-slate-400">
-                {empty ?? "Nothing to show."}
-              </td>
-            </tr>
-          ) : (
-            rows.map((row) => {
-              const key = rowKey(row);
-              const selected = selectedKey === key;
-              return (
-                <tr
-                  key={key}
-                  data-testid={rowTestId}
-                  data-key={key}
-                  {...(rowAttrs ? rowAttrs(row) : {})}
-                  aria-selected={onRowClick ? selected : undefined}
-                  tabIndex={onRowClick ? 0 : undefined}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  onKeyDown={
-                    onRowClick
-                      ? (e) => {
-                          if (e.target !== e.currentTarget) return;
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            onRowClick(row);
-                          }
-                        }
-                      : undefined
-                  }
-                  className={`border-b border-slate-800/70 last:border-b-0 ${
-                    onRowClick ? "cursor-pointer transition-colors hover:bg-slate-800/40" : ""
-                  } ${selected ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""}`}
+        {inParts ? (
+          inParts.map((part) => (
+            <tbody key={part.key} data-testid="table-part" data-part={part.key}>
+              <tr className="border-b border-slate-800/70 bg-slate-900/70">
+                <th
+                  colSpan={shown.length}
+                  scope="rowgroup"
+                  data-testid="table-part-head"
+                  className="px-4 py-2 text-left text-xs font-normal text-slate-400"
                 >
-                  {shown.map((c) => (
-                    <td
-                      key={c.key}
-                      style={c.minWidth ? { minWidth: c.minWidth } : undefined}
-                      className={`px-4 py-3 align-top ${c.className ?? ""}`}
-                    >
-                      {c.render(row)}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })
-          )}
-        </tbody>
+                  {part.head}
+                </th>
+              </tr>
+              {part.rows.map(drawRow)}
+            </tbody>
+          ))
+        ) : (
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={shown.length} className="px-4 py-8 text-center text-sm text-slate-400">
+                  {empty ?? "Nothing to show."}
+                </td>
+              </tr>
+            ) : (
+              rows.map(drawRow)
+            )}
+          </tbody>
+        )}
       </table>
     </div>
   );
@@ -320,6 +351,7 @@ function ItemPageView({
   subtitle,
   children,
   testId,
+  kicker,
 }: {
   page: ItemPage;
   item: string | null;
@@ -327,6 +359,7 @@ function ItemPageView({
   subtitle?: ReactNode;
   children: ReactNode;
   testId: string;
+  kicker?: ReactNode;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const slot = useContext(PanelHeaderSlotContext);
@@ -349,6 +382,14 @@ function ItemPageView({
       </p>
       <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-slate-800/80 pb-4">
         <div className="min-w-0">
+          {kicker ? (
+            <p
+              data-testid="panel-kicker"
+              className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+            >
+              {kicker}
+            </p>
+          ) : null}
           <h1 ref={heading} className="break-words text-2xl font-semibold tracking-tight text-slate-50">
             {title}
           </h1>
@@ -420,6 +461,7 @@ export function DetailPanel({
   children,
   testId = "detail-panel",
   item = null,
+  kicker,
 }: {
   open: boolean;
   title: ReactNode;
@@ -429,6 +471,8 @@ export function DetailPanel({
   testId?: string;
   /** The item's id as its page's address names it ("test-5", "claim-3", an advisory's id). */
   item?: string | null;
+  /** One short line above the title: what this is and where it sits ("Result · Crypto tests"). */
+  kicker?: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
   const before = useRef<Element | null>(null);
@@ -476,7 +520,7 @@ export function DetailPanel({
     // On a page of its own: drawn where the shell keeps room for it (nothing until that place is there).
     return itemPage.root
       ? createPortal(
-          <ItemPageView page={itemPage} item={item} title={title} subtitle={subtitle} testId={testId}>
+          <ItemPageView page={itemPage} item={item} title={title} subtitle={subtitle} testId={testId} kicker={kicker}>
             {children}
           </ItemPageView>,
           itemPage.root,
@@ -499,14 +543,20 @@ export function DetailPanel({
         className="quiet-scroll fixed inset-y-0 right-0 z-40 flex w-full max-w-2xl flex-col overflow-y-auto border-l border-slate-800 bg-slate-950 shadow-2xl outline-none xl:sticky xl:top-4 xl:z-auto xl:max-h-[calc(100vh-2rem)] xl:w-auto xl:max-w-none xl:rounded-xl xl:border xl:shadow-none"
       >
         {panel ? <PanelEdge panel={panel} /> : null}
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-950/95 px-5 py-4 backdrop-blur">
-          <div className="min-w-0">
-            <h2 id={headingId} className="text-base font-semibold text-slate-50">
-              {title}
-            </h2>
-            {subtitle ? <div className="mt-0.5 text-xs text-slate-400">{subtitle}</div> : null}
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+        {/* The design refactor (26 November 2026): a slim tool row, then the title on a line of its own at the panel's
+            full width, so a long name is never squeezed beside the buttons. */}
+        <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 px-5 pb-3.5 pt-3 backdrop-blur">
+          <div data-testid="panel-tools" className="mb-2 flex items-center justify-end gap-1">
+            {kicker ? (
+              // (one line, whatever the panel's width: a long kicker is cut short, the tools never wrap under it)
+              <span
+                data-testid="panel-kicker"
+                title={typeof kicker === "string" ? kicker : undefined}
+                className="mr-auto min-w-0 truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+              >
+                {kicker}
+              </span>
+            ) : null}
             {/* Phase 6's own buttons go here (see PanelHeaderSlotContext). */}
             {slot ? (
               <span data-testid="panel-header-slot" className="flex items-center gap-1">
@@ -519,7 +569,7 @@ export function DetailPanel({
                 href={itemPage.hrefFor(item)}
                 target="_blank"
                 rel="noopener"
-                className="whitespace-nowrap rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                className="shrink-0 whitespace-nowrap rounded-md border border-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800"
               >
                 Open in new tab <span aria-hidden="true">↗</span>
               </a>
@@ -530,7 +580,7 @@ export function DetailPanel({
                   type="button"
                   onClick={() => panel.setWidth(panel.width + PANEL_STEP)}
                   disabled={panel.width >= PANEL_MAX}
-                  className="hidden rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
+                  className="hidden shrink-0 rounded-md border border-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
                 >
                   Wider
                 </button>
@@ -538,7 +588,7 @@ export function DetailPanel({
                   type="button"
                   onClick={() => panel.setWidth(panel.width - PANEL_STEP)}
                   disabled={panel.width <= PANEL_MIN}
-                  className="hidden rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
+                  className="hidden shrink-0 rounded-md border border-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
                 >
                   Narrower
                 </button>
@@ -548,11 +598,15 @@ export function DetailPanel({
               type="button"
               onClick={onClose}
               aria-label="Close details"
-              className="rounded-md px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+              className="shrink-0 rounded-md px-1.5 py-0.5 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
             >
               ×
             </button>
           </div>
+          <h2 id={headingId} className="break-words text-lg font-semibold leading-snug text-slate-50">
+            {title}
+          </h2>
+          {subtitle ? <div className="mt-1 text-[13px] text-slate-400">{subtitle}</div> : null}
         </div>
         {/* Phase 5b: inside the panel, content lays itself out by the panel's own width (container queries). */}
         <div className="@container flex-1 px-5 py-4">{children}</div>
@@ -659,6 +713,7 @@ export function GroupTabs({
   onChoose,
   idBase,
   matches = null,
+  totals = null,
   label = "Work groups",
 }: {
   groups: { key: string; label: string }[];
@@ -666,6 +721,9 @@ export function GroupTabs({
   onChoose: (key: string) => void;
   idBase: string;
   matches?: Record<string, number> | null;
+  /** The design refactor (26 November 2026): how many items each tab holds and how many of them are findings, counted
+   * by the page from its own rows. Shown while no search or filter is on (then `matches` is the number shown). */
+  totals?: Record<string, TabTotal> | null;
   label?: string;
 }) {
   const move = (to: number) => {
@@ -694,6 +752,8 @@ export function GroupTabs({
         {groups.map((g) => {
           const selected = g.key === active;
           const n = matches ? matches[g.key] : undefined;
+          const total = !matches && totals ? totals[g.key] : undefined;
+          const said = n !== undefined ? "matches" : total ? "total" : null;
           return (
             <button
               key={g.key}
@@ -702,7 +762,7 @@ export function GroupTabs({
               id={groupTabId(idBase, g.key)}
               aria-selected={selected}
               aria-controls={groupPanelId(idBase, g.key)}
-              aria-describedby={n !== undefined ? `${groupTabId(idBase, g.key)}-matches` : undefined}
+              aria-describedby={said ? `${groupTabId(idBase, g.key)}-${said}` : undefined}
               tabIndex={selected ? 0 : -1}
               data-testid="group-tab"
               data-group={g.key}
@@ -723,6 +783,24 @@ export function GroupTabs({
                   {n}
                 </span>
               ) : null}
+              {total ? (
+                <span
+                  aria-hidden="true"
+                  data-testid="group-tab-total"
+                  className="rounded-full border border-slate-700 px-1.5 text-[11px] tabular-nums text-slate-400"
+                >
+                  {total.n}
+                </span>
+              ) : null}
+              {total?.findings ? (
+                <span
+                  aria-hidden="true"
+                  data-testid="group-tab-findings"
+                  className="text-[11px] font-medium tabular-nums text-rose-300"
+                >
+                  ✕ {total.findings.n} {total.findings.word}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -735,9 +813,40 @@ export function GroupTabs({
               </span>
             ) : null,
           )
-        : null}
+        : totals
+          ? groups.map((g) =>
+              totals[g.key] ? (
+                <span key={g.key} id={`${groupTabId(idBase, g.key)}-total`} className="sr-only">
+                  {tabTotalWords(totals[g.key]!)}
+                </span>
+              ) : null,
+            )
+          : null}
     </div>
   );
+}
+
+/** What a tab holds: how many items, and how many of them are findings (a False claim, a Failed test, a blocker). */
+export interface TabTotal {
+  n: number;
+  findings: { n: number; word: string } | null;
+}
+
+/** Counts a tab from the page's own rows: one for each row, and as findings the rows whose own result is drawn as a
+ * failure, under their own word where they share one ("4 failed", "1 false"). It words no result and decides none. */
+export function tabTotal(rows: ({ label?: string | null; tone?: string | null } | null | undefined)[]): TabTotal {
+  const found = rows.filter((r) => r?.tone === "fail");
+  const words = Array.from(new Set(found.map((r) => (r?.label ?? "").trim().toLowerCase())));
+  return {
+    n: rows.length,
+    findings:
+      found.length > 0 ? { n: found.length, word: words.length === 1 && words[0] ? words[0]! : "findings" } : null,
+  };
+}
+
+function tabTotalWords(total: TabTotal): string {
+  const items = total.n === 1 ? "1 item" : `${total.n} items`;
+  return total.findings ? `${items}, ${total.findings.n} ${total.findings.word}` : items;
 }
 
 const safeId = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, "");

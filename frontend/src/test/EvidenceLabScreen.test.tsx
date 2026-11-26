@@ -64,7 +64,9 @@ describe("Evidence Lab, results view", () => {
   it("shows the heading, Demo data, subline, the disclaimer line and the two buttons", async () => {
     const fetchMock = await open();
     expect(labCalls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
-    expect(screen.getByRole("heading", { name: "Evidence" })).not.toBeNull();
+    // The Results view of the Evidence section (26 November 2026): the section's name stands over the page's own.
+    expect(screen.getByRole("heading", { level: 1, name: "Results" })).not.toBeNull();
+    expect(text(screen.getByTestId("page-header"))).toMatch(/^Evidence Demo data\s*Results/);
     expect(screen.getByText("Demo data")).not.toBeNull();
     expect(text(screen.getByTestId("lab-subline"))).toMatch(
       /^Results by test for server localhost:8443 and signing component acme-sign 1\.4\.2\. Run finished .+\.$/,
@@ -147,29 +149,71 @@ describe("Evidence Lab, results view", () => {
 
     const detail = within(panel()).getByTestId("result-detail");
     const d = within(detail);
-    expect(text(d.getByTestId("technical-summary"))).toBe(
-      "Technical summary 3 of 484 official cases wrong. Headline: case 168, a signature made of zeros (r=0 and s=0) was accepted.",
-    );
-    // The row's plain sentence comes first: beside the open panel the table is drawn narrow, without it, so the
-    // panel carries it (word for word the sentence of the row). Then the technical summary.
-    const plain = d.getByTestId("result-plain");
-    expect(detail.firstElementChild).toBe(plain);
+    // The design refactor (26 November 2026): three layers, in this order. The answer card, what it shows and what it
+    // doesn't, and one fold that holds every record whole.
+    expect(Array.from(detail.children).map((el) => el.getAttribute("data-testid"))).toEqual([
+      "result-glance",
+      "result-shows",
+      "proof-fold",
+    ]);
+
+    // Layer 1, the answer: the reviewer's word and what it rests on, the row's plain sentence (word for word: beside
+    // the open panel the table is drawn narrow, without it), where it ran, the control in one line, the next step.
+    const glance = within(d.getByTestId("result-glance"));
+    expect(label(glance.getByTestId("result-badge"))).toBe("Failed");
+    expect(text(glance.getByTestId("source-tag"))).toBe("Proven in the lab");
+    const plain = glance.getByTestId("result-plain");
     expect(text(plain)).toBe(lab.rows.find((r) => r.title === "Official test vectors")!.result!.plain);
     expect(text(plain).length).toBeGreaterThan(20);
-    // 22 November 2026: then where it came from, with what that means for this run, then the technical summary
-    const source = d.getByTestId("source-line");
-    expect(plain.nextElementSibling).toBe(source);
-    expect(text(source)).toBe(
-      "Proven in the lab Run on a copy of acme-sign 1.4.2 on this computer, in demo mode (a plain process on this computer, not isolated). Your live system was not touched.",
+    expect(text(glance.getByTestId("source-line"))).toBe(
+      "Run on a copy of acme-sign 1.4.2 on this computer, in demo mode (a plain process on this computer, not isolated). Your live system was not touched.",
     );
-    expect(source.nextElementSibling).toBe(d.getByTestId("technical-summary"));
+    expect(text(glance.getByTestId("control-line"))).toBe(
+      "Control: a deliberately broken signer failed this test, as expected.",
+    );
     expect(within(toggle).queryByText(text(plain))).toBeNull(); // (the narrow row no longer shows it)
-    expect(d.getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual([
-      "What happened",
-      "What this shows, and what it doesn't",
-      "Evidence",
-      "Control",
+    expect(text(glance.getByTestId("fix-line").querySelector("p"))).toBe("Fix available, code not connected");
+    expect(glance.getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "View in Fixes",
+      "Mark reviewed",
+      "Dig deeper",
     ]);
+    // Nothing technical is in the answer card.
+    expect(glance.queryByTestId("technical-summary")).toBeNull();
+    expect(glance.queryByRole("table")).toBeNull();
+    expect(glance.queryByTestId("locked-test")).toBeNull();
+
+    // Layer 2, in the open: what this shows, and what it doesn't.
+    const shows = within(d.getByTestId("result-shows"));
+    expect(shows.getByRole("heading", { level: 4 }).textContent).toBe("What this shows, and what it doesn't");
+    expect(shows.getByText(/^It doesn't show whether anyone has used this/)).not.toBeNull();
+
+    // Layer 3, the fold: shut until it is opened, named for a result proven on a copy, and saying what is inside.
+    const fold = d.getByTestId("proof-fold") as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    expect(fold.getAttribute("data-kind")).toBe("proof");
+    expect(text(d.getByTestId("proof-fold-name"))).toBe("Cryptanalysis proof");
+    expect(text(d.getByTestId("proof-fold-inside"))).toBe(
+      "What happened · The control · The locked test · The run record",
+    );
+    const opener = d.getByTestId("proof-fold-toggle");
+    expect(opener.textContent).toContain("Show");
+    fireEvent.click(opener);
+    expect(fold.open).toBe(true);
+    expect(opener.textContent).toContain("Hide");
+    expect(opener.getAttribute("aria-expanded")).toBe("true");
+    // Its numbered parts, in order: every record whole.
+    const body = within(d.getByTestId("proof-fold-body"));
+    expect(body.getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual([
+      "1What happened",
+      "2The control",
+      "3Test details, locked before the run",
+      "4Run record",
+    ]);
+    expect(text(body.getByTestId("technical-summary"))).toBe(
+      "Technical summary 3 of 484 official cases wrong. Headline: case 168, a signature made of zeros (r=0 and s=0) was accepted.",
+    );
+    expect(body.getByTestId("proof-part-happened").contains(body.getByRole("table"))).toBe(true);
     expect(d.getByText(/^The clearest is case 168/)).not.toBeNull();
     expect(d.getByText(/^It doesn't show whether anyone has used this/)).not.toBeNull();
 
@@ -215,22 +259,40 @@ describe("Evidence Lab, results view", () => {
     expect(lockedBox.getByText(/before the run started/)).not.toBeNull();
     expect(d.getByTestId("spec-fingerprint").textContent).toBe(FINGERPRINT);
 
-    // Control outcome, then the one line that points to the fix (this failure has one in Fixes).
+    // The control's own paragraph is a part of the fold; the one line that points to the fix is in the answer card.
     expect(d.getByTestId("control-outcome").getAttribute("data-outcome")).toBe("as_expected");
     expect(d.getByText(/^The deliberately broken signer got all 310 invalid cases wrong/)).not.toBeNull();
-    expect(text(d.getByTestId("fix-line").querySelector("p"))).toBe("Fix available, code not connected");
     expect(d.queryByTestId("suggested-fix")).toBeNull();
-
-    // The three buttons, and nothing else.
-    expect(d.getAllByRole("button").map((b) => b.textContent)).toEqual([
-      "View in Fixes",
-      "Mark reviewed",
-      "Dig deeper",
-    ]);
     expect(d.queryByTestId("research-request")).toBeNull();
+
+    // Opening it again shuts it.
+    fireEvent.click(opener);
+    expect(fold.open).toBe(false);
 
     fireEvent.click(toggle);
     expect(screen.queryByTestId("result-detail")).toBeNull();
+  });
+
+  it("calls the fold a Technical record for a result observed live, and for one with no tag", async () => {
+    await open();
+    // The server test was observed on the live server.
+    const live = within(show("Old TLS versions")).getByTestId("result-detail");
+    expect(text(within(live).getByTestId("source-tag"))).toBe("Observed live");
+    expect(within(live).getByTestId("proof-fold").getAttribute("data-kind")).toBe("record");
+    expect(text(within(live).getByTestId("proof-fold-name"))).toBe("Technical record");
+    // A test that couldn't run has no tag: its fold is a record too, never a proof.
+    const none = lab.rows.find((r) => r.result && !r.result.source_tag);
+    if (none) {
+      const d = within(show(none.title)).getByTestId("result-detail");
+      expect(within(d).queryByTestId("source-tag")).toBeNull();
+      expect(text(within(d).getByTestId("proof-fold-name"))).toBe("Technical record");
+    }
+    // No fold is ever named a proof unless its result rests on a run on a copy.
+    for (const r of lab.rows.filter((row) => row.result)) {
+      const d = within(show(r.title)).getByTestId("result-detail");
+      const proven = r.result!.source_tag?.key === "lab";
+      expect(text(within(d).getByTestId("proof-fold-name"))).toBe(proven ? "Cryptanalysis proof" : "Technical record");
+    }
   });
 
   it("does not turn a non-https source into a link", async () => {
@@ -239,6 +301,22 @@ describe("Evidence Lab, results view", () => {
     expand("Official test vectors");
     expect(screen.getByText("somewhere")).not.toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("links a result to its place on the map only where the map has one: a server's or a signing program's", async () => {
+    // (26 November 2026: the boxes of the map are the servers and programs of the file; a test on the reference
+    // library has no box, so its panel draws no such line)
+    const placed = {
+      ...lab,
+      rows: lab.rows.map((r, i) => ({ ...r, group: i === 0 ? "server:localhost:8443" : i === 2 ? "reference" : null })),
+    };
+    await open(placed);
+    fireEvent.click(rows()[0]!);
+    // (it is in the answer card, and it is a link: it opens the Observatory on the box this result sits in)
+    expect(within(screen.getByTestId("result-glance")).getByTestId("show-on-the-map").tagName).toBe("A");
+    expect(text(screen.getByTestId("on-the-map"))).toBe("On your map: Show on the map");
+    fireEvent.click(rows()[2]!);
+    expect(screen.queryByTestId("on-the-map")).toBeNull();
   });
 
   it("puts Mark reviewed and Dig deeper on every opened result", async () => {
@@ -778,9 +856,12 @@ describe("Evidence Lab, published advisories", () => {
 
   it("draws the title, the tag, the id, the text, a safe link and the covered sentence", async () => {
     const detail = await openVectors({ advisories });
+    // It is a numbered part of the fold: the part's heading carries the title and the tag.
+    const part = within(detail.getByTestId("proof-part-advisories"));
+    expect(part.getByText("Published advisories for this version")).not.toBeNull();
+    expect(part.getByText("from the advisory, not a result")).not.toBeNull();
+    expect(text(detail.getByTestId("proof-fold-inside"))).toContain("The advisory");
     const box = within(detail.getByTestId("advisories"));
-    expect(box.getByText("Published advisories for this version")).not.toBeNull();
-    expect(box.getByText("from the advisory, not a result")).not.toBeNull();
     expect(box.getByText("CVE-2022-21449")).not.toBeNull();
     expect(box.getByText(/Java 15 to 18 accept a blank ECDSA signature/)).not.toBeNull();
     expect(
@@ -825,9 +906,10 @@ describe("Evidence Lab, an advisory check (phase 5c)", () => {
     expand(title);
     const detail = within(within(panel()).getByTestId("result-detail"));
     const advisories = advisoryCheckRow.result!.advisories!;
+    const part = within(detail.getByTestId("proof-part-advisories"));
+    expect(part.getByText(advisories.title)).not.toBeNull();
+    expect(part.getByText(advisories.tag)).not.toBeNull();
     const box = within(detail.getByTestId("advisories"));
-    expect(box.getByText(advisories.title)).not.toBeNull();
-    expect(box.getByText(advisories.tag)).not.toBeNull();
     const items = box.getAllByTestId("advisory-item");
     expect(items).toHaveLength(advisories.items.length);
     const item = advisories.items[0]!;
@@ -957,11 +1039,40 @@ async function openGrouped(
 describe("Evidence, the four work groups", () => {
   it("has the four groups as tabs, opens on the first with something in it, and puts today's results under Crypto tests", async () => {
     await openGrouped();
+    const tabs = within(screen.getByRole("tablist", { name: "Work groups" })).getAllByRole("tab");
+    // A tab's name is the group's; beside it, how many rows it holds and how many of them are findings, in the rows'
+    // own word (26 November 2026). The counts are the page's own, from the rows it draws under that tab.
+    expect(tabs.map((t) => t.firstChild!.textContent)).toEqual([
+      "Verification",
+      "Crypto tests",
+      "Migration",
+      "Dependencies",
+    ]);
     expect(
-      within(screen.getByRole("tablist", { name: "Work groups" }))
-        .getAllByRole("tab")
-        .map((t) => t.textContent),
-    ).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
+      tabs.map((t) => [
+        within(t).getByTestId("group-tab-total").textContent,
+        within(t).queryByTestId("group-tab-findings")?.textContent ?? null,
+      ]),
+    ).toEqual(
+      tabs.map((t) => {
+        const key = t.getAttribute("data-group")!;
+        const group = groupedChecks.groups.find((g) => g.key === key)!;
+        const results =
+          key === "encryption"
+            ? lab.rows.map((r) => r.result)
+            : key === "dependencies"
+              ? groupedChecks.libraries.map(() => null)
+              : group.rows.map((r) => r.result);
+        const failed = results.filter((r) => r?.tone === "fail");
+        const words = Array.from(new Set(failed.map((r) => r!.label.toLowerCase())));
+        return [
+          String(results.length),
+          failed.length > 0 ? `✕ ${failed.length} ${words.length === 1 ? words[0] : "findings"}` : null,
+        ];
+      }),
+    );
+    // (the counts are not part of a tab's name: a screen reader hears them as its description)
+    expect(screen.getByRole("tab", { name: "Verification" }).getAttribute("aria-describedby")).toMatch(/-total$/);
     // One group at a time: the first with something in it.
     expect(shownGroups()).toEqual(["verification"]);
     expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
@@ -1118,6 +1229,32 @@ describe("Evidence, where each result came from", () => {
     expect(tagOf("Post-quantum readiness")).toEqual([]);
     expect(within(rowOf("Old TLS versions")).getByTestId("source-tag").textContent).toBe("Observed live");
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("lists the results in parts, by what each rests on: the tag is said once at the head of its part, and every row is still there", async () => {
+    await open();
+    const parts = screen.getAllByTestId("table-part");
+    const titles = (part: HTMLElement) =>
+      within(part)
+        .getAllByTestId("evidence-row")
+        .map((r) => within(r).getByTestId("lab-row-header").firstChild!.textContent);
+    const byKey = Object.fromEntries(parts.map((p) => [p.getAttribute("data-part"), p]));
+    // Observed on the server, and tested on a copy: two parts, each named, with its tag and the tag's own line.
+    expect(within(byKey.live!).getByTestId("table-part-title").textContent).toBe("On your systems");
+    expect(within(byKey.live!).getByTestId("table-part-tag").textContent).toBe("Observed live");
+    expect(titles(byKey.live!)).toEqual(["Old TLS versions", "Certificate strength"]);
+    expect(within(byKey.lab!).getByTestId("table-part-title").textContent).toBe("On copies on this computer");
+    expect(within(byKey.lab!).getByTestId("table-part-tag").textContent).toBe("Proven in the lab");
+    expect(titles(byKey.lab!)).toContain("Official test vectors");
+    // A test that couldn't run rests on nothing: it sits in the last part, which has no tag at its head.
+    expect(parts[parts.length - 1]!.getAttribute("data-part")).toBe("none");
+    expect(within(byKey.none!).getByTestId("table-part-title").textContent).toBe("No result yet");
+    expect(within(byKey.none!).queryByTestId("table-part-tag")).toBeNull();
+    expect(titles(byKey.none!)).toEqual(["Post-quantum readiness"]);
+    // The parts are headings, not a filter: every row of the plan is on the page, once.
+    expect(parts.flatMap(titles)).toHaveLength(lab.rows.length);
+    // On a row the tag is kept for a screen reader, which reads a row by itself; the eye reads it at the head.
+    expect(within(rowOf("Old TLS versions")).getByTestId("source-tag").className).toBe("sr-only");
   });
 });
 

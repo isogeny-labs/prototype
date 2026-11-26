@@ -2,20 +2,32 @@ import type { Advisories } from "../api";
 import { SourceTag } from "./ui";
 
 /** Published advisories for a version. Information from the advisory, never a result: no pass or fail look. */
-export function AdvisoriesBox({ advisories }: { advisories?: Advisories | null }) {
+export function AdvisoriesBox({
+  advisories,
+  bare = false,
+}: {
+  advisories?: Advisories | null;
+  /** Inside a numbered part of the fold, which already carries the title and its tag: no box and no title of its own. */
+  bare?: boolean;
+}) {
   if (!advisories || advisories.items.length === 0) return null;
   return (
-    <div data-testid="advisories" className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3">
-      <p className="text-sm font-medium text-slate-100">
-        {advisories.title}
-        {advisories.tag ? (
-          <>
-            {" "}
-            <SourceTag>{advisories.tag}</SourceTag>
-          </>
-        ) : null}
-      </p>
-      <ul className="mt-2 space-y-2.5">
+    <div
+      data-testid="advisories"
+      className={bare ? "min-w-0" : "min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3"}
+    >
+      {bare ? null : (
+        <p className="text-sm font-medium text-slate-100">
+          {advisories.title}
+          {advisories.tag ? (
+            <>
+              {" "}
+              <SourceTag>{advisories.tag}</SourceTag>
+            </>
+          ) : null}
+        </p>
+      )}
+      <ul className={bare ? "space-y-2.5" : "mt-2 space-y-2.5"}>
         {advisories.items.map((item, i) => (
           <li key={`${item.id}-${i}`} data-testid="advisory-item" className="text-[13px] text-slate-300">
             <span className="font-mono font-semibold text-slate-100">{item.id}</span> {item.text}

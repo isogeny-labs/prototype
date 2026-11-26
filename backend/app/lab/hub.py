@@ -65,6 +65,8 @@ from app.names import clean_text
 from app.engine.research import RuleEngine
 from app.engine.reviewer import RuleReviewer
 from app.lab.testlab import TestLabMixin
+from app.lab.actions import ActionsMixin, recorded
+from app.record.views import RecordMixin
 from app.assistant.engine import CopilotEngine, RuleCopilot
 from app.lab.said import SaidMixin
 from app.otto.discover import DiscoverMixin
@@ -153,6 +155,7 @@ def run_json(r: VerifyRunRow) -> dict:
     }
 
 
+@recorded  # who did what (design refactor, decision I): the presses listed in app/lab/actions.py leave a row
 class Lab(
     TestLabMixin,
     ChangesMixin,
@@ -176,6 +179,8 @@ class Lab(
     SandboxMixin,
     WatchListMixin,
     WatchClockMixin,
+    ActionsMixin,
+    RecordMixin,  # Evidence as the full record: the timeline, the decisions, the evidence files, an item's history (reads)
 ):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
@@ -219,6 +224,7 @@ class Lab(
         self.reviewer = RuleReviewer()  # the separate review step
         # Phase 6a: the Otto panel. Rule-based, behind CopilotEngine; it reads and decides nothing.
         self.copilot: CopilotEngine = RuleCopilot()
+        self._init_actions()  # a job queued by a press carries it; the rows a press adds are noted
         self._init_testlab()
         self._init_changes()
         self._init_otto()

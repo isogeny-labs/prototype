@@ -35,6 +35,7 @@ import {
   enterApp,
   layoutProblems,
   openFreshAssessment,
+  openProofFold,
   startCopy,
   stopCopy,
   type Copy,
@@ -408,16 +409,32 @@ test("sandbox research: no fix yet, the fix is published, a test is proven on pu
     await expect(advisoryPanel.getByTestId("advisory-sandbox-label")).toHaveText("Sandbox copy");
     const proposal = advisoryPanel.getByTestId("otto-proposal");
     await expect(proposal.getByRole("button", { name: "Accept" })).toBeEnabled();
-    const proof = proposal.getByTestId("proof-block");
-    await expect(proof).toHaveCount(1);
+    // The design refactor (26 November 2026): how the test was proven reads in three layers. In the open, in the test's
+    // own block: the three counts that say whether the test tells the affected version from the fixed one, and what
+    // they do not show. Behind the panel's one fold, whole: the trial part by part, what was frozen, the code that
+    // asked the library, the public copies and the replay. The proposal's card no longer carries a copy of the proof.
+    await expect(proposal.getByTestId("proof-block")).toHaveCount(0);
+    const glance = advisoryPanel.getByTestId("advisory-proof-glance");
+    const tile = (part: string) => glance.locator(`[data-testid="proof-tile"][data-part="${part}"]`);
+    await expect(glance.getByTestId("proof-tile")).toHaveCount(3);
+    await expect(tile("affected")).toContainText("starkbank-ecdsa 2.0.0");
+    await expect(tile("affected").getByTestId("proof-tile-count")).toHaveText("1 of 64 cases wrong");
+    await expect(tile("fixed").getByTestId("proof-tile-count")).toHaveText("All 64 cases right");
+    await expect(tile("control").getByTestId("proof-tile-count")).toHaveText("64 of 64 cases wrong");
+    await expect(glance.getByTestId("proof-not-shown")).toContainText("It does not say how serious the weakness is");
+    const proof = advisoryPanel.getByTestId("advisory-proof-fold");
+    await expect(proof.getByTestId("proof-fold-toggle")).toHaveAttribute("aria-expanded", "false");
+    await expect(proof.getByTestId("proof-fold-name")).toHaveText("Cryptanalysis proof");
+    await expect(proof.getByTestId("proof-rows")).toBeHidden();
     const beforeProof = changes(page);
-    await proof.locator("summary").first().click();
-    const rows = proof.getByTestId("proof-row");
+    await openProofFold(advisoryPanel, "advisory-proof-fold");
+    const rows = proof.getByTestId("proof-rows").getByTestId("proof-row");
     await expect(rows).toHaveCount(6);
-    await expect(proof.locator('[data-part="affected"]')).toContainText("starkbank-ecdsa 2.0.0");
-    await expect(proof.locator('[data-part="affected"]').getByTestId("proof-count")).toHaveText("1 of 64 cases wrong");
-    await expect(proof.locator('[data-part="fixed"]').getByTestId("proof-count")).toHaveText("All 64 cases right");
-    await expect(proof.locator('[data-part="control"]').getByTestId("proof-count")).toHaveText("64 of 64 cases wrong");
+    const row = (part: string) => proof.locator(`[data-testid="proof-row"][data-part="${part}"]`);
+    await expect(row("affected")).toContainText("starkbank-ecdsa 2.0.0");
+    await expect(row("affected").getByTestId("proof-count")).toHaveText("1 of 64 cases wrong");
+    await expect(row("fixed").getByTestId("proof-count")).toHaveText("All 64 cases right");
+    await expect(row("control").getByTestId("proof-count")).toHaveText("64 of 64 cases wrong");
     await expect(proof.getByTestId("proof-registered")).toHaveText(
       new RegExp(`^Registered in Otto's harness on ${LOCAL_TIME.source}, before the first run`),
     );
@@ -436,9 +453,16 @@ test("sandbox research: no fix yet, the fix is published, a test is proven on pu
     );
     await expect(proof.getByTestId("proof-copy")).toHaveCount(4);
     await expect(proof.getByTestId("proof-left-out")).toContainText("was left out before the trial was registered");
-    await expect(proof.getByTestId("proof-not-shown")).toContainText("It does not say how serious the weakness is");
-    for (const word of ["Passed", "Failed"])
-      expect(await proof.innerText(), `the proof says ${word}`).not.toContain(word);
+    // counts only: neither the counts in the open nor any part of the proof says Passed or Failed (the test's own
+    // pass rule, which the fold also holds under "The test", is the one place those words belong)
+    for (const part of [
+      glance,
+      ...["trial", "frozen", "code", "copies", "replay"].map((key) => proof.getByTestId(`proof-part-${key}`)),
+    ]) {
+      await expect(part).toBeVisible();
+      for (const word of ["Passed", "Failed"])
+        expect(await part.innerText(), `the proof says ${word}`).not.toContain(word);
+    }
     await shots(page, "13-the-proposal-how-this-test-was-proven");
     await proof.getByTestId("asking-code-toggle").click();
     await expect(proof.getByTestId("asking-code-source")).toContainText(
@@ -458,10 +482,11 @@ test("sandbox research: no fix yet, the fix is published, a test is proven on pu
     await page.goto(`/#/a/${assessment}/advisories?item=${ID}&view=page`);
     const whole = page.getByTestId("otto-proposal");
     await expect(whole.getByRole("button", { name: "Accept" })).toBeEnabled();
-    await whole.getByTestId("proof-block").locator("summary").first().click();
-    await whole.getByTestId("proof-pins").locator("summary").click();
-    await whole.getByTestId("asking-code-toggle").click();
-    await expect(whole.getByTestId("asking-code-second-source")).toBeVisible();
+    const wholePage = page.getByTestId("item-page");
+    await openProofFold(wholePage, "advisory-proof-fold");
+    await wholePage.getByTestId("proof-pins").locator("summary").click();
+    await wholePage.getByTestId("asking-code-toggle").click();
+    await expect(wholePage.getByTestId("asking-code-second-source")).toBeVisible();
     expect(changes(page), "opening the item and reading its proof sent nothing").toEqual(beforeProof);
     await shots(page, "15-the-proposal-with-its-whole-proof");
     // a person decides: Accept. It adds the check to the test plan and runs nothing.
@@ -576,6 +601,9 @@ test("demo mode: Sandbox research can't be turned on and says why; the pages rea
     await page.goto(`/#/a/${assessment}/advisories`);
     await expect(block(page)).toBeVisible();
     await expect(block(page).getByTestId("new-advisories-sandbox")).toHaveCount(0);
+    // (what the loop covers is folded under its own name since the design refactor: opened, then read)
+    await block(page).getByTestId("new-advisories-covers-fold").locator("summary").click();
+    await expect(block(page).getByTestId("new-advisories-covers")).toBeVisible();
     await expect(block(page).getByTestId("new-advisories-covers")).not.toContainText("Sandbox research");
   } finally {
     await stopCopy(copy);

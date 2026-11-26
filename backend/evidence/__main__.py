@@ -4,7 +4,10 @@
 Since phase 5c a file may hold an Otto part (test packs, the assessment's Otto ledger, Claude's steps). It is checked
 after the file's own signature held: see evidence/otto.py. --previous names an older download of the same assessment:
 the older file's latest ledger entry must still be in this file's ledger. Exit codes stay 0 verified, 1 failed,
-2 not confirmed (also when Otto's own audit could not be run here, or a pack's signer is not one you trust)."""
+2 not confirmed (also when Otto's own audit could not be run here, or a pack's signer is not one you trust).
+
+Since the design refactor (decision I, 26 November 2026) a file may hold a "who did what" part: each recorded press with
+who, when, which button and what it started. It is checked after the signature held: see evidence/actions.py."""
 
 from __future__ import annotations
 
@@ -158,6 +161,16 @@ def main(argv: list[str] | None = None) -> int:
         if not watch_list.ok:
             print(f"Evidence NOT verified: the Watch list part: {watch_list.problem}")
             return FAILED
+    # Who did what (design refactor, decision I): each recorded press, checked for its form, its times and that every
+    # reference resolves in this file (also only once the signature held). A file from before has no such part.
+    who = None
+    if outcome.code in (VERIFIED, SIGNER_NOT_CONFIRMED) and "actions" in evidence:
+        from .actions import check_actions
+
+        who = check_actions(evidence)
+        if not who.ok:
+            print(f"Evidence NOT verified: the who did what part: {who.problem}")
+            return FAILED
     if outcome.ok and otto is not None and otto.code != VERIFIED:
         print("The file's own signature holds, but its Otto part could not be fully confirmed.")
     else:
@@ -176,6 +189,9 @@ def main(argv: list[str] | None = None) -> int:
     if watch_list is not None:
         for line in watch_list.lines:
             print(f"  Watch list: {line}")
+    if who is not None:
+        for line in who.lines:
+            print(f"  Who did what: {line}")
     if otto is not None:
         for line in otto.lines:
             print(f"  Otto: {line}")
