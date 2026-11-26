@@ -1,6 +1,6 @@
 # Design refactor: evidence a busy security engineer can read at a glance
 
-**Status: a plan and mockups only. Nothing is built.** Round 1 written 25 November 2026; rounds 2 and 3 on 26 November 2026, after Kevin's answers. Round 3 waits for his OK. No app code, result, rule, answer key or reviewer was changed to make it.
+**Status: approved and built (26 November 2026).** Round 1 was written on 25 November 2026; rounds 2 and 3 on 26 November 2026, after Kevin's answers. Kevin's go-ahead of 26 November 2026 ("let's get this built") took decisions H and I with it. What was built, what was left for later and how it was checked is in `docs/plans/design-refactor-report.md`; the screens as built are in `docs/SPEC.md` section 2 under "The design refactor", and the rules in `CLAUDE.md`. The rest of this page is the plan as it was approved: it is kept as written, so where it says "would" or "proposed", read it as the plan of that day. No result, rule, answer key or reviewer was changed.
 
 ## Decided so far
 
@@ -11,6 +11,8 @@
 | **C** | A numbered sidebar | Yes |
 | **F** | Observe and test as two steps, and the lists in labelled parts | Yes ("use all of your suggestions") |
 | **G** | The Observatory and its map, built after the three layers | Yes ("use all of your suggestions") |
+| **H** | Evidence as its own section with four views, a history in every panel, and History of each page | Yes (the go-ahead to build, 26 November 2026) |
+| **I** | A record of who did what, from one name source, also in the signed evidence file and checked by the verify command | Yes (the go-ahead to build, 26 November 2026) |
 
 **D and E in plain words. Neither needs a decision from you.**
 

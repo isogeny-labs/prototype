@@ -371,7 +371,9 @@ class TestLabMixin:
             # Where its tests run, in one line (the design refactor, 26 November 2026): on the live server at the address
             # the file names, or on a copy of the program on this computer.
             runs_on = (
-                f"On your server, {what}" if side == "server" else f"On a copy of {what['label']}, on this computer"
+                f"On a copy of {what['label']}, on this computer"
+                if isinstance(what, dict)
+                else f"On your server, {what}"
             )
             groups.append({"key": key, "kind": side, "heading": heading, "note": note, "runs_on": runs_on})
         if "reference" in used:
