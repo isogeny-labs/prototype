@@ -428,7 +428,14 @@ def _spots(box: L.Box, got: dict) -> list[dict]:
 
 
 def _system_names(layout: L.Layout) -> list[str]:
-    return [b.title if b.kind == "server" else b.label for b in layout.systems()]
+    """The real names of what a top entry of the dependency list could be tied to: a server by the name its service has
+    in the file (with its address where two servers share that name), a program by its name and version."""
+    systems = layout.systems()
+    titles = [b.title for b in systems if b.kind == "server"]
+    return [
+        (b.title if titles.count(b.title) == 1 else f"{b.title} ({b.label})") if b.kind == "server" else b.label
+        for b in systems
+    ]
 
 
 def _box(box: L.Box, got: dict) -> dict:
@@ -603,15 +610,20 @@ def _seen(got: dict, box: L.Box) -> list[str] | None:
     for row in (got["lab"] or {}).get("rows") or []:
         if row.get("group") == box.key and row.get("kind") == "tls_versions":
             found += [_accepted_in_test(row.get("result")), _accepted_in_test(row.get("after"))]
-    dated = [(instant(at), seen) for at, seen in found if seen is not None and instant(at) is not None]
-    return max(dated, key=lambda x: x[0])[1] if dated else None  # type: ignore[arg-type,return-value]
+    newest: tuple[Any, list[str]] | None = None
+    for at, seen in found:
+        when = instant(at)
+        if seen is not None and when is not None and (newest is None or when > newest[0]):
+            newest = (when, seen)
+    return newest[1] if newest is not None else None
 
 
 def _lines(layout: L.Layout, boxes: dict[str, dict], got: dict) -> list[dict]:
     out = []
+    groups = {g["key"]: g for g in layout.libraries}
     for line in layout.lines:
         if "libraries" in line:
-            group = next(g for g in layout.libraries if g["key"] == line["to"])
+            group = groups[line["to"]]
             via = group["rows"][0].get("via_words") if len(group["rows"]) == 1 else None
             label = words.libraries_line(line["libraries"], via)
         else:
@@ -717,8 +729,13 @@ def _counts(got: dict, boxes: dict[str, dict]) -> list[dict]:
 
 
 def _newest(times: list[object]) -> str | None:
-    dated = [(instant(t), str(t)) for t in times if t is not None and instant(t) is not None]
-    return max(dated, key=lambda x: x[0])[1] if dated else None  # type: ignore[arg-type,return-value]
+    """The newest of some recorded times, as it was recorded."""
+    newest: tuple[Any, str] | None = None
+    for t in times:
+        when = instant(t)
+        if when is not None and (newest is None or when > newest[0]):
+            newest = (when, str(t))
+    return newest[1] if newest is not None else None
 
 
 def _built(got: dict) -> dict:
