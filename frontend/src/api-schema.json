@@ -3117,6 +3117,146 @@
           }
         }
       }
+    },
+    "/api/plans/{plan_id}/observatory": {
+      "get": {
+        "summary": "Observatory",
+        "description": "The map: the boxes, where the cryptography is in each with its checks by name, the lines, the four counts by\ntag and what the files don't say.",
+        "operationId": "observatory_api_plans__plan_id__observatory_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservatoryView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assessments/{assessment_id}/observatory": {
+      "get": {
+        "summary": "Observatory Of Assessment",
+        "description": "The same map by the assessment. It also answers before the assessment has a file (state \"empty\", with the\nway to Import) and before its test plan was made.",
+        "operationId": "observatory_of_assessment_api_assessments__assessment_id__observatory_get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservatoryView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/observatory/place": {
+      "get": {
+        "summary": "Place",
+        "description": "Where the item a side panel is about sits on the map, by the key its Related block uses; `place` is null\nwhen the item is not on the map.",
+        "operationId": "place_api_plans__plan_id__observatory_place_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 700,
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservatoryPlace"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/observatory/{box}": {
+      "get": {
+        "summary": "Box",
+        "description": "The panel of one box of the map (its key may hold colons and slashes: it is the rest of the address).",
+        "operationId": "box_api_plans__plan_id__observatory__box__get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "box",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Box"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservatoryPanel"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16147,6 +16287,1922 @@
         "title": "NotTested",
         "description": "The \"Not tested, and why\" box: every target or test the plan leaves out, one line each."
       },
+      "ObservatoryAlgorithm": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "plain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plain",
+            "description": "The plain name drawn first (\"Classical signatures\"); null when the app has none."
+          },
+          "technical": {
+            "type": "string",
+            "title": "Technical",
+            "description": "\"ECDSA P-256\""
+          },
+          "named": {
+            "type": "string",
+            "title": "Named"
+          },
+          "used": {
+            "type": "string",
+            "title": "Used",
+            "description": "\"Used in 2 places: the certificate on ... and the signatures of ...\"."
+          },
+          "uses": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryUse"
+            },
+            "type": "array",
+            "title": "Uses"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind_label",
+          "plain",
+          "technical",
+          "named",
+          "used",
+          "uses"
+        ],
+        "title": "ObservatoryAlgorithm"
+      },
+      "ObservatoryBanner": {
+        "properties": {
+          "strong": {
+            "type": "string",
+            "title": "Strong"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "strong",
+          "text",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryBanner"
+      },
+      "ObservatoryBeside": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Retest on acme-sign 1.4.3\", \"Retest, tested again as it is\", \"After Apply\""
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The result's own word, as Evidence shows it."
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "word",
+          "tone",
+          "code",
+          "tag",
+          "link"
+        ],
+        "title": "ObservatoryBeside",
+        "description": "A result shown beside a check's first result and never in its place: a retest's, labelled with the version it ran\non, or the measurement the app made right after an Apply or a Roll back."
+      },
+      "ObservatoryBox": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "\"server:<address>\", \"software:<claim ref>\", \"service:<key>\", or \"top:<key>\" for an untied top entry."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "server",
+              "program",
+              "key_exchange_program",
+              "software",
+              "service",
+              "own_software"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub",
+            "description": "\"Server · localhost:8443\", \"Signing program · in both files\", ..."
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "in_files": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "scanner",
+                "dependencies"
+              ]
+            },
+            "type": "array",
+            "title": "In Files"
+          },
+          "ties": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryTie"
+            },
+            "type": "array",
+            "title": "Ties"
+          },
+          "observed": {
+            "type": "boolean",
+            "title": "Observed",
+            "description": "False: nothing was observed or run here (draw it so)."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "\"Not tied to ... or to ...\", built from the real names; or why it has no spots."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when every result in the box rests on the same thing."
+          },
+          "spots": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatorySpot"
+            },
+            "type": "array",
+            "title": "Spots"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "Opens this box on the Observatory."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "title",
+          "sub",
+          "address",
+          "in_files",
+          "ties",
+          "observed",
+          "note",
+          "tag",
+          "spots",
+          "link"
+        ],
+        "title": "ObservatoryBox"
+      },
+      "ObservatoryBoxGaps": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryGap"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "items"
+        ],
+        "title": "ObservatoryBoxGaps"
+      },
+      "ObservatoryCheck": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "\"claim-3\", \"test-12\", \"status-kex\", \"status-auth\", \"status-signatures\""
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "claim",
+              "test",
+              "status"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "\"The claim\", the test's own title, or \"Post-quantum status\""
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The result's own word, or \"Not checked yet\" / \"Not measured yet\"."
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "fail",
+                  "neutral",
+                  "warn"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone",
+            "description": "The look of the word on its own page; null when the check has not run."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "Checked",
+            "description": "A result exists. False: the word says it has not run."
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running",
+            "description": "It is waiting or running now."
+          },
+          "came_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Came From",
+            "description": "\"After Apply\" or \"After Roll back\" when this result is that measurement of the live system; else null."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What this result rests on. Draw it only where neither its box nor its spot carries one."
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "Where the result lives: the claim on Verify, the result on Evidence, the system."
+          },
+          "related_key": {
+            "type": "string",
+            "title": "Related Key",
+            "description": "The key of its Related block: \"claim:3\", \"test:12\", \"system:<key>\"."
+          },
+          "beside": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryBeside"
+            },
+            "type": "array",
+            "title": "Beside"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "word",
+          "tone",
+          "code",
+          "checked",
+          "running",
+          "came_from",
+          "tag",
+          "link",
+          "related_key",
+          "beside"
+        ],
+        "title": "ObservatoryCheck",
+        "description": "A check as the map lists it."
+      },
+      "ObservatoryCheckFix": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The line about a fix that the result's own page shows."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "label",
+          "link"
+        ],
+        "title": "ObservatoryCheckFix"
+      },
+      "ObservatoryCheckLink": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "link"
+        ],
+        "title": "ObservatoryCheckLink"
+      },
+      "ObservatoryCount": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "live",
+              "lab",
+              "file",
+              "published"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "meaning": {
+            "type": "string",
+            "title": "Meaning"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "meaning",
+          "count",
+          "line"
+        ],
+        "title": "ObservatoryCount"
+      },
+      "ObservatoryEmpty": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryEmpty"
+      },
+      "ObservatoryFileLine": {
+        "properties": {
+          "where": {
+            "type": "string",
+            "title": "Where",
+            "description": "Where in the file: \"services[0]\", \"dependencies[1]\", \"line 2\"."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The entry, short, as data."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "where",
+          "text"
+        ],
+        "title": "ObservatoryFileLine"
+      },
+      "ObservatoryFileLines": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryFileLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "more": {
+            "type": "integer",
+            "title": "More"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "filename",
+          "lines",
+          "more"
+        ],
+        "title": "ObservatoryFileLines"
+      },
+      "ObservatoryFix": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "sub",
+          "link"
+        ],
+        "title": "ObservatoryFix"
+      },
+      "ObservatoryGap": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the gap can be filled; null where the app has no place for it."
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "text",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryGap"
+      },
+      "ObservatoryGaps": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryGap"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "note",
+          "items"
+        ],
+        "title": "ObservatoryGaps"
+      },
+      "ObservatoryLast": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Last observed\", \"Last run\", ..."
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "at"
+        ],
+        "title": "ObservatoryLast"
+      },
+      "ObservatoryLegendItem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "uses",
+              "live",
+              "ask",
+              "unobserved"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "ObservatoryLegendItem"
+      },
+      "ObservatoryLibraries": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"acme-ledger 5.1.0's libraries · 8\", or the one library's name."
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "The box (or container) they belong to; null for libraries under no entry."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when every library of the group has the same tag."
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLibraryRow"
+            },
+            "type": "array",
+            "title": "Rows",
+            "description": "The first few; the rest are on Dependencies."
+          },
+          "more": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryMore"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind_label",
+          "title",
+          "sub",
+          "owner",
+          "count",
+          "tag",
+          "rows",
+          "more"
+        ],
+        "title": "ObservatoryLibraries",
+        "description": "The libraries of one top entry of the dependency list: one box for a single library, else one group box."
+      },
+      "ObservatoryLibrariesNote": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "sub",
+          "text",
+          "link"
+        ],
+        "title": "ObservatoryLibrariesNote"
+      },
+      "ObservatoryLibraryRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The row's id on Dependencies."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "via_words": {
+            "type": "string",
+            "title": "Via Words"
+          },
+          "answers_short": {
+            "type": "string",
+            "title": "Answers Short",
+            "description": "Dependencies' own summary of its answers (\"No to all three\")."
+          },
+          "tag": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "via_words",
+          "answers_short",
+          "tag",
+          "link"
+        ],
+        "title": "ObservatoryLibraryRow"
+      },
+      "ObservatoryLine": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start",
+            "description": "The key of the box it starts at; \"this_computer\" or \"clients\" for the two outside boxes."
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "uses",
+              "live",
+              "ask"
+            ],
+            "title": "Kind",
+            "description": "uses: the files say one uses the other. live: a connection the app made. ask: the files don't say."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "kind",
+          "label"
+        ],
+        "title": "ObservatoryLine"
+      },
+      "ObservatoryMore": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "count",
+          "label",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryMore"
+      },
+      "ObservatoryOutside": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "clients",
+              "this_computer"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "sub"
+        ],
+        "title": "ObservatoryOutside"
+      },
+      "ObservatoryPanel": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "part_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Of",
+            "description": "The service it is drawn in."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryLast"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Built only from counts of the checks' own words."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "ties": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryTie"
+            },
+            "type": "array",
+            "title": "Ties"
+          },
+          "observed": {
+            "type": "boolean",
+            "title": "Observed"
+          },
+          "spots": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryPanelSpot"
+            },
+            "type": "array",
+            "title": "Spots"
+          },
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLibraries"
+            },
+            "type": "array",
+            "title": "Libraries"
+          },
+          "fixes": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryFix"
+            },
+            "type": "array",
+            "title": "Fixes",
+            "description": "The fixes a recorded link ties to this box or to one of its checks."
+          },
+          "gaps": {
+            "$ref": "#/components/schemas/ObservatoryBoxGaps"
+          },
+          "file_lines": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryFileLines"
+            },
+            "type": "array",
+            "title": "File Lines",
+            "description": "The lines of the files that name it."
+          },
+          "related_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Key",
+            "description": "The key of its Related block; null for a box that is no system."
+          },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedLine"
+            },
+            "type": "array",
+            "title": "Related"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind_label",
+          "title",
+          "sub",
+          "part_of",
+          "tag",
+          "last",
+          "summary",
+          "note",
+          "ties",
+          "observed",
+          "spots",
+          "libraries",
+          "fixes",
+          "gaps",
+          "file_lines",
+          "related_key",
+          "related",
+          "link"
+        ],
+        "title": "ObservatoryPanel",
+        "description": "One box of the map, opened."
+      },
+      "ObservatoryPanelBeside": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Retest on acme-sign 1.4.3\", \"Retest, tested again as it is\", \"After Apply\""
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The result's own word, as Evidence shows it."
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "plain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plain"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "word",
+          "tone",
+          "code",
+          "tag",
+          "link",
+          "plain",
+          "at"
+        ],
+        "title": "ObservatoryPanelBeside"
+      },
+      "ObservatoryPanelCheck": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "\"claim-3\", \"test-12\", \"status-kex\", \"status-auth\", \"status-signatures\""
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "claim",
+              "test",
+              "status"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "\"The claim\", the test's own title, or \"Post-quantum status\""
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The result's own word, or \"Not checked yet\" / \"Not measured yet\"."
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "fail",
+                  "neutral",
+                  "warn"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone",
+            "description": "The look of the word on its own page; null when the check has not run."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "Checked",
+            "description": "A result exists. False: the word says it has not run."
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running",
+            "description": "It is waiting or running now."
+          },
+          "came_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Came From",
+            "description": "\"After Apply\" or \"After Roll back\" when this result is that measurement of the live system; else null."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What this result rests on. Draw it only where neither its box nor its spot carries one."
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "Where the result lives: the claim on Verify, the result on Evidence, the system."
+          },
+          "related_key": {
+            "type": "string",
+            "title": "Related Key",
+            "description": "The key of its Related block: \"claim:3\", \"test:12\", \"system:<key>\"."
+          },
+          "beside": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryPanelBeside"
+            },
+            "type": "array",
+            "title": "Beside"
+          },
+          "plain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plain",
+            "description": "The plain sentence the result's own page shows."
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryCheckFix"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next",
+            "description": "For a post-quantum status: the Migration plan's own next step."
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryCheckLink"
+            },
+            "type": "array",
+            "title": "Links"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "word",
+          "tone",
+          "code",
+          "checked",
+          "running",
+          "came_from",
+          "tag",
+          "link",
+          "related_key",
+          "beside",
+          "plain",
+          "at",
+          "fix",
+          "next",
+          "links"
+        ],
+        "title": "ObservatoryPanelCheck",
+        "description": "A check as a box's panel shows it: the same words as on the map, with its sentence and its links."
+      },
+      "ObservatoryPanelSpot": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "tls_versions, cipher_suites, certificate, key_exchange, signatures, signs, checks_signatures, speed_size, other"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "file_says": {
+            "type": "string",
+            "title": "File Says",
+            "description": "\"The file says TLS 1.3 only\", or \"Not in your file\"."
+          },
+          "claimed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed",
+            "description": "What the file claims here, alone (\"ECDSA P-256\"); null when it claims nothing."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the box has no one tag and every result of this spot rests on the same."
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "Checked",
+            "description": "At least one check of this spot has a result."
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text",
+            "description": "\"Not checked yet\" or \"Not measured yet\" while no check here has a result."
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryPanelCheck"
+            },
+            "type": "array",
+            "title": "Checks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "file_says",
+          "claimed",
+          "tag",
+          "checked",
+          "empty_text",
+          "checks"
+        ],
+        "title": "ObservatoryPanelSpot"
+      },
+      "ObservatoryPlace": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryPlaceWhere"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the item is not on the map."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "place"
+        ],
+        "title": "ObservatoryPlace"
+      },
+      "ObservatoryPlaceWhere": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"On your map\""
+          },
+          "path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Path",
+            "description": "The service, the box, the spot."
+          },
+          "box": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "Opens the Observatory on that box."
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "path",
+          "box",
+          "link",
+          "link_label"
+        ],
+        "title": "ObservatoryPlaceWhere"
+      },
+      "ObservatoryService": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "service",
+              "listed"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "The name the file gives it; null when the file names none."
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub",
+            "description": "\"Named in both files, with the same name and version\", \"Named in your scanner file\", ..."
+          },
+          "in_files": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "scanner",
+                "dependencies"
+              ]
+            },
+            "type": "array",
+            "title": "In Files"
+          },
+          "boxes": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryBox"
+            },
+            "type": "array",
+            "title": "Boxes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "version",
+          "is_demo",
+          "sub",
+          "in_files",
+          "boxes"
+        ],
+        "title": "ObservatoryService",
+        "description": "A container: the service the scanner file describes, with its parts inside; or, when the two files do not name\nthe same thing, the dependency list's own software, listed apart."
+      },
+      "ObservatorySpot": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "tls_versions, cipher_suites, certificate, key_exchange, signatures, signs, checks_signatures, speed_size, other"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "file_says": {
+            "type": "string",
+            "title": "File Says",
+            "description": "\"The file says TLS 1.3 only\", or \"Not in your file\"."
+          },
+          "claimed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed",
+            "description": "What the file claims here, alone (\"ECDSA P-256\"); null when it claims nothing."
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the box has no one tag and every result of this spot rests on the same."
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "Checked",
+            "description": "At least one check of this spot has a result."
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text",
+            "description": "\"Not checked yet\" or \"Not measured yet\" while no check here has a result."
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryCheck"
+            },
+            "type": "array",
+            "title": "Checks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "file_says",
+          "claimed",
+          "tag",
+          "checked",
+          "empty_text",
+          "checks"
+        ],
+        "title": "ObservatorySpot"
+      },
+      "ObservatoryTie": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "The top entry of the dependency list that is this box."
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source",
+            "description": "\"name_version\" (tied by the app) or \"user\" (set with Part of)."
+          },
+          "words": {
+            "type": "string",
+            "title": "Words"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "source",
+          "words"
+        ],
+        "title": "ObservatoryTie"
+      },
+      "ObservatoryUse": {
+        "properties": {
+          "box": {
+            "type": "string",
+            "title": "Box",
+            "description": "The key of the box (or of the container) that uses the algorithm."
+          },
+          "through": {
+            "type": "string",
+            "title": "Through",
+            "description": "certificate, protocol, key, signature, key_exchange or direct"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "box",
+          "through"
+        ],
+        "title": "ObservatoryUse"
+      },
+      "ObservatoryView": {
+        "properties": {
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "import_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "file_only",
+              "checked"
+            ],
+            "title": "State",
+            "description": "empty: no file yet. file_only: nothing has been checked yet. checked: at least one check has a result."
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryEmpty"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "banner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryBanner"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While nothing has been checked: the sentence, and Open Verify."
+          },
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryCount"
+            },
+            "type": "array",
+            "title": "Counts",
+            "description": "Always the four tags, in their fixed order: the Overview's counts."
+          },
+          "counts_note": {
+            "type": "string",
+            "title": "Counts Note"
+          },
+          "map_title": {
+            "type": "string",
+            "title": "Map Title"
+          },
+          "built_from": {
+            "items": {
+              "$ref": "#/components/schemas/RichPart"
+            },
+            "type": "array",
+            "title": "Built From",
+            "description": "What the map was built from, and when it last changed."
+          },
+          "structure_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structure Note",
+            "description": "Why the map is drawn from the claims alone (a CSV file, no kept copy)."
+          },
+          "not_drawn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Drawn"
+          },
+          "outside": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryOutside"
+            },
+            "type": "array",
+            "title": "Outside"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryService"
+            },
+            "type": "array",
+            "title": "Services"
+          },
+          "algorithms": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryAlgorithm"
+            },
+            "type": "array",
+            "title": "Algorithms"
+          },
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLibraries"
+            },
+            "type": "array",
+            "title": "Libraries"
+          },
+          "libraries_note": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservatoryLibrariesNote"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While no dependency list has been added."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "legend": {
+            "items": {
+              "$ref": "#/components/schemas/ObservatoryLegendItem"
+            },
+            "type": "array",
+            "title": "Legend"
+          },
+          "legend_note": {
+            "type": "string",
+            "title": "Legend Note"
+          },
+          "gaps": {
+            "$ref": "#/components/schemas/ObservatoryGaps",
+            "description": "What your files don't say, each with where it can be filled."
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "Something is running: ask again in a second."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "import_id",
+          "title",
+          "subline",
+          "state",
+          "empty",
+          "banner",
+          "counts",
+          "counts_note",
+          "map_title",
+          "built_from",
+          "structure_note",
+          "not_drawn",
+          "outside",
+          "services",
+          "algorithms",
+          "libraries",
+          "libraries_note",
+          "lines",
+          "legend",
+          "legend_note",
+          "gaps",
+          "busy"
+        ],
+        "title": "ObservatoryView"
+      },
       "Ok": {
         "properties": {
           "ok": {
@@ -23682,6 +25738,26 @@
         ],
         "type": "string",
         "title": "WhoSource"
+      },
+      "ObservatoryBoxKind": {
+        "enum": [
+          "server",
+          "program",
+          "key_exchange_program",
+          "software",
+          "service",
+          "own_software"
+        ],
+        "type": "string",
+        "title": "ObservatoryBoxKind"
+      },
+      "ObservatoryFile": {
+        "enum": [
+          "scanner",
+          "dependencies"
+        ],
+        "type": "string",
+        "title": "ObservatoryFile"
       }
     }
   }
