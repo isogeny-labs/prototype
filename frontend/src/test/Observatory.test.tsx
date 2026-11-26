@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ObservatoryPage } from "../components/observatory/ObservatoryPage";
 import { LinkProvider } from "../components/related";
@@ -212,6 +212,25 @@ describe("the Observatory, a box opened", () => {
     expect(within(box(server.key)).getByTestId("map-box-open").getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(within(box(server.key)).getByTestId("map-box-open"));
     expect(screen.queryByTestId("box-panel")).toBeNull();
+  });
+
+  it("says the Migration plan's next step once for the box, with the way to it, and nothing where no status was measured", async () => {
+    const next = {
+      text: "Next: hybrid key exchange · Phase 2",
+      label: "The system on Migration plan",
+      link: { page: "migration/systems", item: server.key },
+    };
+    await open(observatoryChecked, { [boxRoute(server.key)]: { body: { ...serverPanel, next } } });
+    fireEvent.click(within(box(server.key)).getByTestId("map-box-open"));
+    const panel = within(await screen.findByTestId("box-panel"));
+    expect(text(panel.getByTestId("box-next"))).toBe(`${next.text} ${next.label}`);
+    expect(panel.getByTestId("box-next-link").getAttribute("href")).toBe(
+      `#/a/101/migration/systems?item=${encodeURIComponent(server.key)}`,
+    );
+    cleanup();
+    await open(observatoryChecked, { [boxRoute(server.key)]: { body: serverPanel } });
+    fireEvent.click(within(box(server.key)).getByTestId("map-box-open"));
+    expect(within(await screen.findByTestId("box-panel")).queryByTestId("box-next")).toBeNull();
   });
 
   it("opens the box the address names, and finds the box of an item of another page (Show on the map)", async () => {

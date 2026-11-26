@@ -32,7 +32,6 @@ function Check({ check, tagged }: { check: ObservatoryPanelCheck; tagged: boolea
         ) : null}
       </p>
       {check.plain ? <p className="mt-1 break-words text-[13px] text-slate-300">{check.plain}</p> : null}
-      {check.next ? <p className="mt-1 break-words text-[13px] text-slate-300">{check.next}</p> : null}
       {check.beside.map((beside, i) => (
         // (beside the first result, never in its place)
         <p
@@ -129,6 +128,16 @@ export function BoxPanel({
               {panel.summary}
             </p>
             {panel.note ? <p className="text-[13px] text-slate-400">{panel.note}</p> : null}
+            {panel.next ? (
+              // The Migration plan's own next step for this system, said once for the box (it is about the system, not
+              // about one of its places), with the way to it.
+              <p data-testid="box-next" className="break-words text-[13px] text-slate-300">
+                {panel.next.text}{" "}
+                <ItemLinkView link={panel.next.link} testId="box-next-link">
+                  {panel.next.label}
+                </ItemLinkView>
+              </p>
+            ) : null}
             {panel.ties.map((tie, i) => (
               <p key={i} className="text-[13px] text-slate-400">
                 {tie.words}

@@ -1123,6 +1123,7 @@ export const serverPanel: ObservatoryPanel = {
     label: "Last observed",
     at: "2026-11-26T04:39:13.692Z",
   },
+  next: null,
   summary: "2 claims: 1 False, 1 True. 2 server tests: 1 Failed, 1 Passed. Post-quantum status: Not measured yet.",
   note: null,
   ties: [],
@@ -1163,7 +1164,6 @@ export const serverPanel: ObservatoryPanel = {
           plain: "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true.",
           at: "2026-11-26T04:39:13.545Z",
           fix: null,
-          next: null,
           links: [
             {
               label: "The claim on Verify",
@@ -1221,7 +1221,6 @@ export const serverPanel: ObservatoryPanel = {
               item: "fix-tls-versions",
             },
           },
-          next: null,
           links: [
             {
               label: "The result on Evidence",
@@ -1276,7 +1275,6 @@ export const serverPanel: ObservatoryPanel = {
           plain: "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.",
           at: "2026-11-26T04:39:13.545Z",
           fix: null,
-          next: null,
           links: [
             {
               label: "The claim on Verify",
@@ -1321,7 +1319,6 @@ export const serverPanel: ObservatoryPanel = {
             "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim and meets NIST's minimum key size. Note, not a failure: NIST plans to retire P-256.",
           at: "2026-11-26T04:39:13.692Z",
           fix: null,
-          next: null,
           links: [
             {
               label: "The result on Evidence",
@@ -1352,7 +1349,6 @@ export const serverPanel: ObservatoryPanel = {
           plain: null,
           at: null,
           fix: null,
-          next: null,
           links: [
             {
               label: "The system on Migration plan",
@@ -1394,7 +1390,6 @@ export const serverPanel: ObservatoryPanel = {
           plain: null,
           at: null,
           fix: null,
-          next: null,
           links: [
             {
               label: "The system on Migration plan",
