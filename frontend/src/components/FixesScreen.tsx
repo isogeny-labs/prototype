@@ -17,6 +17,7 @@ import {
   type GroupNav,
 } from "./layout";
 import { LedgerView } from "./advisories/parts";
+import { HistoryFold } from "./evidence/HistoryFold";
 import { FoldLine, ProofFold, Trail, proofKindOf } from "./proof";
 import { RelatedFold, WithRelated } from "./related";
 import { DemoDataLabel, ErrorBox } from "./ui";
@@ -404,6 +405,7 @@ export function FixesScreen({
                             <ImpactBlock impact={fix.impact} bare />
                           </FoldLine>
                         ) : null}
+                        <HistoryFold itemKey={`fix:${fix.id}`} />
                         <RelatedFold lines={lines} />
                       </div>
                     )}

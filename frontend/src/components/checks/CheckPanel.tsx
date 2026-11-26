@@ -3,6 +3,7 @@ import { api, errorMessage, type CheckDetail, type CheckRow, type CheckRun, type
 import { DetailPanel } from "../layout";
 import { FromOttoTag } from "../otto/ProposalCard";
 import { ItemLinkView, RelatedBlock } from "../related";
+import { HistoryFold } from "../evidence/HistoryFold";
 import { ErrorBox, formatTime, ResultBadge, StatusView, WhereFromLine } from "../ui";
 
 /** Phase 5b: one check in the side panel: its newest result in the words of the page it came from, where it came
@@ -113,6 +114,7 @@ export function CheckPanel({
           {error ? <ErrorBox>{error}</ErrorBox> : null}
           {shown && children ? children(shown) : null}
           {shown ? <EarlierRuns runs={shown.runs} /> : null}
+          {shown ? <HistoryFold itemKey={`check:${shown.check.id}`} /> : null}
           {shown ? <RelatedBlock lines={shown.related} /> : null}
         </div>
       ) : null}

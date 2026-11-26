@@ -1,5 +1,6 @@
 import type { AdvisoryHereRow, AdvisoryRow, OttoProposal } from "../../api";
 import { DetailPanel } from "../layout";
+import { HistoryFold } from "../evidence/HistoryFold";
 import { ProofTiles, SandboxCopyLabel, proofParts, type FoldPart } from "../otto/ProofBlock";
 import { ProposalCard } from "../otto/ProposalCard";
 import { ProofFold, ProofPart, Trail } from "../proof";
@@ -388,6 +389,8 @@ export function AdvisoryPanel({
               </p>
             ) : null}
           </section>
+
+          <HistoryFold itemKey={panel.related_key ?? null} />
 
           {related && related.length > 0 ? (
             <div data-testid="advisory-related">

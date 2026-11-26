@@ -78,6 +78,25 @@ export type WatchStatusKey =
   | "gone"
   | "not_watched";
 export type AssistantThread = "testing" | "fixing" | "planning";
+export type RecordAreaKey =
+  "observe" | "advisories" | "checks" | "fixes" | "migration" | "dependencies" | "watch" | "assessment";
+export type RecordKindKey = "runs" | "people" | "system" | "files";
+export type RecordIcon =
+  | "grid"
+  | "file"
+  | "download"
+  | "signoff"
+  | "person"
+  | "live"
+  | "flask"
+  | "list"
+  | "approve"
+  | "merge"
+  | "clock"
+  | "apply"
+  | "rollback";
+export type WhoSource =
+  "account" | "typed" | "default" | "reviewer" | "signoff" | "decides" | "clock" | "author" | "none";
 
 export interface AddTestBody {
   catalog_id: string;
@@ -2719,6 +2738,142 @@ export interface Created {
 export interface DecisionBody {
   reason?: string | null;
 }
+export interface DecisionCard {
+  key: "decisions" | "approvals" | "otto" | "signoff";
+  title: string;
+  value: string;
+  small: string;
+}
+export interface DecisionDay {
+  date: string;
+  count: number;
+  rows: DecisionRow[];
+}
+export interface DecisionRow {
+  /**
+   * The timeline entry of this decision.
+   */
+  id: string;
+  at: string;
+  decision: DecisionWord;
+  on: string;
+  marks: string[];
+  who: RecordWho;
+  /**
+   * Who pressed, where that is another name (an approval as a demo reviewer).
+   */
+  pressed_by: RecordWho1 | null;
+  area: RecordArea;
+  link: ItemLink | null;
+}
+export interface DecisionWord {
+  key: string;
+  /**
+   * "Approved", "Merged", "Accepted", "Not added", "Applied", "Signed off", ...
+   */
+  label: string;
+}
+/**
+ * The name the decision was recorded under.
+ */
+export interface RecordWho {
+  /**
+   * The name, or "Not recorded (before names were kept)".
+   */
+  name: string;
+  /**
+   * account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name (Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none.
+   */
+  source: "account" | "typed" | "default" | "reviewer" | "signoff" | "decides" | "clock" | "author" | "none";
+  /**
+   * The same, in one plain line.
+   */
+  source_label: string;
+  /**
+   * Demo data: a demo reviewer or the demo developer.
+   */
+  demo: boolean;
+  /**
+   * False where no name was kept.
+   */
+  recorded: boolean;
+  /**
+   * The button it was pressed with ("Run all", "Retest now, on Fixes"), or null.
+   */
+  button: string | null;
+}
+/**
+ * One name on a record, and where it came from. A person is never the decider of a result.
+ */
+export interface RecordWho1 {
+  /**
+   * The name, or "Not recorded (before names were kept)".
+   */
+  name: string;
+  /**
+   * account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name (Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none.
+   */
+  source: "account" | "typed" | "default" | "reviewer" | "signoff" | "decides" | "clock" | "author" | "none";
+  /**
+   * The same, in one plain line.
+   */
+  source_label: string;
+  /**
+   * Demo data: a demo reviewer or the demo developer.
+   */
+  demo: boolean;
+  /**
+   * False where no name was kept.
+   */
+  recorded: boolean;
+  /**
+   * The button it was pressed with ("Run all", "Retest now, on Fixes"), or null.
+   */
+  button: string | null;
+}
+export interface RecordArea {
+  key: "observe" | "advisories" | "checks" | "fixes" | "migration" | "dependencies" | "watch" | "assessment";
+  /**
+   * "Observatory and Verify", "Advisories", "Checks", "Fixes", "Migration plan", ...
+   */
+  label: string;
+}
+export interface DecisionsChosen {
+  area: string;
+}
+export interface DecisionsView {
+  plan_id: number;
+  is_demo: boolean;
+  title: string;
+  subline: string;
+  cards: DecisionCard[];
+  names_note: string;
+  /**
+   * Why no result is in this list.
+   */
+  results_note: string;
+  chosen: DecisionsChosen;
+  areas: RecordFilter[];
+  total: number;
+  /**
+   * Newest first.
+   */
+  days: DecisionDay[];
+  zone: string;
+  empty_text: string | null;
+  disclaimer: string;
+}
+export interface RecordFilter {
+  /**
+   * "all", or an area or kind key.
+   */
+  key: string;
+  label: string;
+  /**
+   * How many entries it would list, with the other filter and the search as they are.
+   */
+  count: number;
+}
 export interface DemoProjectsLoaded {
   added: string[];
   summary: string;
@@ -3041,6 +3196,76 @@ export interface EvidenceExport {
 export interface FileLink {
   url: string;
   filename: string;
+}
+export interface EvidenceFileRow {
+  id: number;
+  at: string;
+  fingerprint: string;
+  fingerprint_label: string;
+  who: RecordWho2;
+  json: FileLink;
+  html: FileLink;
+}
+/**
+ * One name on a record, and where it came from. A person is never the decider of a result.
+ */
+export interface RecordWho2 {
+  /**
+   * The name, or "Not recorded (before names were kept)".
+   */
+  name: string;
+  /**
+   * account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name (Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none.
+   */
+  source: "account" | "typed" | "default" | "reviewer" | "signoff" | "decides" | "clock" | "author" | "none";
+  /**
+   * The same, in one plain line.
+   */
+  source_label: string;
+  /**
+   * Demo data: a demo reviewer or the demo developer.
+   */
+  demo: boolean;
+  /**
+   * False where no name was kept.
+   */
+  recorded: boolean;
+  /**
+   * The button it was pressed with ("Run all", "Retest now, on Fixes"), or null.
+   */
+  button: string | null;
+}
+export interface EvidenceFilesCheck {
+  title: string;
+  text: string;
+  command: string;
+  report_note: string;
+}
+export interface EvidenceFilesHolds {
+  title: string;
+  items: string[];
+}
+export interface EvidenceFilesView {
+  plan_id: number;
+  is_demo: boolean;
+  title: string;
+  subline: string;
+  /**
+   * Every download, newest first.
+   */
+  files: EvidenceFileRow[];
+  empty_text: string | null;
+  download: LabViewDownload;
+  check: EvidenceFilesCheck;
+  holds: EvidenceFilesHolds;
+  names_note: string;
+}
+/**
+ * The Download evidence button, as Evidence gives it.
+ */
+export interface LabViewDownload {
+  can_start: boolean;
+  blocked_reason: string | null;
 }
 export interface FixApprovers {
   /**
@@ -3525,6 +3750,85 @@ export interface Headline {
   systems: SystemCounts | null;
   blockers: number | null;
 }
+export interface HistoryLine {
+  id: string;
+  /**
+   * Null where the record has no time (a proposal of Otto's is not stored).
+   */
+  at: string | null;
+  icon:
+    | "grid"
+    | "file"
+    | "download"
+    | "signoff"
+    | "person"
+    | "live"
+    | "flask"
+    | "list"
+    | "approve"
+    | "merge"
+    | "clock"
+    | "apply"
+    | "rollback";
+  title: string;
+  /**
+   * This item's own result in that run, or a proof's or a try's word.
+   */
+  result: RecordChip | null;
+  /**
+   * Several results that stand together (a retest's, in a fix's history).
+   */
+  results: RecordChip[];
+  who: RecordWho1 | null;
+  /**
+   * "started by You, with Run all", "by You", or that no name was kept.
+   */
+  said: string | null;
+  decided_by: string | null;
+  note: string | null;
+  /**
+   * The run's fingerprint (SHA-256), in full.
+   */
+  fingerprint: string | null;
+  source_tag: Source | null;
+  marks: string[];
+  link: ItemLink | null;
+}
+export interface RecordChip {
+  /**
+   * What it is a result of, where several stand together; else null.
+   */
+  name: string | null;
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface HistoryTimeline {
+  /**
+   * The place to open the timeline with.
+   */
+  area: "observe" | "advisories" | "checks" | "fixes" | "migration" | "dependencies" | "watch" | "assessment";
+}
+export interface HistoryView {
+  plan_id: number;
+  is_demo: boolean;
+  key: string;
+  /**
+   * "History of this check", "History of this fix", ...
+   */
+  title: string;
+  /**
+   * The line on top that says what decides a result; null for a fix or a change.
+   */
+  decides: string | null;
+  /**
+   * Newest first; a line with no time comes last.
+   */
+  lines: HistoryLine[];
+  notes: string[];
+  empty_text: string | null;
+  names_note: string;
+  timeline: HistoryTimeline;
+}
 export interface LabRow {
   item_id: number;
   kind:
@@ -3563,7 +3867,7 @@ export interface LabView {
    */
   rows: LabRow[];
   retest: LabViewRetest;
-  download: LabViewDownload;
+  download: LabViewDownload1;
   /**
    * Something is running for this file (tests, a retest or a proof in Fixes): ask again in a second.
    */
@@ -3619,7 +3923,7 @@ export interface RetestVersion {
   tag: string;
   note: string;
 }
-export interface LabViewDownload {
+export interface LabViewDownload1 {
   can_start: boolean;
   blocked_reason: string | null;
 }
@@ -4367,6 +4671,46 @@ export interface PullRequestBody {
     | [string, string, string, string, string, string, string]
     | [string, string, string, string, string, string, string, string];
 }
+export interface RecordCount {
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  count: number;
+}
+export interface RecordFact {
+  label: string;
+  value: string;
+  mono: boolean;
+}
+export interface RecordKind {
+  key: "runs" | "people" | "system" | "files";
+  /**
+   * "Runs and results", "What people did", "Changes to a system", "Files in and out"
+   */
+  label: string;
+}
+export interface RecordRested {
+  title: string;
+  text: string | null;
+  chips: RecordChip[];
+  link: ItemLink | null;
+  link_label: string | null;
+}
+/**
+ * A result word and its tone, exactly as the reviewer's review or the item's own page gives them.
+ */
+export interface RecordResult {
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface RecordRole {
+  /**
+   * "Merged by", "Approved by", "Approved as", "Pressed by", ...
+   */
+  role: string;
+  who: RecordWho1;
+  at: string | null;
+  note: string | null;
+}
 export interface RelatedView {
   key: string;
   related: RelatedLine[];
@@ -4405,6 +4749,181 @@ export interface SessionUser {
   login: string;
   name: string | null;
   avatar_url: string | null;
+}
+export interface TimelineApart {
+  count: number;
+  label: string;
+  text: string;
+  area: "observe" | "advisories" | "checks" | "fixes" | "migration" | "dependencies" | "watch" | "assessment";
+}
+export interface TimelineChosen {
+  area: string;
+  kind: string;
+  q: string;
+}
+export interface TimelineDay {
+  /**
+   * YYYY-MM-DD, in the zone the view names.
+   */
+  date: string;
+  count: number;
+  entries: TimelineEntry[];
+}
+/**
+ * One thing that happened. One entry for one press: the runs a press started are in its entry.
+ */
+export interface TimelineEntry {
+  /**
+   * Stable: "press-12", "retest-3", "merge-1", "verify-2", "otto-5", ...
+   */
+  id: string;
+  /**
+   * The moment, as ISO text in UTC; the screen writes it in the viewer's zone.
+   */
+  at: string;
+  area: RecordArea;
+  kind: RecordKind;
+  icon:
+    | "grid"
+    | "file"
+    | "download"
+    | "signoff"
+    | "person"
+    | "live"
+    | "flask"
+    | "list"
+    | "approve"
+    | "merge"
+    | "clock"
+    | "apply"
+    | "rollback";
+  /**
+   * The bold start of the sentence.
+   */
+  lead: string;
+  /**
+   * The rest of the sentence.
+   */
+  rest: RichPart[];
+  who: RecordWho1;
+  /**
+   * A second name: the demo reviewer an approval was given as, a commit's author.
+   */
+  also: RecordWho1[];
+  /**
+   * "decided by the separate reviewer" for runs, "decided by fixed rules" for Verify; null otherwise.
+   */
+  decided_by: string | null;
+  /**
+   * "From Otto", "Demo data"
+   */
+  marks: string[];
+  /**
+   * The source tags of its runs, each once.
+   */
+  source_tags: Source[];
+  runs: TimelineRun[];
+  /**
+   * Its runs counted by result word.
+   */
+  counts: RecordCount[];
+  /**
+   * A proof's, a try's or a watch run's own word, where it has one.
+   */
+  outcome: RecordResult | null;
+  /**
+   * Runs this press started that have no result yet.
+   */
+  pending: number;
+  link: ItemLink | null;
+  /**
+   * From Change watch: listed under Change watch only, and counted nowhere else.
+   */
+  apart: boolean;
+}
+export interface TimelineRun {
+  run_id: number | null;
+  /**
+   * For a claim checked by Verify (then run_id is null).
+   */
+  verify_run_id: number | null;
+  name: string;
+  ran_on: string;
+  result: RecordResult;
+  source_tag: Source | null;
+  link: ItemLink;
+}
+/**
+ * One entry's story, for a side panel.
+ */
+export interface TimelineEntryDetail {
+  plan_id: number;
+  is_demo: boolean;
+  entry: TimelineEntry;
+  title: string;
+  summary: string;
+  /**
+   * Who: every person involved, each with what they did.
+   */
+  people: RecordRole[];
+  names_note: string;
+  rested_title: string;
+  /**
+   * What it rested on (a merge, an Apply); empty otherwise.
+   */
+  rested: RecordRested[];
+  after_title: string;
+  /**
+   * What came after (a merge, an Apply, a Roll back); empty otherwise.
+   */
+  after: RecordRested[];
+  /**
+   * "Technical record"
+   */
+  record_title: string;
+  /**
+   * Ids, commits and fingerprints, for the folded part.
+   */
+  record: RecordFact[];
+  link_label: string | null;
+}
+export interface TimelineView {
+  plan_id: number;
+  is_demo: boolean;
+  title: string;
+  subline: string;
+  chosen: TimelineChosen;
+  /**
+   * Where: All, then each place.
+   */
+  areas: RecordFilter[];
+  /**
+   * What: Everything, then each kind.
+   */
+  kinds: RecordFilter[];
+  total: number;
+  /**
+   * Newest first.
+   */
+  days: TimelineDay[];
+  /**
+   * The time zone the days are sorted by (the `tz` asked for, or UTC).
+   */
+  zone: string;
+  empty_text: string | null;
+  /**
+   * What Change watch ran and brought in, where it is not listed: how many, and where to see them.
+   */
+  apart: TimelineApart | null;
+  /**
+   * One sentence that says where names come from.
+   */
+  names_note: string;
+  disclaimer: string;
+  /**
+   * Something is running: ask again in a second.
+   */
+  busy: boolean;
 }
 export interface VerifyRun {
   id: number;

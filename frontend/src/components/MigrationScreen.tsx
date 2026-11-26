@@ -12,6 +12,7 @@ import {
 } from "../api";
 import { DependenciesView } from "./dependencies/DependenciesView";
 import { RelatedFor } from "./related";
+import { HistoryFold } from "./evidence/HistoryFold";
 import { downloadEvidence } from "./evidenceDownload";
 import { Roadmap } from "./migration/Roadmap";
 import { SystemDetail } from "./migration/SystemDetail";
@@ -385,6 +386,7 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged, tab: shown
           onChanged={reloadAfterChange}
         />
       ) : null}
+      {system ? <HistoryFold itemKey={`system:${system.key}`} /> : null}
       {system ? <RelatedFor itemKey={`system:${system.key}`} /> : null}
     </DetailPanel>
   );

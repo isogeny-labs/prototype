@@ -9,6 +9,7 @@ export function FoldLine({
   children,
   testId,
   defaultOpen = false,
+  onToggle,
 }: {
   title: string;
   count?: number | null;
@@ -16,6 +17,8 @@ export function FoldLine({
   children: ReactNode;
   testId?: string;
   defaultOpen?: boolean;
+  /** Told when the line opens or closes (a line that reads its content only when it is asked for). */
+  onToggle?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const bodyId = useId();
@@ -25,7 +28,10 @@ export function FoldLine({
         type="button"
         aria-expanded={open}
         aria-controls={bodyId}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          onToggle?.(!open);
+          setOpen(!open);
+        }}
         className="flex w-full items-center gap-2 text-left text-[13px] text-slate-300 hover:text-slate-100"
       >
         <Icon name={open ? "chevron" : "expand"} className="h-3.5 w-3.5 text-slate-500" />

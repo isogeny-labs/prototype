@@ -2833,6 +2833,290 @@
           }
         }
       }
+    },
+    "/api/plans/{plan_id}/timeline": {
+      "get": {
+        "summary": "Timeline",
+        "description": "Everything that happened in the assessment, newest first, by day.",
+        "operationId": "timeline_api_plans__plan_id__timeline_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "area",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One of the places (observe, advisories, checks, fixes, ...), or all.",
+              "title": "Area"
+            },
+            "description": "One of the places (observe, advisories, checks, fixes, ...), or all."
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "runs, people, system or files, or all.",
+              "title": "Kind"
+            },
+            "description": "runs, people, system or files, or all."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words to search the entries for.",
+              "title": "Q"
+            },
+            "description": "Words to search the entries for."
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The viewer's time zone (an IANA name), to sort entries into days.",
+              "title": "Tz"
+            },
+            "description": "The viewer's time zone (an IANA name), to sort entries into days."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/timeline/{entry_id}": {
+      "get": {
+        "summary": "Timeline Entry",
+        "description": "One entry's story: who, what it rested on, what came after, and the facts of its record.",
+        "operationId": "timeline_entry_api_plans__plan_id__timeline__entry_id__get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEntryDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/decisions": {
+      "get": {
+        "summary": "Decisions",
+        "description": "Every decision a person made in the assessment, newest first, by day.",
+        "operationId": "decisions_api_plans__plan_id__decisions_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "area",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One of the places (observe, advisories, checks, fixes, ...), or all.",
+              "title": "Area"
+            },
+            "description": "One of the places (observe, advisories, checks, fixes, ...), or all."
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The viewer's time zone (an IANA name), to sort entries into days.",
+              "title": "Tz"
+            },
+            "description": "The viewer's time zone (an IANA name), to sort entries into days."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/evidence-files": {
+      "get": {
+        "summary": "Evidence Files",
+        "description": "Every download of the signed evidence file, how to check a file, and what it holds.",
+        "operationId": "evidence_files_api_plans__plan_id__evidence_files_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceFilesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/history": {
+      "get": {
+        "summary": "History",
+        "description": "The history of one item, keyed as the Related block keys its panel (test:12, fix:..., change:..., system:...).",
+        "operationId": "history_api_plans__plan_id__history_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 720,
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryView"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8872,6 +9156,267 @@
         "type": "object",
         "title": "DecisionBody"
       },
+      "DecisionCard": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "decisions",
+              "approvals",
+              "otto",
+              "signoff"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "small": {
+            "type": "string",
+            "title": "Small"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "value",
+          "small"
+        ],
+        "title": "DecisionCard"
+      },
+      "DecisionDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "date",
+          "count",
+          "rows"
+        ],
+        "title": "DecisionDay"
+      },
+      "DecisionRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The timeline entry of this decision."
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/DecisionWord"
+          },
+          "on": {
+            "type": "string",
+            "title": "On"
+          },
+          "marks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Marks"
+          },
+          "who": {
+            "$ref": "#/components/schemas/RecordWho",
+            "description": "The name the decision was recorded under."
+          },
+          "pressed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordWho"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who pressed, where that is another name (an approval as a demo reviewer)."
+          },
+          "area": {
+            "$ref": "#/components/schemas/RecordArea"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "decision",
+          "on",
+          "marks",
+          "who",
+          "pressed_by",
+          "area",
+          "link"
+        ],
+        "title": "DecisionRow"
+      },
+      "DecisionWord": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Approved\", \"Merged\", \"Accepted\", \"Not added\", \"Applied\", \"Signed off\", ..."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "DecisionWord"
+      },
+      "DecisionsChosen": {
+        "properties": {
+          "area": {
+            "type": "string",
+            "title": "Area"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "area"
+        ],
+        "title": "DecisionsChosen"
+      },
+      "DecisionsView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionCard"
+            },
+            "type": "array",
+            "title": "Cards"
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note"
+          },
+          "results_note": {
+            "type": "string",
+            "title": "Results Note",
+            "description": "Why no result is in this list."
+          },
+          "chosen": {
+            "$ref": "#/components/schemas/DecisionsChosen"
+          },
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/RecordFilter"
+            },
+            "type": "array",
+            "title": "Areas"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionDay"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "Newest first."
+          },
+          "zone": {
+            "type": "string",
+            "title": "Zone"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "title",
+          "subline",
+          "cards",
+          "names_note",
+          "results_note",
+          "chosen",
+          "areas",
+          "total",
+          "days",
+          "zone",
+          "empty_text",
+          "disclaimer"
+        ],
+        "title": "DecisionsView"
+      },
       "DemoChangeItem": {
         "properties": {
           "key": {
@@ -10504,6 +11049,167 @@
         ],
         "title": "EvidenceExport"
       },
+      "EvidenceFileRow": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint"
+          },
+          "fingerprint_label": {
+            "type": "string",
+            "title": "Fingerprint Label"
+          },
+          "who": {
+            "$ref": "#/components/schemas/RecordWho",
+            "description": "Who downloaded it."
+          },
+          "json": {
+            "$ref": "#/components/schemas/FileLink"
+          },
+          "html": {
+            "$ref": "#/components/schemas/FileLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "fingerprint",
+          "fingerprint_label",
+          "who",
+          "json",
+          "html"
+        ],
+        "title": "EvidenceFileRow"
+      },
+      "EvidenceFilesCheck": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "command": {
+            "type": "string",
+            "title": "Command"
+          },
+          "report_note": {
+            "type": "string",
+            "title": "Report Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "text",
+          "command",
+          "report_note"
+        ],
+        "title": "EvidenceFilesCheck"
+      },
+      "EvidenceFilesHolds": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "items"
+        ],
+        "title": "EvidenceFilesHolds"
+      },
+      "EvidenceFilesView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceFileRow"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "Every download, newest first."
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          },
+          "download": {
+            "$ref": "#/components/schemas/LabViewDownload",
+            "description": "The Download evidence button, as Evidence gives it."
+          },
+          "check": {
+            "$ref": "#/components/schemas/EvidenceFilesCheck"
+          },
+          "holds": {
+            "$ref": "#/components/schemas/EvidenceFilesHolds"
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "title",
+          "subline",
+          "files",
+          "empty_text",
+          "download",
+          "check",
+          "holds",
+          "names_note"
+        ],
+        "title": "EvidenceFilesView"
+      },
       "FileLink": {
         "properties": {
           "url": {
@@ -11845,6 +12551,276 @@
           "blockers"
         ],
         "title": "Headline"
+      },
+      "HistoryLine": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At",
+            "description": "Null where the record has no time (a proposal of Otto's is not stored)."
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "grid",
+              "file",
+              "download",
+              "signoff",
+              "person",
+              "live",
+              "flask",
+              "list",
+              "approve",
+              "merge",
+              "clock",
+              "apply",
+              "rollback"
+            ],
+            "title": "Icon"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordChip"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This item's own result in that run, or a proof's or a try's word."
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/RecordChip"
+            },
+            "type": "array",
+            "title": "Results",
+            "description": "Several results that stand together (a retest's, in a fix's history)."
+          },
+          "who": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordWho"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Said",
+            "description": "\"started by You, with Run all\", \"by You\", or that no name was kept."
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fingerprint",
+            "description": "The run's fingerprint (SHA-256), in full."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "marks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Marks"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "icon",
+          "title",
+          "result",
+          "results",
+          "who",
+          "said",
+          "decided_by",
+          "note",
+          "fingerprint",
+          "source_tag",
+          "marks",
+          "link"
+        ],
+        "title": "HistoryLine"
+      },
+      "HistoryTimeline": {
+        "properties": {
+          "area": {
+            "type": "string",
+            "enum": [
+              "observe",
+              "advisories",
+              "checks",
+              "fixes",
+              "migration",
+              "dependencies",
+              "watch",
+              "assessment"
+            ],
+            "title": "Area",
+            "description": "The place to open the timeline with."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "area"
+        ],
+        "title": "HistoryTimeline"
+      },
+      "HistoryView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"History of this check\", \"History of this fix\", ..."
+          },
+          "decides": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decides",
+            "description": "The line on top that says what decides a result; null for a fix or a change."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryLine"
+            },
+            "type": "array",
+            "title": "Lines",
+            "description": "Newest first; a line with no time comes last."
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note"
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/HistoryTimeline"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "key",
+          "title",
+          "decides",
+          "lines",
+          "notes",
+          "empty_text",
+          "names_note",
+          "timeline"
+        ],
+        "title": "HistoryView"
       },
       "Impact": {
         "properties": {
@@ -17671,6 +18647,370 @@
         ],
         "title": "RanOnFingerprint"
       },
+      "RecordArea": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "observe",
+              "advisories",
+              "checks",
+              "fixes",
+              "migration",
+              "dependencies",
+              "watch",
+              "assessment"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Observatory and Verify\", \"Advisories\", \"Checks\", \"Fixes\", \"Migration plan\", ..."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "RecordArea"
+      },
+      "RecordChip": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "What it is a result of, where several stand together; else null."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "label",
+          "tone"
+        ],
+        "title": "RecordChip"
+      },
+      "RecordCount": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone",
+          "count"
+        ],
+        "title": "RecordCount"
+      },
+      "RecordFact": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "mono": {
+            "type": "boolean",
+            "title": "Mono"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "mono"
+        ],
+        "title": "RecordFact"
+      },
+      "RecordFilter": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "\"all\", or an area or kind key."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "How many entries it would list, with the other filter and the search as they are."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "count"
+        ],
+        "title": "RecordFilter"
+      },
+      "RecordKind": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "runs",
+              "people",
+              "system",
+              "files"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Runs and results\", \"What people did\", \"Changes to a system\", \"Files in and out\""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "RecordKind"
+      },
+      "RecordRested": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "chips": {
+            "items": {
+              "$ref": "#/components/schemas/RecordChip"
+            },
+            "type": "array",
+            "title": "Chips"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "text",
+          "chips",
+          "link",
+          "link_label"
+        ],
+        "title": "RecordRested"
+      },
+      "RecordResult": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone"
+        ],
+        "title": "RecordResult",
+        "description": "A result word and its tone, exactly as the reviewer's review or the item's own page gives them."
+      },
+      "RecordRole": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "\"Merged by\", \"Approved by\", \"Approved as\", \"Pressed by\", ..."
+          },
+          "who": {
+            "$ref": "#/components/schemas/RecordWho"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "who",
+          "at",
+          "note"
+        ],
+        "title": "RecordRole"
+      },
+      "RecordWho": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "The name, or \"Not recorded (before names were kept)\"."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "account",
+              "typed",
+              "default",
+              "reviewer",
+              "signoff",
+              "decides",
+              "clock",
+              "author",
+              "none"
+            ],
+            "title": "Source",
+            "description": "account: the logged-in account; typed: the Who decides name; default: “You”; reviewer: the reviewer's label on an approval; signoff: typed in the Close box; decides: a record that keeps its own name (Otto's decisions, looks, Watch list marks); clock: the Watch list's timer; author: a commit's author; none."
+          },
+          "source_label": {
+            "type": "string",
+            "title": "Source Label",
+            "description": "The same, in one plain line."
+          },
+          "demo": {
+            "type": "boolean",
+            "title": "Demo",
+            "description": "Demo data: a demo reviewer or the demo developer."
+          },
+          "recorded": {
+            "type": "boolean",
+            "title": "Recorded",
+            "description": "False where no name was kept."
+          },
+          "button": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Button",
+            "description": "The button it was pressed with (\"Run all\", \"Retest now, on Fixes\"), or null."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "source",
+          "source_label",
+          "demo",
+          "recorded",
+          "button"
+        ],
+        "title": "RecordWho",
+        "description": "One name on a record, and where it came from. A person is never the decider of a result."
+      },
       "RelatedItem": {
         "properties": {
           "key": {
@@ -19701,6 +21041,536 @@
           "code"
         ],
         "title": "TextSuggestionWhereRow"
+      },
+      "TimelineApart": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "area": {
+            "type": "string",
+            "enum": [
+              "observe",
+              "advisories",
+              "checks",
+              "fixes",
+              "migration",
+              "dependencies",
+              "watch",
+              "assessment"
+            ],
+            "title": "Area"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "count",
+          "label",
+          "text",
+          "area"
+        ],
+        "title": "TimelineApart"
+      },
+      "TimelineChosen": {
+        "properties": {
+          "area": {
+            "type": "string",
+            "title": "Area"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "q": {
+            "type": "string",
+            "title": "Q"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "area",
+          "kind",
+          "q"
+        ],
+        "title": "TimelineChosen"
+      },
+      "TimelineDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date",
+            "description": "YYYY-MM-DD, in the zone the view names."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "date",
+          "count",
+          "entries"
+        ],
+        "title": "TimelineDay"
+      },
+      "TimelineEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable: \"press-12\", \"retest-3\", \"merge-1\", \"verify-2\", \"otto-5\", ..."
+          },
+          "at": {
+            "type": "string",
+            "title": "At",
+            "description": "The moment, as ISO text in UTC; the screen writes it in the viewer's zone."
+          },
+          "area": {
+            "$ref": "#/components/schemas/RecordArea"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RecordKind"
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "grid",
+              "file",
+              "download",
+              "signoff",
+              "person",
+              "live",
+              "flask",
+              "list",
+              "approve",
+              "merge",
+              "clock",
+              "apply",
+              "rollback"
+            ],
+            "title": "Icon"
+          },
+          "lead": {
+            "type": "string",
+            "title": "Lead",
+            "description": "The bold start of the sentence."
+          },
+          "rest": {
+            "items": {
+              "$ref": "#/components/schemas/RichPart"
+            },
+            "type": "array",
+            "title": "Rest",
+            "description": "The rest of the sentence."
+          },
+          "who": {
+            "$ref": "#/components/schemas/RecordWho"
+          },
+          "also": {
+            "items": {
+              "$ref": "#/components/schemas/RecordWho"
+            },
+            "type": "array",
+            "title": "Also",
+            "description": "A second name: the demo reviewer an approval was given as, a commit's author."
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By",
+            "description": "\"decided by the separate reviewer\" for runs, \"decided by fixed rules\" for Verify; null otherwise."
+          },
+          "marks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Marks",
+            "description": "\"From Otto\", \"Demo data\""
+          },
+          "source_tags": {
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            },
+            "type": "array",
+            "title": "Source Tags",
+            "description": "The source tags of its runs, each once."
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineRun"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/RecordCount"
+            },
+            "type": "array",
+            "title": "Counts",
+            "description": "Its runs counted by result word."
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A proof's, a try's or a watch run's own word, where it has one."
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending",
+            "description": "Runs this press started that have no result yet."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "apart": {
+            "type": "boolean",
+            "title": "Apart",
+            "description": "From Change watch: listed under Change watch only, and counted nowhere else."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "area",
+          "kind",
+          "icon",
+          "lead",
+          "rest",
+          "who",
+          "also",
+          "decided_by",
+          "marks",
+          "source_tags",
+          "runs",
+          "counts",
+          "outcome",
+          "pending",
+          "link",
+          "apart"
+        ],
+        "title": "TimelineEntry",
+        "description": "One thing that happened. One entry for one press: the runs a press started are in its entry."
+      },
+      "TimelineEntryDetail": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "entry": {
+            "$ref": "#/components/schemas/TimelineEntry"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/RecordRole"
+            },
+            "type": "array",
+            "title": "People",
+            "description": "Who: every person involved, each with what they did."
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note"
+          },
+          "rested_title": {
+            "type": "string",
+            "title": "Rested Title"
+          },
+          "rested": {
+            "items": {
+              "$ref": "#/components/schemas/RecordRested"
+            },
+            "type": "array",
+            "title": "Rested",
+            "description": "What it rested on (a merge, an Apply); empty otherwise."
+          },
+          "after_title": {
+            "type": "string",
+            "title": "After Title"
+          },
+          "after": {
+            "items": {
+              "$ref": "#/components/schemas/RecordRested"
+            },
+            "type": "array",
+            "title": "After",
+            "description": "What came after (a merge, an Apply, a Roll back); empty otherwise."
+          },
+          "record_title": {
+            "type": "string",
+            "title": "Record Title",
+            "description": "\"Technical record\""
+          },
+          "record": {
+            "items": {
+              "$ref": "#/components/schemas/RecordFact"
+            },
+            "type": "array",
+            "title": "Record",
+            "description": "Ids, commits and fingerprints, for the folded part."
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "entry",
+          "title",
+          "summary",
+          "people",
+          "names_note",
+          "rested_title",
+          "rested",
+          "after_title",
+          "after",
+          "record_title",
+          "record",
+          "link_label"
+        ],
+        "title": "TimelineEntryDetail",
+        "description": "One entry's story, for a side panel."
+      },
+      "TimelineRun": {
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "verify_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Run Id",
+            "description": "For a claim checked by Verify (then run_id is null)."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "ran_on": {
+            "type": "string",
+            "title": "Ran On"
+          },
+          "result": {
+            "$ref": "#/components/schemas/RecordResult"
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "verify_run_id",
+          "name",
+          "ran_on",
+          "result",
+          "source_tag",
+          "link"
+        ],
+        "title": "TimelineRun"
+      },
+      "TimelineView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "chosen": {
+            "$ref": "#/components/schemas/TimelineChosen"
+          },
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/RecordFilter"
+            },
+            "type": "array",
+            "title": "Areas",
+            "description": "Where: All, then each place."
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/RecordFilter"
+            },
+            "type": "array",
+            "title": "Kinds",
+            "description": "What: Everything, then each kind."
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineDay"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "Newest first."
+          },
+          "zone": {
+            "type": "string",
+            "title": "Zone",
+            "description": "The time zone the days are sorted by (the `tz` asked for, or UTC)."
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          },
+          "apart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelineApart"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What Change watch ran and brought in, where it is not listed: how many, and where to see them."
+          },
+          "names_note": {
+            "type": "string",
+            "title": "Names Note",
+            "description": "One sentence that says where names come from."
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "Something is running: ask again in a second."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "is_demo",
+          "title",
+          "subline",
+          "chosen",
+          "areas",
+          "kinds",
+          "total",
+          "days",
+          "zone",
+          "empty_text",
+          "apart",
+          "names_note",
+          "disclaimer",
+          "busy"
+        ],
+        "title": "TimelineView"
       },
       "TrackStatus": {
         "properties": {
@@ -21754,6 +23624,64 @@
         ],
         "type": "string",
         "title": "AssistantThread"
+      },
+      "RecordAreaKey": {
+        "enum": [
+          "observe",
+          "advisories",
+          "checks",
+          "fixes",
+          "migration",
+          "dependencies",
+          "watch",
+          "assessment"
+        ],
+        "type": "string",
+        "title": "RecordAreaKey"
+      },
+      "RecordKindKey": {
+        "enum": [
+          "runs",
+          "people",
+          "system",
+          "files"
+        ],
+        "type": "string",
+        "title": "RecordKindKey"
+      },
+      "RecordIcon": {
+        "enum": [
+          "grid",
+          "file",
+          "download",
+          "signoff",
+          "person",
+          "live",
+          "flask",
+          "list",
+          "approve",
+          "merge",
+          "clock",
+          "apply",
+          "rollback"
+        ],
+        "type": "string",
+        "title": "RecordIcon"
+      },
+      "WhoSource": {
+        "enum": [
+          "account",
+          "typed",
+          "default",
+          "reviewer",
+          "signoff",
+          "decides",
+          "clock",
+          "author",
+          "none"
+        ],
+        "type": "string",
+        "title": "WhoSource"
       }
     }
   }

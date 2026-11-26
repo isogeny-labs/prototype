@@ -10,27 +10,38 @@ from __future__ import annotations
 THREADS = ("testing", "fixing", "planning")
 THREAD_LABELS = {"testing": "Testing", "fixing": "Fixing", "planning": "Planning"}
 
+# The design refactor (26 November 2026): the Observatory (the map of the systems the files describe) is a page of
+# every assessment, and Evidence is a section of four views. "evidence" is its Results view, which keeps the address
+# and the name every sentence here already gives it; the other three are views that only read the record.
 PAGES = (
     "overview",
     "inventory/import",
+    "observatory",
     "inventory/verify",
     "advisories",
     "checks",
     "evidence",
+    "evidence/timeline",
+    "evidence/decisions",
+    "evidence/files",
     "fixes",
     "change-watch",
     "migration/systems",
     "migration/roadmap",
     "migration/dependencies",
 )
-# (as the sidebar names them)
+# (as the sidebar names them; the Results view of Evidence is "Evidence" in every sentence, as it always was)
 PAGE_LABELS = {
     "overview": "Overview",
     "inventory/import": "Import",
+    "observatory": "Observatory",
     "inventory/verify": "Verify",
     "advisories": "Advisories",
     "checks": "Checks",
     "evidence": "Evidence",
+    "evidence/timeline": "Timeline",
+    "evidence/decisions": "Approvals and decisions",
+    "evidence/files": "Evidence files",
     "fixes": "Fixes",
     "change-watch": "Change watch",
     "migration/systems": "Systems",
@@ -41,10 +52,15 @@ PAGE_LABELS = {
 PAGE_THREAD: dict[str, str | None] = {
     "overview": None,
     "inventory/import": "testing",
+    "observatory": "testing",
     "inventory/verify": "testing",
     "advisories": "testing",
     "checks": "testing",
     "evidence": "testing",
+    # The three views that only read the record keep the tab you had, as the Overview does.
+    "evidence/timeline": None,
+    "evidence/decisions": None,
+    "evidence/files": None,
     "change-watch": "testing",  # phase 6d: the tests picked for a developer's change, and their runs
     "fixes": "fixing",
     "migration/dependencies": "fixing",

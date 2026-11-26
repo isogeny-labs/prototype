@@ -30,6 +30,9 @@ import { OverviewPage } from "./components/pages/OverviewPage";
 import { ProjectsPage } from "./components/pages/ProjectsPage";
 import { SettingsPage } from "./components/pages/SettingsPage";
 import { GuidedBar } from "./components/shell/GuidedBar";
+import { DecisionsPage } from "./components/evidence/DecisionsPage";
+import { EvidenceFilesPage } from "./components/evidence/EvidenceFilesPage";
+import { TimelinePage } from "./components/evidence/TimelinePage";
 import { Sidebar, type PageAccess } from "./components/shell/Sidebar";
 import { TopBar } from "./components/shell/TopBar";
 import { ErrorBox, formatTime, SecondaryButton } from "./components/ui";
@@ -718,6 +721,27 @@ export default function App() {
         onGroup={setGroup}
       />
     );
+  } else if (page === "evidence/timeline" && plan) {
+    // The design refactor (26 November 2026): Evidence is a section of four views. The first three only read the record.
+    content = (
+      <TimelinePage
+        planId={plan.id}
+        area={route.kind === "assessment" ? (route.group ?? null) : null}
+        onArea={(area) => route.kind === "assessment" && navigate({ ...route, group: area, item: null, view: null })}
+        openItem={routeItem}
+      />
+    );
+  } else if (page === "evidence/decisions" && plan) {
+    content = (
+      <DecisionsPage
+        planId={plan.id}
+        area={route.kind === "assessment" ? (route.group ?? null) : null}
+        onArea={(area) => route.kind === "assessment" && navigate({ ...route, group: area, item: null, view: null })}
+        openItem={routeItem}
+      />
+    );
+  } else if (page === "evidence/files" && plan) {
+    content = <EvidenceFilesPage planId={plan.id} />;
   } else if (page === "fixes" && plan) {
     content = (
       <FixesScreen

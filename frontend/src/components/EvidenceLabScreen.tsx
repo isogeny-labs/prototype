@@ -34,6 +34,7 @@ import { CheckTable } from "./checks/CheckTable";
 import { LibraryPanel, LibraryTable } from "./checks/LibraryEvidence";
 import { FoldLine, Trail } from "./proof";
 import { sourceParts } from "./sourceParts";
+import { HistoryFold } from "./evidence/HistoryFold";
 import { ItemLinkView, RelatedFold, WithRelated } from "./related";
 import { VerifyResultDetails } from "./VerifyScreen";
 import type { CheckDetail, ChecksView } from "../api";
@@ -622,6 +623,7 @@ export function EvidenceLabScreen({
                 />
               ) : null}
               <RunsFor planId={current.plan_id} checkId={`test-${selected.item_id}`} />
+              <HistoryFold itemKey={`test:${selected.item_id}`} />
               <RelatedFold lines={related} />
             </div>
           )}
