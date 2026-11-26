@@ -122,7 +122,7 @@ def _files(lab: Any, import_id: int) -> dict:
             "at": iso(imp.created_at),
         }
     structure, note = _structure(lab, import_id, info["format"], data, sha256)
-    return {"import": info, "claims": claims, "structure": structure, "note": note, "listed": listed}
+    return {"scanner": info, "claims": claims, "structure": structure, "note": note, "listed": listed}
 
 
 def _listed(files: dict, deps: dict | None) -> dict | None:
@@ -218,7 +218,7 @@ def _claim_checks(box: L.Box, got: dict) -> list[dict]:
                 tone=None,
                 code=None,
                 checked=False,
-                tag=present_source.of_claim(got["files"]["import"]["filename"]),
+                tag=present_source.of_claim(got["files"]["scanner"]["filename"]),
                 at=None,
                 plain=claim["text"],
                 link=_link("inventory/import", item),
@@ -443,7 +443,8 @@ def _box(box: L.Box, got: dict) -> dict:
     if box.kind == "own_software":
         note = words.not_tied(_system_names(layout))
     elif not spots:
-        note = words.NO_CRYPTOGRAPHY_NAMED
+        used = any(use["box"] == box.key for algorithm in layout.algorithms for use in algorithm["uses"])
+        note = words.NOTHING_CHECKED_OF_IT if used else words.NO_CRYPTOGRAPHY_NAMED
     return {
         "key": box.key,
         "kind": box.kind,
@@ -635,9 +636,8 @@ def _lines(layout: L.Layout, boxes: dict[str, dict], got: dict) -> list[dict]:
 # ---------------------------------------------------------------- what the files don't say
 
 
-def _gaps(layout: L.Layout, got_structure: bool) -> list[dict]:
-    """The list under the map. `got_structure`: the scanner file's structure was read (only then can the map say that
-    the file names no service; a file read from its claims alone is said so in its own sentence)."""
+def _gaps(layout: L.Layout) -> list[dict]:
+    """The list under the map: what the files don't say, each with where it can be filled."""
     gaps: list[dict] = []
     servers = layout.servers()
     unanswered = [b.label for b in servers if b.key not in layout.answered]
@@ -669,7 +669,9 @@ def _gaps(layout: L.Layout, got_structure: bool) -> list[dict]:
                 "link_label": words.IMPORT_LABEL,
             }
         )
-    if layout.containers[0].named == "unnamed_scanner" and got_structure:
+    if layout.containers[0].named == "unnamed_scanner":
+        # (only a file whose structure was read can be said to name no service: a map drawn from the claims alone
+        #  says so in its own sentence, and nothing about what the file names besides them)
         gaps.append({"key": "service", "text": words.GAP_NO_SERVICE, "link": None, "link_label": None})
     if not layout.listed:
         gaps.append(
@@ -780,8 +782,8 @@ def view(lab: Any, import_id: int, plan_id: int | None) -> dict:
     checks = [c for b in boxes.values() for s in b["spots"] for c in s["checks"]]
     any_checked = any(c["checked"] for c in checks)
     live = any(line["kind"] == "live" for line in built["lines"])
-    names = [files["import"]["filename"]] + ([files["listed"]["filename"]] if got["listed"] is not None else [])
-    stamps = [files["import"]["at"]] + ([files["listed"]["at"]] if got["listed"] is not None else [])
+    names = [files["scanner"]["filename"]] + ([files["listed"]["filename"]] if got["listed"] is not None else [])
+    stamps = [files["scanner"]["at"]] + ([files["listed"]["at"]] if got["listed"] is not None else [])
     newest = _newest(stamps + [x.get("at") for c in checks for x in (c, *c["beside"])])
     services = []
     for container in layout.containers:
@@ -790,12 +792,13 @@ def view(lab: Any, import_id: int, plan_id: int | None) -> dict:
                 "key": container.key,
                 "title": container.title,
                 "version": container.version,
-                "is_demo": files["import"]["is_demo"] if L.SCANNER in container.files else False,
+                "is_demo": files["scanner"]["is_demo"] if L.SCANNER in container.files else False,
                 "sub": {
                     "both": words.SERVICE_BOTH,
                     "scanner": words.SERVICE_SCANNER,
                     "list": words.SERVICE_LIST,
                     "unnamed_scanner": words.SERVICE_UNNAMED,
+                    "claims": words.SERVICE_CLAIMS,
                     "unnamed_list": words.LIST_UNNAMED,
                 }[container.named],
                 "in_files": list(container.files),
@@ -823,7 +826,7 @@ def view(lab: Any, import_id: int, plan_id: int | None) -> dict:
         "counts": _counts(got, boxes),
         "counts_note": words.COUNTS_NOTE,
         "map_title": words.MAP_TITLE,
-        "built_from": words.built_from(names, any_checked, newest, newest != files["import"]["at"]),
+        "built_from": words.built_from(names, any_checked, newest, newest != files["scanner"]["at"]),
         "structure_note": files["note"],
         "not_drawn": words.not_drawn(layout.not_drawn) if layout.not_drawn else None,
         "outside": (
@@ -857,7 +860,7 @@ def view(lab: Any, import_id: int, plan_id: int | None) -> dict:
         "gaps": {
             "title": words.GAPS_TITLE,
             "note": words.GAPS_NOTE,
-            "items": _gaps(layout, files["structure"] is not None),
+            "items": _gaps(layout),
         },
         "busy": bool(
             (got["lab"] or {}).get("busy")
@@ -897,7 +900,7 @@ def _file_lines(box: L.Box, got: dict) -> list[dict]:
         out.append(
             {
                 "title": title,
-                "filename": files["import"]["filename"],
+                "filename": files["scanner"]["filename"],
                 "lines": [{"where": w, "text": t} for w, t in found[:MAX_FILE_LINES]],
                 "more": max(0, len(found) - MAX_FILE_LINES),
             }

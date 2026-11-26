@@ -176,6 +176,50 @@ def test_reading_the_map_of_the_whole_demo_writes_nothing(walk):
     assert everything_kept(walk.lab) == before and not walk.lab.jobs.live(walk.plan.id)
 
 
+def test_without_a_retest_the_measurement_after_apply_is_the_live_servers_result_and_says_so(tmp_path):
+    """With no retest in the assessment, the app measures the server again after Apply as a run of the test itself:
+    Evidence shows that run as the test's result, and so does the map, saying where it came from."""
+    lab = make_lab(tmp_path)
+    try:
+        plan = W.start(lab, small=True)
+        lab.verify(plan.imp["id"])
+        lab.run_all(plan.id)
+        lab.wait_until_idle(plan.id, 240)
+        before = build.view_of_plan(lab, plan.id)
+        assert (
+            W.check(before, plan.server, "test-1")["word"],
+            W.check(before, plan.server, "test-1")["came_from"],
+        ) == (
+            "Failed",
+            None,
+        )
+        fix = next(f for f in lab.fixes_view(plan.id)["fixes"] if f["id"].startswith("fix-tls"))
+        key = fix["change_box"]["id"]
+        lab.try_change(plan.id, key)
+        lab.wait_until_changes_idle(plan.id)
+        tried = build.view_of_plan(lab, plan.id)
+        assert tried["services"] == before["services"] and tried["lines"] == before["lines"]  # a try is not drawn
+        lab.ask_approval(plan.id, key, ["you"])
+        lab.approve_change(plan.id, key, "you")
+        lab.apply_change(plan.id, key)
+        lab.wait_until_changes_idle(plan.id)
+        view = build.view_of_plan(lab, plan.id)
+        assert problems(view, models.ObservatoryView, "observatory") == []
+        row = next(r for r in lab.lab_view(plan.id)["rows"] if r["kind"] == "tls_versions")
+        tls = W.check(view, plan.server, "test-1")
+        assert row["after"] is None and tls["beside"] == []
+        assert tls["word"] == row["result"]["label"] == "Passed" and tls["came_from"] == "After Apply"
+        assert tls["tag"]["key"] == "live" and "right after the change was applied" in tls["tag"]["note"]
+        # Verify was not run again: its claim keeps Verify's own word, from before the change
+        assert W.check(view, plan.server, "claim-1")["word"] == "False"
+        # what was seen is read from the newest recorded handshakes, which are the ones made after Apply
+        assert ("this_computer", plan.server, "live", "TLS · 1.3 accepted") in W.lines(view)
+        assert W.box(view, plan.server)["tag"]["key"] == "live"
+        assert W.box(view, plan.program) == W.box(before, plan.program)
+    finally:
+        lab.stop()
+
+
 # ---------------------------------------------------------------- Change watch
 
 

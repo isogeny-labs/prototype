@@ -63,7 +63,7 @@ class Container:
     key: str
     title: str | None
     version: str | None
-    named: str  # both | scanner | list | unnamed_scanner | unnamed_list
+    named: str  # both | scanner | list | unnamed_scanner | claims | unnamed_list
     files: list[str]
     boxes: list[str] = field(default_factory=list)
 
@@ -111,7 +111,15 @@ def lay_out(claims: list[dict], structure: S.Structure | None, listed: dict | No
         key=SERVICE_BOX,
         title=top.name if top is not None else None,
         version=top.version if top is not None else None,
-        named="both" if out.merged else "scanner" if top is not None else "unnamed_scanner",
+        named=(
+            "both"
+            if out.merged
+            else "scanner"
+            if top is not None
+            else "unnamed_scanner"  # the file was read, and names no top component
+            if structure is not None
+            else "claims"  # drawn from the claims alone: what else the file names is not known here
+        ),
         files=[SCANNER, LISTED] if out.merged else [SCANNER],
     )
     out.containers.append(service)
