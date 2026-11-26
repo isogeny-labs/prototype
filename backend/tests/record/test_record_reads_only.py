@@ -187,7 +187,12 @@ def test_the_five_reads_write_nothing_and_start_nothing(walked):
             f"fix:{FIX}",
             f"system:{walked.server}",
             "advisory:CVE-2022-21449",
-            "library:none",
+            "library:row-1",
+            # asked by a row's own id: a claim's check, a library's row, a row of a proof's and of a watch run's block
+            f"check:claim-{walked.imp['claims'][0]['id']}",
+            "check:library-row-3",
+            f"check:proof-{walked.item['bad_signatures']}-in-1",
+            f"check:watch-{walked.item['bad_signatures']}-in-1",
         ],
     )
     assert everything_kept(lab) == before

@@ -111,7 +111,7 @@ def actions_part(db, plan, evidence: dict) -> dict | None:
                 "by": action.by,
                 "by_source": action.by_source,
                 "kind": action.kind,
-                "what": words.action_words(action.kind),
+                "what": words.action_words(action.kind, action.detail),
                 "button": words.button(action.kind, action.detail),
                 "item": action.item,
                 "refs": refs,

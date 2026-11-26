@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from app.config import DEMO_DIR
 from app.db import AssessmentRow, FolderRow, ProjectRow
+from app.lab import actions
 from app.servers import extra_servers, migration_servers
 
 # (key, project name, demo file)
@@ -52,16 +53,18 @@ def load_demo_projects(lab: Any) -> dict:
             db.commit()
         folder_id = folder.id
         have = set(db.scalars(select(ProjectRow.demo_key).where(ProjectRow.demo_key.is_not(None))).all())
-    for key, name, filename in DEMO_PROJECTS:
-        if key in have:
-            continue
-        made = lab.create_project(name, folder_id, demo_key=key)
-        if key == "acme-pay":
-            imported = lab.import_demo(assessment_id=made["assessment_id"])
-        else:
-            imported = lab.import_file(filename, _file(lab, filename), assessment_id=made["assessment_id"])
-        added.append(name)
-        notices.extend(f"{name}: {n}" for n in imported.get("notices") or [])
+    # (who did what: each assessment and file made here is recorded as made with this one button)
+    with actions.through(actions.LOAD_DEMO_PROJECTS):
+        for key, name, filename in DEMO_PROJECTS:
+            if key in have:
+                continue
+            made = lab.create_project(name, folder_id, demo_key=key)
+            if key == "acme-pay":
+                imported = lab.import_demo(assessment_id=made["assessment_id"])
+            else:
+                imported = lab.import_file(filename, _file(lab, filename), assessment_id=made["assessment_id"])
+            added.append(name)
+            notices.extend(f"{name}: {n}" for n in imported.get("notices") or [])
     with lab.db() as db:
         first = db.scalars(
             select(AssessmentRow)

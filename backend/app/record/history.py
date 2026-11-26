@@ -1,11 +1,16 @@
 """The history of one item, for its side panel: what happened to it, newest first, with who did it and what decided it.
 
 The item is named by the key the Related block uses for its panel: `test:<id>` (a check of the plan), `claim:<id>`,
-`fix:<id>`, `change:<key>`, `system:<key>`, `advisory:<id>`, `library:<row>`. It is picked out of the timeline's own
-entries and runs, so a history never says anything the timeline does not. It reads; it decides and writes nothing.
+`fix:<id>`, `change:<key>`, `system:<key>`, `advisory:<id>`, `library:<row>`, and `check:<row id>` for any row of
+Checks or Results by its own id. A row that is a claim's check, a test of the plan or a library of the dependency
+list has the history of that claim, test or library; a row of one retest's, one fix proof's or one Change watch run's
+block has the runs of that block. It is picked out of the timeline's own entries and runs, so a history never says
+anything the timeline does not. It reads; it decides and writes nothing.
 """
 
 from __future__ import annotations
+
+import re
 
 from app.errors import NotFound
 from app.present import record as words
@@ -59,17 +64,35 @@ def _line(
     }
 
 
+# A row of Checks or Results that is the check of something with a history of its own: (its id, whose history).
+_ROW_OF = (
+    (re.compile(r"\Aclaim-(\d{1,12})\Z"), "claim"),
+    (re.compile(r"\Atest-(\d{1,12})\Z"), "test"),
+    (re.compile(r"\Alibrary-(?!item-)(.{1,200})\Z", re.S), "library"),
+)
+
+
+def _whose(kind: str, name: str) -> tuple[str, str]:
+    """Whose history a key asks for: a check's row that is a claim's, a test's or a library's is sent to that one."""
+    if kind == "check":
+        for pattern, whose in _ROW_OF:
+            found = pattern.match(name)
+            if found is not None:
+                return whose, found.group(1)
+    return kind, name
+
+
 class History:
     def __init__(self, found: Entries) -> None:
         self.e, self.r = found, found.r
+        self.empty: str | None = None  # what to say where there is no line, when "nothing happened" would not be true
 
     # ---------------------------------------------------------------- lines
 
     def _run_line(self, run: dict, decided_by: str = words.BY_REVIEWER) -> dict:
         """One run of the item: what it ran on, the word its page gives it, who started it and with which button."""
-        home = (
-            self.e.by_id.get(self.e.home_of_run.get(run.get("run_id"), "")) if run.get("run_id") is not None else None
-        )
+        run_id = run.get("run_id")
+        home = self.e.by_id.get(self.e.home_of_run.get(run_id, "")) if isinstance(run_id, int) else None
         if home is None and run.get("verify_run_id") is not None:
             home = self.e.by_id.get(f"verify-{run['verify_run_id']}")
         person = home["who"] if home is not None else words.nobody()
@@ -288,15 +311,49 @@ class History:
         return lines, []
 
     def library(self, row_id: str) -> tuple[list[dict], list[str]]:
-        lines = [self._run_line(run) for run in self.r.runs.values() if run.get("library_row") == row_id]
+        """A library of the dependency list: each measurement on a public copy, and each decision on a proposal for
+        it. Where there is neither, the history says what is true of it instead of "nothing happened"."""
+        r, row = self.r, self.r.libraries.get(row_id)
+        lines = [self._run_line(run) for run in r.runs.values() if run.get("library_row") == row_id]
+        if row is None and not lines:
+            raise NotFound(words.UNKNOWN_ITEM)
+        proposals = {p.get("id") for p in (row or {}).get("otto_proposals") or []}
+        decided = {d["id"] for d in r.otto_decisions if d["kind"] == "dependency" and d["proposal"] in proposals}
+        lines += [
+            self._entry_line(e)
+            for e in self.e.all
+            if e["id"].startswith("otto-") and e["id"][5:].isdigit() and int(e["id"][5:]) in decided
+        ]
+        if proposals:
+            # a proposal is worked out on every read and is not stored: it has no time of its own
+            lines.append(
+                _line(
+                    f"proposed-{row_id}",
+                    None,
+                    "clock",
+                    words.PROPOSED_BY_OTTO,
+                    note=words.PROPOSAL_NO_TIME,
+                    marks=[words.FROM_OTTO],
+                )
+            )
+        if not lines:
+            from_notes = bool((row or {}).get("lookups"))
+            self.empty = words.LIBRARY_FROM_NOTES if from_notes else words.LIBRARY_NOTHING_RUN
         return lines, []
 
     def check(self, check_id: str) -> tuple[list[dict], list[str]]:
-        """A check that is no test of the plan (a try's row, an earlier measurement of a library): its own runs."""
+        """A row of Checks that is no claim, no test of the plan and no library of the list: its own runs. A row the
+        ledger lists by itself (a try's row, a system's measurement, an earlier measurement of a library, the newest
+        retest, proof or watch run of a test) has that row's runs; a row of one retest's, one fix proof's or one Change
+        watch run's block ("retest-12-on-3", "proof-12-in-4", "watch-12-in-4") has the runs of that block."""
         row = next((row for row in self.r.rows if row["id"] == check_id), None)
-        if row is None:
-            raise NotFound(words.UNKNOWN_ITEM)
-        return [self._run_line(self.r.runs[i]) for i in row.get("run_ids") or [] if i in self.r.runs], []
+        if row is not None:
+            runs = [self.r.runs[i] for i in row.get("run_ids") or [] if i in self.r.runs]
+        else:
+            runs = [run for run in self.r.runs.values() if run["check_id"] == check_id]
+            if not runs:
+                raise NotFound(words.UNKNOWN_ITEM)
+        return [self._run_line(run) for run in runs], []
 
 
 def history_of(found: Entries, key: str) -> dict:
@@ -305,6 +362,7 @@ def history_of(found: Entries, key: str) -> dict:
     reader = History(found)
     if kind not in words.HISTORY_TITLES or not name:
         raise NotFound(words.UNKNOWN_ITEM)
+    kind, name = _whose(kind, name)
     if kind in ("test", "claim"):
         if not name.isdigit() or len(name) > 12:
             raise NotFound(words.UNKNOWN_ITEM)
@@ -333,7 +391,7 @@ def history_of(found: Entries, key: str) -> dict:
         else None,
         "lines": unique,
         "notes": notes,
-        "empty_text": None if unique else words.NO_HISTORY,
+        "empty_text": None if unique else (reader.empty or words.NO_HISTORY),
         "names_note": words.NAMES_NOTE,
         "timeline": {"area": _AREA[kind]},
     }

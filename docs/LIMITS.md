@@ -112,7 +112,8 @@ Updated at the end of **phase 5c** (Otto in Evidence Lab: advisories, signed tes
   design file, `docs/design/change-watch.md`; that file was not on this branch when phase 3a was finished
   (13 November 2026).
 - **Mark reviewed** only records that you looked at a result, with the time. There is no undo and no name (there
-  is one local login).
+  is one local login). (Since 26 November 2026 the press itself is recorded with the name it was made under: see
+  "Limits of who did what" below.)
 - **The catalog has two extra tests** (post-quantum readiness and the ML-DSA-65 comparison). No others.
 - **No Ed25519 signing component exists in the demo.** `acme-sign` only does ECDSA P-256, so the official Ed25519
   file is run against the reference library only. That shows the file and the reference agree; it says nothing
@@ -686,6 +687,108 @@ rules. Off by default, and only for Isogeny's own sandbox. What it does not do, 
   never be settled would be tried again every day.
 - **Nothing is accepted by itself.** A pack from a run the clock started is installed without a click of its own, as
   the tick's line says; its checks wait for Accept.
+
+## Limits of who did what, and of Evidence as the full record (design refactor, decisions H and I; 26 November 2026; the backend)
+
+What is built here is the backend: the record of who pressed what, the five reads the Evidence section's screens ask
+for, and the part of the signed evidence file. The screens are built separately.
+
+- **A name is what the app recorded, not proof of who was at the keyboard.** A press takes its name from one source
+  (`Lab.actor()`): the account that is logged in where the app has one (the hosted app logs in with GitHub: the login
+  name is recorded, and GitHub's own number for the account beside it in the database), otherwise the name typed once
+  in Settings (Who decides), otherwise "You". The app does not check who is at the keyboard beyond its login. The
+  reads, the report and the verify command each say so.
+- **Only what is pressed from now on has a name.** What happened before this record existed has no row, and reads
+  "Not recorded (before names were kept)". Nothing is filled in afterwards, and the table refuses changes and
+  deletions (`actions`, `action_runs`).
+- **Records that already kept a name are left as they are and get no second row:** a decision on one of Otto's
+  proposals, a look for advisories, a research run and a Watch list mark keep the Who decides name (or "You") on their
+  own rows; an approval keeps its reviewer's label; the sign-off keeps the name typed in the Close box. So with a
+  GitHub login, an accept of Otto's proposal is still recorded under the Who decides name, not under the account,
+  while a merge made in the same session is recorded under the account. Making those rows take the account too is one
+  line (`OttoMixin.decision_name`), and changes what the Otto panel and Settings say ("Recorded as ..."): it was left
+  for a decision. For an approval and the sign-off the press is recorded beside them (who pressed Approve, and as which
+  reviewer; who pressed Close and sign off).
+- **What leaves a row** is the list in `backend/app/lab/actions.py` (`PRESSES`), and nothing else: starting or
+  rerunning an assessment, changing its name, purpose or place, closing it; bringing a file in; adding a dependency
+  list; the "I own this system" tick, on and off; Verify; Run and Run all; adding, removing and moving a test;
+  Retest new version and Retest now; Measure status; Measure on a public copy; Mark reviewed; Dig deeper; Connect demo
+  code; Run proof again; Open pull request; Approve; Merge; Try on a test copy; Ask for approval; approving a change;
+  Apply; Roll back; a migration choice; a system setting; a dependency tie; Bring in a demo change; Run the picked
+  tests; Download evidence.
+- **What leaves no row:** a press that was refused; a press that changed nothing (Mark reviewed on a result that is
+  marked, the plan's order as it is); anything of the installation and not of an assessment (installing a test pack,
+  Live Otto, the Sandbox research switch, the Who decides name itself, the organization's name, folders and projects);
+  opening Checks (which makes the suggested plan); and what is typed to Otto (kept as what was said, not as a press).
+- **The record names the button that was pressed.** A project is made with its first assessment, so that press reads
+  "New project"; **Load demo projects** makes a project, its first assessment and its file for each demo file, and each
+  of those presses says so (one fact, `through`, also in the signed file). Elsewhere a button's name is worked out from
+  the kind of press ("Measure again" for a second Measure status, "Use demo file" for the demo file).
+- **The button's own answer wins.** The row of a press is written after the button did its work. If it can't be
+  written (the database refuses the row, or a record has a shape the press did not expect), the work is done and kept,
+  the button answers as it would have, and one plain line goes to the log (the button's method and the kind of fault;
+  no name and no value). That press then has no row, and the reads say "Not recorded (before names were kept)" for it,
+  which is not exact for such a press: without a row nothing more can be said of it, and nothing is filled in later.
+- **An Apply or a Roll back the server refused is recorded, and never reads as applied.** The press is kept with
+  whether the server took the settings. A refused Apply reads "Not applied: the server refused the settings", the
+  words of the change's own page, is no "change to a system" in the Timeline, and has no measurement after it. The
+  change's page has no words of its own for a refused Roll back: "Not rolled back: the server refused the settings" is
+  written to match. (A refused Roll back was checked on records laid out for the test, a refused Apply also in the
+  migration demo with the server's answer stood in for: no demo server refuses settings by itself.)
+- **A run is tied to the press that started it beside the run** (`action_runs`), when the job stores the run. The run,
+  its fingerprint and its review are not touched, and nothing reads the tie to decide or word a result. A press keeps
+  the tests it queued; a test whose job was cut off when the app closed left no run, so it has none to tie.
+- **The time of a press is the moment its request arrived.** A record a press made (an approval, a merge, a retest)
+  keeps its own time, a few milliseconds later, and the timeline shows that one. A decision on a proposal and a
+  download keep their time to the second; where two things fall in the same second the timeline places them by the
+  finer time of their row or press, and shows the record's own time.
+- **The timeline is worked out on every read and never stored.** One entry for one press: the runs it started are in
+  its entry. A retest, a proof, a try, a watch run and a Verify run are tied by their own record; a first run, a
+  measurement and the measurement right after an Apply or a Roll back by their press. Where no press is on record,
+  each such run is listed by itself. Entry ids are stable (`press-12`, `retest-3`, `merge-1`).
+- **Every result word is repeated, never made here.** A run's word and tone are the ones Checks and Evidence give it
+  (`Lab._result` through the ledger), a claim's the one Verify gave it; a proof's, a try's and a watch run's word are
+  written again in `present/record.py` in the words their own pages use, from the same read gate. A result's decider is
+  said as "decided by the separate reviewer" (for a Verify claim "decided by fixed rules"); a person is never shown as
+  the decider of a result.
+- **Change watch stays apart.** A developer's change and a watch run are listed only when Change watch is chosen,
+  flagged, and counted in no other number; where they are not listed the read says how many there are and where to
+  see them. A change's time is its commit's own; who brought a demo change in is its press. A Watch list mark is a
+  person's decision and is listed like the others.
+- **A proposal of Otto's has no time.** It is worked out on every read and not stored; a history says so ("Proposed
+  by Otto ... it has no time of its own") and the first dated record is a person's decision on it.
+- **A locked test is shared.** "Test details locked" is when its details were first locked on this computer, which
+  can be before this assessment existed.
+- **A history can be asked by a row's own id** (`check:<row id>`, the id Checks and Results give a row). A claim's
+  check has the claim's history, with the line that fixed rules decide a claim; a test's row the test's; a library's
+  row the library's; a row of one retest's, one fix proof's or one Change watch run's block the runs of that block.
+  A library that nothing was run for and nobody decided anything about says that, and where its answers come from
+  (the release notes in the knowledge base) where it has any; a decision on a proposal for it is listed.
+- **A run opens on the page that holds its row.** A first run and a retest open the test's row on Results. A run of a
+  fix proof and a run made for a developer's change are rows of one block of Checks, which Results does not hold, so
+  they open Checks.
+- **Days are the viewer's days only if the screen says which zone** (`tz`, an IANA name); otherwise, or where this
+  computer has no time zone data, they are UTC days. The times themselves are exact moments.
+- **The search is plain:** every word typed must be somewhere in the entry's sentence, names, tests or result words.
+- **The evidence file's part** (`actions`) lists each press with who, when, which button and what it was on. A
+  reference is written only to something the same file holds (a run in its list of checks, a Verify run, a test, a
+  fix, a proof, a change, a watch run, a developer's change); a run a press started that the file does not list (its
+  test was taken out of the plan since, or it has no review) is counted, not referenced. A download is recorded once
+  its file is made, so a file lists the downloads before it and not itself. A file of an assessment with no press on
+  record has no such part.
+- **What the verify command checks of that part, and what it takes as given.** It checks the part's exact form, that
+  times are well formed and in order, that every reference resolves in the same file, that a run is tied to one press,
+  that an approval, a merge and an opened pull request agree with the fix they name, that an Apply and a Roll back say
+  whether the server took the settings, and that a press made through a button that makes several names one the app
+  has (`backend/evidence/actions.py`, with its own lists of kinds and sources; a test compares them with the app's). It
+  takes as given that the name is the person, and that the list is whole: a press the app never recorded can't be
+  missed by a file.
+- **Not built here:** the screens; Results "By version" (Checks' blocks by version already hold every run of every
+  version); the Otto panel's conversation in the timeline (not proposed).
+- **How it was checked.** `backend/tests/record/`: a short walk and the name, refusal and bent-copy tests in the
+  everyday run; a longer walk (a fix from Connect demo code to the merge, a retest, a developer's change) and the
+  migration demo (a change tried, approved, applied and rolled back) in the slow set. Not run: isolated mode (no Docker
+  on the build machine: Measure on a public copy is checked with a stand-in for the button's method) and PostgreSQL.
 
 ## Limits of the source tags ("where it came from"; 22 November 2026)
 

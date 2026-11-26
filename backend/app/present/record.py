@@ -143,9 +143,17 @@ BUTTONS = {
 }
 
 
+# A button that makes several presses at once: each of them says so in one fact of its detail (`through`).
+THROUGH = {"load_demo_projects": "Load demo projects"}
+
+
 def button(kind: str | None, detail: dict | None = None) -> str | None:
     """The button a press was made with, as its page names it."""
     detail = detail or {}
+    if detail.get("through") in THROUGH:
+        return THROUGH[detail["through"]]
+    if kind == "assessment_started" and detail.get("first"):
+        return "New project"  # a project is made with its first assessment
     if kind == "measure_status" and detail.get("again"):
         return "Measure again"
     if kind == "picked_tests_run" and detail.get("again"):
@@ -359,7 +367,9 @@ def merged(number: int, branch: str, commit: str) -> Sentence:
 
 
 OTTO_DECISIONS = {"accept": "Accepted", "reject": "Not added", "undo": "Undone", "reconsider": "Reconsidered"}
-OTTO_PROPOSAL = "Otto's proposal"
+# (the standing wording rule of 19 November 2026, tests/otto/test_wording.py: a sentence says what was proposed,
+# and the tag "From Otto" says where it came from)
+OTTO_PROPOSAL = "A proposal from Otto"
 OTTO_WHAT = {
     "check": "Otto's proposed check",
     "fix": "Otto's proposed fix",
@@ -417,18 +427,30 @@ def change_approved(title: str) -> Sentence:
     return "Approved the change:", [_t(f" {title}.")]
 
 
+# An Apply or a Roll back the server refused, in the words the change's own page uses ("Not applied: the server
+# refused the settings"): the button was pressed and nothing changed, so nothing reads "Applied".
+NOT_APPLIED = "Not applied: the server refused the settings"
+NOT_ROLLED_BACK = "Not rolled back: the server refused the settings"
+
+
 def applied(title: str, address: str, accepted: bool) -> Sentence:
-    rest = [_t(f" {title}, on "), _m(address), _t(".")]
     if not accepted:
-        rest.append(_t(" The server did not take the settings, so nothing changed."))
-    return "Applied:", rest
+        return "Not applied:", [
+            _t(f" {title}, on "),
+            _m(address),
+            _t(". Apply was pressed, and the server refused the settings. Its earlier settings stayed in force."),
+        ]
+    return "Applied:", [_t(f" {title}, on "), _m(address), _t(".")]
 
 
 def rolled_back(title: str, address: str, accepted: bool) -> Sentence:
-    rest = [_t(f" {title}, on "), _m(address), _t(": the settings from before were put back.")]
     if not accepted:
-        rest = [_t(f" {title}, on "), _m(address), _t(". The server did not take the earlier settings.")]
-    return "Rolled back:", rest
+        return "Not rolled back:", [
+            _t(f" {title}, on "),
+            _m(address),
+            _t(". Roll back was pressed, and the server refused the earlier settings."),
+        ]
+    return "Rolled back:", [_t(f" {title}, on "), _m(address), _t(": the settings from before were put back.")]
 
 
 def option_chosen(option: str, system: str, reason: str | None, review_date: str | None) -> Sentence:
@@ -495,7 +517,9 @@ DECISIONS = {
     "undo": "Undone",
     "reconsider": "Reconsidered",
     "applied": "Applied",
+    "apply_refused": NOT_APPLIED,
     "rolled_back": "Rolled back",
+    "rollback_refused": NOT_ROLLED_BACK,
     "marked_reviewed": "Marked reviewed",
     "confirmed": "Confirmed “I own this system”",
     "unconfirmed": "Took back “I own this system”",
@@ -524,7 +548,7 @@ def decision_cards(total: int, approvals: int, otto: dict, signoff: dict | None)
     return [
         {"key": "decisions", "title": "Decisions", "value": str(total), "small": "by people, in this assessment"},
         {"key": "approvals", "title": "Approvals", "value": str(approvals), "small": "of a pull request or a change"},
-        {"key": "otto", "title": "Otto's proposals decided", "value": str(decided), "small": otto_small},
+        {"key": "otto", "title": "Proposals from Otto decided", "value": str(decided), "small": otto_small},
         {
             "key": "signoff",
             "title": "Sign-off",
@@ -624,6 +648,12 @@ WATCH_IS_ITS_OWN = (
     "A run made for a developer's change is a check of its own, under Change watch, and is never this test's result."
 )
 NO_HISTORY = "Nothing has happened to this yet."
+# A library of the dependency list that nothing was run for and nobody decided anything about: what is true of it.
+LIBRARY_FROM_NOTES = (
+    "Nothing was run for this library, and no decision about it is on record. Its answers come from the publisher's "
+    "release notes in the knowledge base: Dependencies shows each with its source."
+)
+LIBRARY_NOTHING_RUN = "Nothing was run for this library, and no decision about it is on record."
 UNKNOWN_ITEM = "That item is not in this assessment."
 
 # What a proof, a try and the measurement after a change said, in the words their own pages use.
@@ -722,8 +752,8 @@ EVIDENCE_NOTE = (
     "was logged in where the app has one, otherwise the name typed once in Settings (Who decides), or “You”; the app "
     "does not check who is at the keyboard beyond its login. Nothing here decides a result: every result is the "
     "separate reviewer's. What happened before names were kept has no entry, and nothing was filled in afterwards. "
-    "Decisions on Otto's proposals, looks and research runs keep their own names in the Otto part; approvals and the "
-    "sign-off keep theirs where they are."
+    "Decisions on proposals from Otto, looks and research runs keep their own names in the Otto part; approvals and "
+    "the sign-off keep theirs where they are."
 )
 REPORT_TITLE = "Who did what"
 REPORT_EMPTY = "No press was recorded for this assessment: everything in this file was done before names were kept."
@@ -767,7 +797,13 @@ ACTION_WORDS = {
 }
 
 
-def action_words(kind: str) -> str:
+def action_words(kind: str, detail: dict | None = None) -> str:
+    """What a press did, in a few words. An Apply or a Roll back the server refused says so: nothing was applied."""
+    if (detail or {}).get("accepted") is False:
+        if kind == "applied":
+            return "Pressed Apply; the server refused the settings"
+        if kind == "rolled_back":
+            return "Pressed Roll back; the server refused the settings"
     return ACTION_WORDS.get(kind, kind.replace("_", " "))
 
 

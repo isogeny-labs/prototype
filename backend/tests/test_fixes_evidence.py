@@ -141,6 +141,7 @@ def test_the_file_lists_every_fix_as_the_fixes_step_showed_it(flow):
         seen = getattr(flow, name)
         e = seen.evidence
         assert sorted(e) == [
+            "actions",  # who did what (design refactor, decision I): the presses this flow made
             "app",
             "assessment",
             "changes",

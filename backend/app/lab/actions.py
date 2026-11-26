@@ -18,6 +18,11 @@ is a *press*:
   are not changed, and nothing reads this table to decide or to word a result.
 - **a press inside a press is part of it.** "Retest now" calls the retest, "Rerun as new assessment" brings the file in:
   one button, one row.
+- **the record names the button that was pressed.** Load demo projects makes a project, its first assessment and its
+  file for each demo file: each of those rows says it was made through that button (`through`).
+- **the button's own answer wins.** The row is written after the button did its work. If the row can't be written, the
+  work is done and kept all the same, the button answers as it would have, one plain line goes to the log (no name, no
+  value), and the press reads "Not recorded" from then on.
 
 Nothing is ever filled in afterwards. What happened before this table existed has no row, and the reads then say
 "Not recorded (before names were kept)". Records that already keep a name are left as they are and get no row here:
@@ -32,6 +37,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import logging
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -46,24 +52,34 @@ from app import auth
 from app.db import (
     ActionRow,
     ActionRunRow,
+    ApplyRow,
     AssessmentRow,
     DependencyListRow,
     PlanRow,
+    RollbackRow,
     TestRunRow,
     WatchRunRow,
     iso,
     now_utc,
 )
 
+log = logging.getLogger("evidence_lab.actions")
+
 ACCOUNT, TYPED, DEFAULT = "account", "typed", "default"
 SOURCES = (ACCOUNT, TYPED, DEFAULT)
 YOU = "You"
+# A button that makes several presses at once (one for each assessment it makes). Each of them says so in one fact of
+# its detail (`through`), so the record names the button that was really pressed.
+LOAD_DEMO_PROJECTS = "load_demo_projects"
+THROUGH = (LOAD_DEMO_PROJECTS,)
 
 # The session token of the request that is being answered (None outside a request). Only ever read to look the logged-in
 # account up; it is never stored, shown or logged.
 _asking: ContextVar[str | None] = ContextVar("evidence_lab_asking", default=None)
 # The press that is on in this request (None in a job thread: a job runs in a thread of its own, with no press).
 _press: ContextVar["Press | None"] = ContextVar("evidence_lab_press", default=None)
+# The button the presses of this block were made with, where one button makes several (None otherwise).
+_through: ContextVar[str | None] = ContextVar("evidence_lab_through", default=None)
 
 # The tables whose new rows a press names in its detail.
 NOTED = frozenset(
@@ -109,11 +125,24 @@ def asking(token: str | None) -> Iterator[None]:
         _asking.reset(mark)
 
 
+@contextmanager
+def through(button: str) -> Iterator[None]:
+    """Within this block, every press was made with this one button (Load demo projects makes a project, its first
+    assessment and its file for each demo file: each is a press of that button, and its row says so)."""
+    if button not in THROUGH:
+        raise ValueError("That is not a button that makes several presses.")
+    mark = _through.set(button)
+    try:
+        yield
+    finally:
+        _through.reset(mark)
+
+
 class Press:
     """One press of a button, from the moment it was pressed until its row is written."""
 
-    def __init__(self, at: str, who: dict) -> None:
-        self.at, self.who = at, who
+    def __init__(self, at: str, who: dict, through: str | None = None) -> None:
+        self.at, self.who, self.through = at, who, through
         self.made: dict[str, list] = {}  # table -> the ids of the rows this press added, in order
         self.changed: dict[str, list[dict]] = {}  # table -> [{"id", <column>: [before, after]}]
         self.queued: list[tuple] = []  # the jobs it queued: (plan item id, phase)
@@ -137,6 +166,13 @@ class Press:
             self._closed, self._action_id = True, action_id
             early, self._early = self._early, []
         return early if action_id is not None else []
+
+    def abandon(self) -> None:
+        """The press's record could not be written. Unless its row is there already, it left none: the runs it
+        started are kept as they are and are tied to nothing."""
+        with self._lock:
+            if not self._closed:
+                self._closed, self._early = True, []
 
 
 def _note_flush(session, _context) -> None:
@@ -280,6 +316,11 @@ def _demo_change(t: Told) -> dict | None:
     return next((c for c in (t.result or {}).get("changes") or [] if c.get("branch") == branch), None)
 
 
+def _demo_change_item(t: Told) -> str | None:
+    found = _demo_change(t)
+    return f"developer-change:{found['id']}" if found is not None else None
+
+
 def _watch_again(t: Told) -> bool:
     """Is this watch run a second run of the same code of the same change? (Then the button read "Run again".)"""
     watch = t.db.get(WatchRunRow, t.first("watch_runs"))
@@ -301,6 +342,13 @@ def _reviewer(t: Told) -> dict:
     from app.fixes.changes import REVIEWERS
 
     return {"reviewer": t.args["reviewer"], "as": REVIEWERS.get(t.args["reviewer"], t.args["reviewer"])}
+
+
+def _took(t: Told, table: str) -> dict:
+    """Did the server take the settings of this Apply or Roll back? (Apply is pressed either way; a refused one changed
+    nothing, and the record must not read as if it had.)"""
+    row = t.db.get(ApplyRow if table == "applies" else RollbackRow, t.first(table))
+    return {"accepted": bool(row.accepted)} if row is not None else {}
 
 
 # Every method of the `Lab` whose press is recorded, by the method's name. (A method that is not here leaves no row.)
@@ -465,14 +513,14 @@ PRESSES: dict[str, What] = {
         "applied",
         _plan,
         item=_change,
-        detail=lambda t: {"apply_id": t.first("applies"), **_queued(t)},
+        detail=lambda t: {"apply_id": t.first("applies"), **_took(t, "applies"), **_queued(t)},
         needs=("applies",),
     ),
     "rollback_change": What(
         "rolled_back",
         _plan,
         item=_change,
-        detail=lambda t: {"rollback_id": t.first("rollbacks"), **_queued(t)},
+        detail=lambda t: {"rollback_id": t.first("rollbacks"), **_took(t, "rollbacks"), **_queued(t)},
         needs=("rollbacks",),
     ),
     # ---- the migration plan and the dependency list
@@ -504,7 +552,7 @@ PRESSES: dict[str, What] = {
     "bring_in_demo_change": What(
         "demo_change_brought_in",
         _plan,
-        item=lambda t: f"developer-change:{_demo_change(t)['id']}" if _demo_change(t) else None,
+        item=lambda t: _demo_change_item(t),
         detail=lambda t: {
             "name": t.args["key"],
             "branch": (_demo_change(t) or {}).get("branch"),
@@ -588,7 +636,7 @@ def _pressed(fn: Callable, what: What) -> Callable:
     def press_of(self, *args, **kwargs):
         if _press.get() is not None:
             return fn(self, *args, **kwargs)  # a press inside a press is part of it: one button, one row
-        press = Press(iso(now_utc()), self.actor())
+        press = Press(iso(now_utc()), self.actor(), _through.get())
         mark = _press.set(press)
         try:
             result = fn(self, *args, **kwargs)
@@ -597,11 +645,23 @@ def _pressed(fn: Callable, what: What) -> Callable:
             raise
         finally:
             _press.reset(mark)
-        bound = signature.bind(self, *args, **kwargs)
-        bound.apply_defaults()
-        told = dict(bound.arguments)
-        told.pop("self", None)
-        self._write_press(press, what, told, result)
+        # What the button did is done and kept, so its own answer wins: if the press itself can't be written down (the
+        # database refused the row, or a record had a shape this code did not expect), the press is left unrecorded and
+        # reads "Not recorded" from then on. One plain line says so: it names the button's method and the kind of
+        # fault, and never a name, a value or anything of the session.
+        try:
+            bound = signature.bind(self, *args, **kwargs)
+            bound.apply_defaults()
+            told = dict(bound.arguments)
+            told.pop("self", None)
+            self._write_press(press, what, told, result)
+        except Exception as exc:
+            press.abandon()
+            log.warning(
+                "The press of %s was done, but its record could not be written in full (%s). What it did is kept.",
+                fn.__name__,
+                exc.__class__.__name__,
+            )
         return result
 
     press_of.records = what  # type: ignore[attr-defined]
@@ -703,7 +763,10 @@ class ActionsMixin:
                     by_account=press.who.get("account"),
                     kind=kind,
                     item=(what.item(told) if what.item is not None else None),
-                    detail=(what.detail(told) if what.detail is not None else {}),
+                    detail={
+                        **(what.detail(told) if what.detail is not None else {}),
+                        **({"through": press.through} if press.through else {}),
+                    },
                 )
                 db.add(row)
                 db.commit()
@@ -724,6 +787,7 @@ __all__ = [
     "ACCOUNT",
     "DEFAULT",
     "KINDS",
+    "LOAD_DEMO_PROJECTS",
     "PRESSES",
     "SOURCES",
     "TYPED",
@@ -732,4 +796,5 @@ __all__ = [
     "asking",
     "place",
     "recorded",
+    "through",
 ]

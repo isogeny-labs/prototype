@@ -387,6 +387,159 @@ def test_the_presses_of_the_migration_demo_are_recorded_with_the_measurements_th
         lab.stop()
 
 
+# ---------------------------------------------------------------- the button that was really pressed
+
+
+def _buttons(lab, plan_id: int) -> dict:
+    """{start, import: the button the Timeline names for the assessment's start and for its file}."""
+    said = {e["id"].split("-")[0]: e["who"]["button"] for d in lab.timeline_view(plan_id)["days"] for e in d["entries"]}
+    return {"start": said["start"], "import": said["import"]}
+
+
+def test_the_record_names_the_button_that_was_really_pressed(lab, tmp_path, capsys):
+    """A project is made with its first assessment by New project, or by Load demo projects, which also brings its
+    file in: the record must not say "New assessment" or "Import" for those. The same words go into the signed file."""
+    from evidence.__main__ import main
+
+    # New project, then Use demo file
+    own = lab.create_project("Own project", None)
+    imp = lab.import_demo(assessment_id=own["assessment_id"])
+    first = lab.ensure_plan(imp["id"])["id"]
+    assert _buttons(lab, first) == {"start": "New project", "import": "Use demo file"}
+    # New assessment, then Import
+    second = lab.new_assessment(own["id"])
+    cbom = (record_walk.DEMO / "acme-pay-cbom.json").read_bytes()
+    again = lab.import_file("acme-pay-cbom.json", cbom, assessment_id=second["id"])
+    assert _buttons(lab, lab.ensure_plan(again["id"])["id"]) == {"start": "New assessment", "import": "Import"}
+    # Load demo projects makes the project, its first assessment and its file: each press says so, in one fact
+    with actions.through(actions.LOAD_DEMO_PROJECTS):  # (as app/projects/demo.py does, for one demo file)
+        made = lab.create_project("Acme Pay", None, demo_key="acme-pay")
+        loaded = lab.import_demo(assessment_id=made["assessment_id"])
+    plan_id = lab.ensure_plan(loaded["id"])["id"]
+    assert _buttons(lab, plan_id) == {"start": "Load demo projects", "import": "Load demo projects"}
+    rows = [a for a in presses(lab) if a.assessment_id == made["assessment_id"]]
+    assert [(a.kind, a.detail["through"]) for a in rows] == [
+        ("assessment_started", "load_demo_projects"),
+        ("file_imported", "load_demo_projects"),
+    ]
+    assert all("through" not in a.detail for a in presses(lab) if a.assessment_id != made["assessment_id"])
+    lab.confirm_address(loaded["id"], loaded["addresses"][0]["address"], True)  # outside the button: an own press
+    assert "through" not in presses(lab)[-1].detail
+    # the signed file names the same buttons, and the verify command takes the fact
+    lab.verify(loaded["id"])
+    downloaded = record_walk.download(lab, plan_id)
+    part = downloaded.evidence["actions"]["actions"]
+    assert [(a["kind"], a["button"]) for a in part[:2]] == [
+        ("assessment_started", "Load demo projects"),
+        ("file_imported", "Load demo projects"),
+    ]
+    assert part[0]["facts"]["through"] == "load_demo_projects" and part[2]["button"].startswith("I own this system")
+    path = tmp_path / "evidence.json"
+    path.write_bytes(downloaded.raw)
+    assert main(["verify", str(path), "--data-dir", str(lab.settings.data_dir)]) == 0
+    assert "Evidence verified" in capsys.readouterr().out
+    lab.confirm_address(imp["id"], imp["addresses"][0]["address"], True)
+    lab.verify(imp["id"])
+    of_first = record_walk.download(lab, first).evidence["actions"]["actions"]
+    assert [(a["kind"], a["button"]) for a in of_first[:2]] == [
+        ("assessment_started", "New project"),
+        ("file_imported", "Use demo file"),
+    ]
+    # only a button that makes several presses can be named this way
+    with pytest.raises(ValueError):
+        with actions.through("run_all"):
+            pass
+
+
+def test_load_demo_projects_marks_its_presses_in_its_own_code():
+    """The button's own code (the whole of it starts every demo server, which the slow set walks) wraps what it makes."""
+    import inspect
+
+    from app.projects import demo
+
+    source = inspect.getsource(demo.load_demo_projects)
+    assert "with actions.through(actions.LOAD_DEMO_PROJECTS):" in source
+    inside = source.split("with actions.through(actions.LOAD_DEMO_PROJECTS):", 1)[1]
+    assert all(call in inside for call in ("lab.create_project(", "lab.import_demo(", "lab.import_file("))
+
+
+@pytest.mark.slow
+def test_every_demo_project_reads_load_demo_projects(tmp_path):
+    from app.projects.demo import DEMO_PROJECTS, load_demo_projects
+    from conftest import free_port, free_ports
+
+    lab = make_lab(
+        tmp_path, extra_ports=tuple(free_ports(3)), migration_ports=tuple(free_ports(5)), lab_nginx_port=free_port()
+    )
+    try:
+        assert len(load_demo_projects(lab)["added"]) == len(DEMO_PROJECTS)
+        rows = presses(lab)
+        assert [a.kind for a in rows] == ["assessment_started", "file_imported"] * len(DEMO_PROJECTS)
+        assert all(a.detail["through"] == "load_demo_projects" for a in rows)
+        for import_id in {a.import_id for a in rows if a.kind == "file_imported"}:
+            assert _buttons(lab, lab.ensure_plan(import_id)["id"]) == {
+                "start": "Load demo projects",
+                "import": "Load demo projects",
+            }
+    finally:
+        lab.stop()
+
+
+# ---------------------------------------------------------------- the button's own answer wins
+
+
+def test_a_press_that_cannot_be_written_down_never_fails_the_button(lab, monkeypatch, caplog):
+    """The row is written after the button did its work. If it can't be written (the database refuses, or a record has
+    a shape this code did not expect), the work is done and kept, the button answers as it would have, one plain line
+    goes to the log, and the press reads "Not recorded" from then on."""
+    w = record_walk.start(lab, "Unrecorded")
+    pid = w.plan_id
+    count = len(presses(lab))
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("the database said no to session token s3cr3t-token for Kevin")
+
+    monkeypatch.setattr(actions, "place", broken)
+    with caplog.at_level("WARNING", logger="evidence_lab.actions"):
+        verified = lab.verify(w.imp["id"])  # the button's own answer, as always
+        lab.run_all(pid)
+        lab.wait_until_idle(pid, 120)
+    assert verified["id"] == 1 and len(verified["results"]) == 3
+    assert len(presses(lab)) == count and ties(lab) == {}
+    with lab.db() as db:
+        assert db.scalar(select(func.count(TestRunRow.id))) == db.scalar(select(func.count(ReviewRow.id))) == 4
+    lines = [r.getMessage() for r in caplog.records if r.name == "evidence_lab.actions"]
+    assert len(lines) == 2 and "verify" in lines[0] and "run_all" in lines[1]
+    assert all("RuntimeError" in line and "What it did is kept." in line for line in lines)
+    assert not any("s3cr3t" in line or "Kevin" in line or "You" in line for line in lines)  # no name, no value
+    monkeypatch.undo()
+    # from then on it reads "Not recorded": the Verify run, and each run of that Run all by itself
+    entries = {e["id"]: e for d in lab.timeline_view(pid)["days"] for e in d["entries"]}
+    assert entries["verify-1"]["who"]["recorded"] is False
+    lone = [e for key, e in entries.items() if key.startswith("run-")]
+    assert len(lone) == 4 and not any(e["who"]["recorded"] for e in lone)
+    assert not any(key.startswith("press-") for key in entries)
+    # and the next press is recorded as always
+    lab.mark_reviewed(lab.lab_view(pid)["rows"][0]["result"]["run_id"])
+    assert [a.kind for a in presses(lab)[count:]] == ["marked_reviewed"]
+
+
+def test_a_fault_in_the_facts_of_a_press_does_not_fail_the_button_either(lab, monkeypatch, caplog):
+    """A record with a shape the press did not expect (here: its answer lacks a field) must not stop the button."""
+    w = record_walk.start(lab, "Odd shape")
+    count = len(presses(lab))
+    monkeypatch.setitem(
+        actions.PRESSES,
+        "verify",
+        actions.What("verify", lambda t: {"import_id": t.args["import_id"]}, detail=lambda t: {"id": t.result["x"]}),
+    )
+    monkeypatch.setattr(Lab, "verify", actions._pressed(Lab.verify.__wrapped__, actions.PRESSES["verify"]))
+    with caplog.at_level("WARNING", logger="evidence_lab.actions"):
+        assert lab.verify(w.imp["id"])["id"] == 1
+    assert len(presses(lab)) == count
+    assert ["KeyError" in r.getMessage() for r in caplog.records if r.name == "evidence_lab.actions"] == [True]
+
+
 # ---------------------------------------------------------------- what leaves no row
 
 

@@ -72,12 +72,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # The 5c fixes: a browser asks for marked times with one header, and writes each in the viewer's own time zone.
     # Without the header every sentence keeps its UTC words (scripts, the accuracy check, downloads).
     app.add_middleware(MarkTimes)
-    # Reads take turns, first come, first served: several views worked out side by side are much slower than one after
-    # another (app/web/turns.py). Anything that changes something does not wait.
-    app.add_middleware(OneReadAtATime)
     # Who did what: the session of a request is known to the Lab while it is answered, so a press is recorded under
     # the account that pressed it (app/web/who.py, app/lab/actions.py).
     app.add_middleware(WhoIsAsking)
+    # Reads take turns, first come, first served: several views worked out side by side are much slower than one after
+    # another (app/web/turns.py). Anything that changes something does not wait.
+    app.add_middleware(OneReadAtATime)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_request: Request, exc: StarletteHTTPException):

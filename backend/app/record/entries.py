@@ -23,39 +23,10 @@ from app.present.watchlist import CLOCK_NAME
 from app.record.reading import Reading
 
 # Where an entry is filed when several happened at the same moment: what must come first reads first.
-_ORDER = (
-    "start",
-    "detail",
-    "import",
-    "action",
-    "verify",
-    "list",
-    "tie",
-    "otto",
-    "look",
-    "research",
-    "press",
-    "run",
-    "retest",
-    "mark",
-    "dig",
-    "connect",
-    "proof",
-    "pr",
-    "approval",
-    "merge",
-    "choice",
-    "setting",
-    "try",
-    "ask",
-    "okay",
-    "apply",
-    "rollback",
-    "devchange",
-    "watch",
-    "stop",
-    "export",
-    "signoff",
+# (one string, split: an entry's id starts with one of these words)
+_ORDER = tuple(
+    "start detail import action verify list tie otto look research press run retest mark dig connect proof pr "
+    "approval merge choice setting try ask okay apply rollback devchange watch stop export signoff".split()
 )
 _RUN_AREA = {
     "verification": "observe",
@@ -192,7 +163,8 @@ class Entries:
 
     def _homes(self) -> dict[str, list[dict]]:
         """Each run in the one entry it belongs to: {entry id: its runs, in the order they ran}."""
-        r, homes = self.r, {}
+        r = self.r
+        homes: dict[str, list[dict]] = {}
         for run in sorted(r.runs.values(), key=lambda x: x["run_id"]):
             press = r.action_by_id.get(r.press_of_run.get(run["run_id"], -1))
             if press is not None and press["kind"] == "applied" and press["detail"].get("apply_id"):
@@ -982,19 +954,20 @@ class Entries:
                 )
         for apply in r.applies:
             key = apply["change_key"]
-            tried = tries.get(apply["try_id"])
-            title = tried["title"] if tried else self._change_title(key)
+            was_tried = tries.get(apply["try_id"])
+            title = was_tried["title"] if was_tried else self._change_title(key)
             link, about = (
-                self._change_link(key, tried["item_id"] if tried else None),
-                self._change_about(key, tried["item_id"] if tried else None),
+                self._change_link(key, was_tried["item_id"] if was_tried else None),
+                self._change_about(key, was_tried["item_id"] if was_tried else None),
             )
             press = r.action("applied", "apply_id", apply["id"])
             runs = self._home.get(f"apply-{apply['id']}", [])
-            request = requests.get(apply["request_id"])
-            people = [words.role("applied", self._pressed(press), apply["at"])]
+            asked = requests.get(apply["request_id"])
+            took = bool(apply["accepted"])  # (False: Apply was pressed and the server refused the settings)
+            people = [words.role("applied" if took else "pressed", self._pressed(press), apply["at"])]
             rested = []
-            if tried is not None:
-                chips = [c for c in [words.badge(words.TRY_WORDS.get(str(tried["outcome"])))] if c]
+            if was_tried is not None:
+                chips = [c for c in [words.badge(words.TRY_WORDS.get(str(was_tried["outcome"])))] if c]
                 rested.append(
                     words.rested(
                         "Try on a test copy",
@@ -1004,8 +977,8 @@ class Entries:
                         words.OPEN_THE_CHANGE,
                     )
                 )
-            if request is not None:
-                for approval in request["approvals"]:
+            if asked is not None:
+                for approval in asked["approvals"]:
                     okay = r.action("change_approved", "apply_approval_id", approval["id"])
                     named = words.who(approval["name"], "reviewer", demo=approval["reviewer"] != "you")
                     people += self._approved_by(approval, named, self._pressed(okay), okay is not None)
@@ -1013,8 +986,8 @@ class Entries:
                     words.rested(
                         words.APPROVALS_TITLE,
                         words.approvals_text(
-                            [a["name"] for a in request["approvals"]],
-                            [REVIEWERS.get(x, x) for x in request["reviewers"]],
+                            [a["name"] for a in asked["approvals"]],
+                            [REVIEWERS.get(x, x) for x in asked["reviewers"]],
                         ),
                         [],
                         link,
@@ -1025,18 +998,18 @@ class Entries:
                 f"apply-{apply['id']}",
                 apply["at"],
                 self._change_area(key),
-                "system",
+                "system" if took else "people",
                 "apply",
-                words.applied(title, apply["address"], apply["accepted"]),
+                words.applied(title, apply["address"], took),
                 who=self._pressed(press),
                 decided_by=words.BY_REVIEWER if runs else None,
                 runs=runs,
                 link=link,
-                decision="applied",
+                decision="applied" if took else "apply_refused",
                 on=f"{title}, on {apply['address']}",
                 people=people,
                 rested=rested,
-                after=[self._measured_after(runs, words.AFTER_APPLY, link)],
+                after=[self._measured_after(runs, words.AFTER_APPLY, link)] if took else [],
                 record=[
                     words.fact("Change fingerprint (SHA-256)", apply["change_fp"]),
                     words.fact("Server", apply["address"]),
@@ -1048,21 +1021,22 @@ class Entries:
                 continue
             undo = r.action("rolled_back", "rollback_id", back["id"])
             again = self._home.get(f"rollback-{back['id']}", [])
+            put_back = bool(back["accepted"])  # (False: the server refused the earlier settings)
             self._add(
                 f"rollback-{back['id']}",
                 back["at"],
                 self._change_area(key),
-                "system",
+                "system" if put_back else "people",
                 "rollback",
-                words.rolled_back(title, apply["address"], back["accepted"]),
+                words.rolled_back(title, apply["address"], put_back),
                 who=self._pressed(undo),
                 decided_by=words.BY_REVIEWER if again else None,
                 runs=again,
                 link=link,
-                decision="rolled_back",
+                decision="rolled_back" if put_back else "rollback_refused",
                 on=f"{title}, on {apply['address']}",
-                people=[words.role("rolled_back", self._pressed(undo), back["at"])],
-                after=[self._measured_after(again, words.AFTER_ROLLBACK, link)],
+                people=[words.role("rolled_back" if put_back else "pressed", self._pressed(undo), back["at"])],
+                after=[self._measured_after(again, words.AFTER_ROLLBACK, link)] if put_back else [],
                 record=[
                     words.fact("Change fingerprint (SHA-256)", apply["change_fp"]),
                     words.fact("Server", apply["address"]),
