@@ -125,7 +125,27 @@ One more thing to know: the Otto panel still calls the Results page "Evidence" i
 
 ## How it was checked
 
-CHECKS
+Everything below ran on this computer on the final code. This computer has no Docker, so the app ran in demo mode, and the walks and answers that need isolated mode skipped themselves, each with a message saying so.
+
+| Check | Result |
+|---|---|
+| The accuracy check (`python -m app.accuracy --mode demo`) | 18 of 18, 47 of 47, 1 of 1 (the other 32 answers of that key need isolated mode), 186 of 186. Otto is not graded yet, because its answer key is not in the repository. These are the same numbers as before the build. |
+| Backend tests, quick set, with Otto | 2,569 passed, 4 skipped, 6 failed (the six are explained below) |
+| Backend tests, quick set, without Otto (the way GitHub runs them) | 2,443 passed, 130 skipped (126 of them need Otto, and the run says so), and the same 6 failed |
+| Screen tests | 993 passed. The type check and the build pass. |
+| End-to-end walks in a real browser | E2E_RESULT |
+| Lint, code style, type check, generated files up to date | All pass. No new type problem. |
+
+**What failed, and why it is not from this build.** Two things fail on `mvp/crypto-simple` too, without any of my changes, and this branch does not touch them:
+
+- Six tests of `test_devcontainer.py`, which test the start script's Python set-up, fail in this cloud computer. Their own test sandbox hides ordinary commands such as `rm` here.
+- `test_sidechannel.py` can't be loaded at all: it asks the shared test helpers for a function they don't have. That's why the "Backend" check on GitHub is red, on this pull request and on `mvp/crypto-simple` alike. I ran the quick set without that one file.
+
+Both are worth fixing in a pull request of their own. I left them alone so this one stays the design refactor only.
+
+**The quick set is slower.** Your rules say the quick backend set stays under 5 minutes. Before this build it already took 5 minutes 42 seconds here. Now it takes 6 minutes 44 seconds without Otto, and 7 minutes 46 seconds with Otto (that run shared the computer with another run). The new tests check that the new pages only read. Getting back under 5 minutes means moving the slowest tests to the slow set. That's a small job of its own, and I can do it next.
+
+**A walk that failed on GitHub, and its fix.** On GitHub one walk (Change watch) failed once: it read the Results page's rows a moment before the page had taken in its new address. I changed the walks' shared helper so it waits for the page to take in the address first. That changes only the walks, not the app. The walk passes here, and the next GitHub run will show the fix there.
 
 ## What the independent review found
 

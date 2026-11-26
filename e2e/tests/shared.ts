@@ -211,7 +211,18 @@ export async function openGroupTab(page: Page, label: string, on?: "Checks" | "R
 
 /** A sidebar link to a page, then the tab of one of its work groups: Checks, Results or Fixes on that group. */
 export async function openPageGroup(page: Page, step: string, label: string): Promise<void> {
-  await stepLink(page, step).click();
+  const link = stepLink(page, step);
+  const href = (await link.getAttribute("href")) ?? "";
+  await link.click();
+  // The address changes at the click, and the page takes it in a moment later. A sidebar link names no tab, so on the
+  // page that is already open it can move the tabs back to the page's first one: wait until the page has taken the
+  // address in before the tab is looked at, or the walk can read the tab of a moment before (26 November 2026: on a
+  // slower machine Results was read on Crypto tests and then drew Verification).
+  const hash = href.slice(href.indexOf("#"));
+  if (hash) await page.waitForFunction((wanted) => window.location.hash === wanted, hash);
+  await page.evaluate(
+    () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(null)))),
+  );
   await openGroupTab(page, label, stepName(step) as "Checks" | "Results" | "Fixes");
 }
 
