@@ -164,6 +164,13 @@ const PARTS = [
   "advisory-fix",
   "advisory-related",
 ];
+/** Opens "Where this page's facts come from" (26 November 2026: the packs, the answers and the harness are one folded
+ * line under the numbers, so the list starts on the first screen). */
+const openFacts = () => {
+  const toggle = within(screen.getByTestId("advisories-facts")).getAllByRole("button")[0]!;
+  if (toggle.getAttribute("aria-expanded") !== "true") fireEvent.click(toggle);
+};
+
 const partsInOrder = () =>
   Array.from(panel().querySelectorAll("[data-testid]"))
     .map((el) => el.getAttribute("data-testid")!)
@@ -228,6 +235,26 @@ describe("Advisories, the page", () => {
     expect(screen.getByTestId("advisories-standing").textContent).toBe(view.standing_line);
     // It is the one fixed line every result screen carries (Evidence and Fixes show the same sentence).
     expect(view.standing_line).toBe(DISCLAIMER);
+    // Four numbers first, counted from the rows of the table (26 November 2026): how many advisories, how many have a
+    // test, how many proposed checks wait for a decision, and how many advisory checks have a result here.
+    expect(
+      within(screen.getByRole("list", { name: "Advisories summary" }))
+        .getAllByTestId("summary-card")
+        .map((card) => [card.getAttribute("data-card"), card.children[1]!.textContent]),
+    ).toEqual([
+      ["advisories", String(view.rows.length)],
+      ["ready", String(view.rows.filter((r) => r.test.key === "ready").length)],
+      ["waiting", String(view.waiting.count)],
+      ["results", String(view.rows.filter((r) => ["fail", "pass", "warn"].includes(r.result.key)).length)],
+    ]);
+    // The numbers and the list come before the page's background; the standing line is the last thing on the page.
+    const page = screen.getByTestId("advisories-page");
+    expect(page.lastElementChild).toBe(screen.getByTestId("advisories-standing"));
+    // Where the page's facts come from is one folded line; its hint is the packs line, so that much shows unopened.
+    const facts = screen.getByTestId("advisories-facts");
+    expect(within(facts).getAllByRole("button")[0]!.getAttribute("aria-expanded")).toBe("false");
+    expect(text(within(facts).getAllByRole("button")[0]!)).toBe(`Where this page's facts come from${view.packs_line}`);
+    openFacts();
     const packs = screen.getByTestId("advisories-packs-line");
     expect(text(packs)).toBe(view.packs_line);
     // The link goes where the view says: Settings, on its Test packs section.
@@ -1745,6 +1772,7 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(inPanel.getByRole("link", { name: "See the evidence" }).getAttribute("href")).toBe(
       "#/a/101/evidence?item=test-6",
     );
+    openFacts();
     expect(within(screen.getByTestId("advisories-packs-line")).getByRole("link").getAttribute("href")).toBe(
       "#/settings?section=test-packs",
     );
@@ -1764,6 +1792,7 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(posts(fetchMock)).toEqual([]);
     // Looking is still allowed: rows open, links work.
     await openRow(BLANK);
+    openFacts();
     expect(within(screen.getByTestId("advisories-packs-line")).getByRole("link").getAttribute("href")).toBe(
       "#/settings?section=test-packs",
     );
@@ -2065,6 +2094,7 @@ describe("Advisories in the app", () => {
       mockApi(appRoutes({ "GET /api/otto": { body: ottoInstalledTwo } }));
       render(<App />);
       const packs = await screen.findByTestId("advisories-packs-line");
+      openFacts();
       const link = within(packs).getByRole("link");
       expect(link.getAttribute("href")).toBe("#/settings?section=test-packs");
       fireEvent.click(link);

@@ -335,6 +335,13 @@ export function OverviewPage({
                 <ItemLinkView link={{ page: "migration/dependencies", item: null }}>Dependency list</ItemLinkView>:{" "}
                 {blocks?.groups.find((g) => g.key === "dependencies")?.facts.length ? "added" : "none yet"}
               </p>
+              {/* The design refactor (26 November 2026): the systems these files describe, drawn as a map. */}
+              <p className="text-slate-400">
+                <ItemLinkView link={{ page: "observatory", item: null }} testId="overview-map-link">
+                  See your systems on the map
+                </ItemLinkView>
+                : where the cryptography is, and what each check found there
+              </p>
             </div>
           ) : (
             <p className="mt-1.5 text-slate-400">

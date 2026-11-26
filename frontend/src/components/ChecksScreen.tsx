@@ -342,8 +342,15 @@ export function ChecksScreen({
     // (with any filter on, a block that holds a match is open, and one that holds none is left out: it would say that
     // nothing has finished in it)
     const narrowed = needle !== "" || resultFilter !== "all" || fromFilter !== "all";
-    const isOpen = (key: string) => !partFolded[key];
-    const toggle = (key: string) => setPartFolded((f) => ({ ...f, [key]: !f[key] }));
+    // The design refactor (26 November 2026): a part with nothing in it yet (no retest, no fix proof, no try) is one
+    // folded line until there is something in it, or until it is opened. The test plan is always open.
+    const empty: Record<string, boolean> = {
+      retests: parts.retests.count === 0,
+      proofs: parts.proofs.count === 0,
+      tries: (parts.tries?.count ?? 0) === 0,
+    };
+    const isOpen = (key: string) => (partFolded[key] === undefined ? !empty[key] || narrowed : !partFolded[key]);
+    const toggle = (key: string) => setPartFolded((f) => ({ ...f, [key]: isOpen(key) }));
     const blocks = (part: Part) =>
       part.blocks.map((b) => {
         const rows = b.rows.filter(keep);

@@ -663,10 +663,14 @@ describe("Checks, Crypto tests in four parts", () => {
 
   it("says so before any retest, and has Retest new version on the page", async () => {
     await open(withParts({ retests: [] }));
-    expect(within(part("retests")).getByTestId("part-empty").textContent).toBe(NO_RETEST);
+    // A part with nothing in it yet is one folded line (26 November 2026): its name, its count, and its button.
     expect(within(part("retests")).getByTestId("part-count").textContent).toBe("0 versions");
-    expect(blocksIn("retests")).toHaveLength(0);
+    expect(within(part("retests")).queryByTestId("part-empty")).toBeNull();
     expect(await within(part("retests")).findByRole("button", { name: "Retest new version" })).not.toBeNull();
+    // Opened, it says why it is empty.
+    fireEvent.click(within(part("retests")).getAllByRole("button")[0]!);
+    expect(within(part("retests")).getByTestId("part-empty").textContent).toBe(NO_RETEST);
+    expect(blocksIn("retests")).toHaveLength(0);
   });
 
   it("offers the same menu as Evidence, and choosing a version starts the retest from here", async () => {

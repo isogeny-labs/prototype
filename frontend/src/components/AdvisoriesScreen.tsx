@@ -4,7 +4,8 @@ import { NewAdvisories } from "./advisories/NewAdvisories";
 import { api, errorMessage, type AdvisoriesView, type OttoProposal } from "../api";
 import { AdvisoryPanel } from "./advisories/AdvisoryPanel";
 import { AdvisoryTable } from "./advisories/AdvisoryTable";
-import { FilterSelect, PageHeader, SearchInput, TableWithPanel, Toolbar } from "./layout";
+import { FoldLine } from "./foldline";
+import { FilterSelect, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar } from "./layout";
 import { ItemLinkView } from "./related";
 import { HistoryOfPage } from "./evidence/HistoryFold";
 import { ErrorBox } from "./ui";
@@ -153,13 +154,6 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
         actions={<HistoryOfPage area="advisories" page="Advisories" />}
       />
 
-      <p
-        data-testid="advisories-standing"
-        className="mb-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300"
-      >
-        {view.standing_line}
-      </p>
-
       {/* Otto is not on this computer: a calm notice in the backend's words, not an error. */}
       {!view.otto.installed ? (
         <p
@@ -172,30 +166,35 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
         </p>
       ) : null}
 
-      <ul className="mb-5 space-y-1 text-xs text-slate-400">
-        {/* The whole line is the link (to Settings, Test packs): the view sends the line and where it goes, no other words. */}
-        <li data-testid="advisories-packs-line" className="w-fit max-w-full">
-          <ItemLinkView
-            link={view.packs_link}
-            className="block break-words text-sky-300 underline-offset-2 hover:underline"
-          >
-            {view.packs_line}
-          </ItemLinkView>
-        </li>
-        <li data-testid="advisories-answers-line">{view.answers_line}</li>
-        {view.otto.installed ? (
-          <li data-testid="advisories-otto-line" data-installed="true">
-            {view.otto.line}
-          </li>
-        ) : null}
-      </ul>
+      {/* The design refactor (26 November 2026): four numbers first, counted from the rows below, so the list starts on
+          the first screen. */}
+      {view.rows.length > 0 ? (
+        <SummaryCards
+          label="Advisories summary"
+          cards={[
+            { key: "advisories", label: view.title, value: view.rows.length, sub: "in the installed test packs" },
+            {
+              key: "ready",
+              label: view.filters.test.find((o) => o.key === "ready")?.label ?? "Test ready",
+              value: view.rows.filter((r) => r.test.key === "ready").length,
+            },
+            { key: "waiting", label: "Waiting for your decision", value: waiting.count, sub: "proposed checks" },
+            {
+              key: "results",
+              label: view.columns[view.columns.length - 1] ?? "Result here",
+              value: view.rows.filter((r) => ["fail", "pass", "warn"].includes(r.result.key)).length,
+              sub: "advisory checks with a result",
+            },
+          ]}
+        />
+      ) : null}
 
       {/* Waiting for you: how many proposed checks nobody has decided yet. It has no button, on purpose: each proposal
           is decided by itself, in its advisory's panel. */}
       <div
         data-testid="advisories-waiting"
         data-count={waiting.count}
-        className="mb-5 rounded-xl border border-slate-800 bg-slate-900/40 p-4"
+        className="mb-4 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3"
       >
         <p
           data-testid="advisories-waiting-line"
@@ -216,6 +215,29 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
             <ErrorBox>{reloadError}</ErrorBox>
           </div>
         ) : null}
+      </div>
+
+      {/* Where the page's facts come from: the installed packs, the answers and the harness, in one folded line. */}
+      <div className="mb-5">
+        <FoldLine title="Where this page's facts come from" hint={view.packs_line} testId="advisories-facts">
+          <ul className="space-y-1 text-xs text-slate-400">
+            {/* The whole line is the link (to Settings, Test packs): the view sends the line and where it goes, no other words. */}
+            <li data-testid="advisories-packs-line" className="w-fit max-w-full">
+              <ItemLinkView
+                link={view.packs_link}
+                className="block break-words text-sky-300 underline-offset-2 hover:underline"
+              >
+                {view.packs_line}
+              </ItemLinkView>
+            </li>
+            <li data-testid="advisories-answers-line">{view.answers_line}</li>
+            {view.otto.installed ? (
+              <li data-testid="advisories-otto-line" data-installed="true">
+                {view.otto.line}
+              </li>
+            ) : null}
+          </ul>
+        </FoldLine>
       </div>
 
       {/* Phase 6, Otto's research loop: look for newly published advisories, and prove a test for each on public copies. */}
@@ -284,6 +306,14 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decis
         }
         panel={<AdvisoryPanel planId={planId} row={opened} onClose={() => setOpenId(null)} onDecided={decided} />}
       />
+
+      {/* The standing line, once on the screen (SPEC section 11), as a quiet line at the foot. */}
+      <p
+        data-testid="advisories-standing"
+        className="mt-5 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300"
+      >
+        {view.standing_line}
+      </p>
     </section>
   );
 }
