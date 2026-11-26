@@ -1607,19 +1607,19 @@ def check_signature(public_key, message, signature):
             <li><span class="d"><svg class="ic"><use href="#i-verify"/></svg></span><div><div class="hs">Approved by You</div><div class="hm">7:18 am</div></div></li>
             <li><span class="d"><svg class="ic"><use href="#i-verify"/></svg></span><div><div class="hs">Approved as Demo reviewer A <span class="mark demo">Demo data</span></div><div class="hm">7:18 am</div></div></li>
           </ul>
-          <p class="xs muted">This version has one login and no separate accounts. Whoever is at the keyboard records each approval, under the name shown.</p>
+          <p class="xs muted">Each name is the account that was logged in where the app has one, otherwise the name typed once in Settings (Who decides), or "You". Demo reviewers are Demo data.</p>
         </div>
         <div>
           <div class="eyebrow">What it rested on</div>
           <ul class="spotlist" style="margin-top:0">
             <li><span class="k">Proof on acme-sign 1.4.3-otto</span><span class="chips"><span class="chip xs pass"><span class="sym">✓</span>Proof passed</span></span><span class="p">Every locked test reran on the changed code, 7:17 am. Decided by the separate reviewer.</span><span class="lk"><a href="#">Open the proof</a></span></li>
-            <li><span class="k">The 3 findings it answers, on acme-sign 1.4.2</span><span class="chips"><span class="chip xs fail"><span class="sym">✕</span>Failed</span><span class="chip xs fail"><span class="sym">✕</span>Failed</span><span class="chip xs fail"><span class="sym">✕</span>Failed</span></span><span class="p">Independent exam, Attacker tricks, Advisory check: Missing ECDSA signature range check. 7:16 am.</span><span class="lk"><a href="#">Open in Results</a></span></li>
+            <li><span class="k">The 3 findings it answers, on acme-sign 1.4.2, 7:16 am</span><span class="chips"></span><span class="p">Independent exam <span class="chip xs fail"><span class="sym">✕</span>Failed</span> · Attacker tricks <span class="chip xs fail"><span class="sym">✕</span>Failed</span> · Advisory check: Missing ECDSA signature range check <span class="chip xs fail"><span class="sym">✕</span>Failed</span></span><span class="lk"><a href="#">Open in Results</a></span></li>
           </ul>
         </div>
         <div>
           <div class="eyebrow">What came after</div>
           <ul class="spotlist" style="margin-top:0">
-            <li><span class="k">Retest on acme-sign 1.4.3-otto</span><span class="chips"><span class="chip xs pass"><span class="sym">✓</span>Passed</span><span class="chip xs pass"><span class="sym">✓</span>Passed</span><span class="chip xs pass"><span class="sym">✓</span>Passed</span></span><span class="p">The same 3 tests, 7:18 am. Decided by the separate reviewer.</span><span class="lk"><a href="#">Results by version</a></span></li>
+            <li><span class="k">Retest on acme-sign 1.4.3-otto, 7:18 am</span><span class="chips"></span><span class="p">Independent exam <span class="chip xs pass"><span class="sym">✓</span>Passed</span> · Attacker tricks <span class="chip xs pass"><span class="sym">✓</span>Passed</span> · Advisory check <span class="chip xs pass"><span class="sym">✓</span>Passed</span>. Each decided by the separate reviewer.</span><span class="lk"><a href="#">Results by version</a></span></li>
           </ul>
         </div>
         <details class="proof">
@@ -1636,7 +1636,7 @@ def check_signature(public_key, message, signature):
     <div><h1>Results <span class="mark demo">Demo data</span></h1><p>Every check of the plan, on every version it ran on, side by side. Each result is the separate reviewer's.</p></div>
     <div class="actions"><span class="seg" style="align-self:center"><span>Now</span><span class="on">By version</span></span><button class="btn">Retest new version</button></div>
   </div>
-  <div data-slot="tabs" data-active="encryption"></div>
+  <div data-slot="tabs" data-active="encryption" data-page="retested"></div>
   <div style="height:14px"></div>
   <div class="split" style="grid-template-columns:minmax(0,1fr) minmax(0,40%)">
     <table class="table vtable">
@@ -1681,7 +1681,7 @@ def check_signature(public_key, message, signature):
             <li><span class="d"><svg class="ic"><use href="#i-merge"/></svg></span><div><div class="hs">The fix it answers was merged</div><div class="hm">18 Nov, 7:18 am · by You · <a href="#">Open in Fixes</a></div></div></li>
             <li><span class="d"><svg class="ic"><use href="#i-person"/></svg></span><div><div class="hs">Marked reviewed</div><div class="hm">18 Nov, 7:17 am · by You, on the result on acme-sign 1.4.2</div></div></li>
             <li><span class="d lab"><svg class="ic"><use href="#i-flask"/></svg></span><div><div class="hs">First run on acme-sign 1.4.2 <span class="chip xs fail"><span class="sym">✕</span>Failed</span></div><div class="hm">18 Nov, 7:16 am · started by You, with Run all · decided by the reviewer · <span class="mono">4cc6a38e4bfc</span></div><div class="hm"><a href="#">Cryptanalysis proof</a></div></div></li>
-            <li><span class="d"><svg class="ic"><use href="#i-clock"/></svg></span><div><div class="hs">Test locked</div><div class="hm">18 Nov, 7:15 am · its details can't change after this · fingerprint <span class="mono">a71c09e2f3b5</span></div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-clock"/></svg></span><div><div class="hs">Test details locked</div><div class="hm">18 Nov, 7:15 am, before its first run on this computer · they can't change after this · fingerprint <span class="mono">a71c09e2f3b5</span></div></div></li>
           </ul>
           <p class="xs muted">The proof's run of this test, on the changed code, is a check of its own, under Fix proofs on Checks.</p>
         </div>
@@ -1702,7 +1702,7 @@ def check_signature(public_key, message, signature):
     <div class="card"><dt>Otto's proposals decided</dt><dd>3</dd><small>2 accepted, 1 not added</small></div>
     <div class="card"><dt>Sign-off</dt><dd style="font-size:16px;padding-top:6px">Not yet</dd><small>Close assessment records who and when</small></div>
   </dl>
-  <div class="strip"><svg class="ic sm"><use href="#i-info"/></svg><b>Who:</b> this version has one login. A decision is recorded under the name typed once in Settings (Who decides), or "You" until then. The app does not check who is at the keyboard, and says so.</div>
+  <div class="strip"><svg class="ic sm"><use href="#i-info"/></svg><b>Who:</b> the account that was logged in, where the app has one (hosted, with a GitHub login); otherwise the name typed once in Settings (Who decides), or "You". Demo reviewers are Demo data. A record made before names were kept says so.</div>
   <div class="filters"><div class="row"><span class="lbl">Where</span><div class="chips-row"><span class="fchip on">All</span><span class="fchip">Observatory and Verify</span><span class="fchip">Advisories</span><span class="fchip">Checks</span><span class="fchip">Fixes</span><span class="fchip">Migration plan</span><span class="fchip">Dependencies</span><span class="fchip">Change watch</span><span class="fchip">The assessment</span></div></div></div>
   <table class="table dtable">
     <thead><tr><th style="width:96px">When</th><th style="width:150px">Decision</th><th>On</th><th style="width:190px">By</th><th style="width:150px">Where</th></tr></thead>
@@ -1748,20 +1748,20 @@ def check_signature(public_key, message, signature):
       <div class="pbody">
         <div class="glance">
           <div class="top"><span class="chip neutral"><span class="sym">•</span>Merged</span><span class="tag lab"><svg class="ic sm"><use href="#i-flask"/></svg>Proven in the lab</span><span class="when">Merged 18 November 2026, 7:18 am EST</span></div>
-          <p class="lead">The change is merged, and the retest on the merged code passed the 3 tests it answers.</p>
+          <p class="lead">The change is merged. In the retest on the merged code, the 3 tests it answers each read Passed.</p>
           <div class="next"><span class="say">Next: nothing waits on this fix.</span></div>
         </div>
         <div>
           <div class="eyebrow" style="display:flex;align-items:center">History of this fix <a href="#" style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500;font-size:12.5px">Open in the timeline →</a></div>
           <ul class="hist">
-            <li><span class="d lab"><svg class="ic"><use href="#i-flask"/></svg></span><div><div class="hs">Retest on acme-sign 1.4.3-otto: the 3 tests it answers <span class="chip xs pass"><span class="sym">✓</span>Passed</span></div><div class="hm">7:18 am · started by You, with Retest now · decided by the reviewer · <a href="#">Results by version</a></div></div></li>
+            <li><span class="d lab"><svg class="ic"><use href="#i-flask"/></svg></span><div><div class="hs">Retest on acme-sign 1.4.3-otto</div><div class="hm">Independent exam <span class="chip xs pass"><span class="sym">✓</span>Passed</span> · Attacker tricks <span class="chip xs pass"><span class="sym">✓</span>Passed</span> · Advisory check <span class="chip xs pass"><span class="sym">✓</span>Passed</span></div><div class="hm">7:18 am · started by You, with Retest now · decided by the reviewer · <a href="#">Results by version</a></div></div></li>
             <li><span class="d"><svg class="ic"><use href="#i-merge"/></svg></span><div><div class="hs">Merged pull request #1 into main</div><div class="hm">7:18 am · by You · commit <span class="mono">c07b369</span></div></div></li>
             <li><span class="d"><svg class="ic"><use href="#i-verify"/></svg></span><div><div class="hs">Approved</div><div class="hm">7:18 am · by You · by Demo reviewer A <span class="mark demo">Demo data</span></div></div></li>
             <li><span class="d"><svg class="ic"><use href="#i-person"/></svg></span><div><div class="hs">Pull request #1 opened</div><div class="hm">7:18 am · by You · reviewers: You, Demo reviewer A</div></div></li>
             <li><span class="d lab"><svg class="ic"><use href="#i-flask"/></svg></span><div><div class="hs">Proof on acme-sign 1.4.3-otto <span class="chip xs pass"><span class="sym">✓</span>Proof passed</span></div><div class="hm">7:17 am · decided by the reviewer · <a href="#">Cryptanalysis proof</a></div></div></li>
             <li><span class="d"><svg class="ic"><use href="#i-person"/></svg></span><div><div class="hs">Demo code connected</div><div class="hm">7:17 am · by You</div></div></li>
             <li><span class="d"><svg class="ic"><use href="#i-person"/></svg></span><div><div class="hs">Accepted Otto's proposal</div><div class="hm">7:16 am · by You</div></div></li>
-            <li><span class="d"><svg class="ic"><use href="#i-clock"/></svg></span><div><div class="hs">Proposed by Otto</div><div class="hm">7:16 am · after the advisory check failed on acme-sign 1.4.2</div></div></li>
+            <li><span class="d"><svg class="ic"><use href="#i-clock"/></svg></span><div><div class="hs">Proposed by Otto</div><div class="hm">worked out from the failed advisory check on acme-sign 1.4.2 · a proposal is not stored, so it has no time of its own; the accept is the first record</div></div></li>
           </ul>
         </div>
         <div class="linefold"><svg class="ic sm"><use href="#i-chev"/></svg>The change <span class="n">(3 lines added, 1 removed)</span></div>
@@ -1835,6 +1835,8 @@ function tabs(active, page) {
   const groups =
     page === "fixes"
       ? [["verification", "Verification", 0, ""], ["encryption", "Crypto tests", 2, ""], ["migration", "Migration", 0, ""], ["dependencies", "Dependencies", 0, ""]]
+      : page === "retested"
+      ? [["verification", "Verification", 3, "1 false"], ["encryption", "Crypto tests", 6, "1 failed"], ["migration", "Migration", 2, ""], ["dependencies", "Dependencies", 10, ""]]
       : [["verification", "Verification", 3, "1 false"], ["encryption", "Crypto tests", 6, "4 failed"], ["migration", "Migration", 2, ""], ["dependencies", "Dependencies", 10, ""]];
   return `<div class="tabs" role="tablist" aria-label="Work groups">${groups
     .map(

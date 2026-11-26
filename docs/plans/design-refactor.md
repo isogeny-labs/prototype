@@ -21,11 +21,11 @@
 
 **What you asked.** Evidence should be a full record of everything that has happened, from the Observatory to every run, with who approved each piece of evidence. It should not be one screen, it should be easy to look back through, and it should work for each area: checks, advisories, fixes, migration and dependencies.
 
-**What I found: you are mostly right.** Nothing is thrown away. The app keeps every run, every decision and every download, and the signed evidence file you download already holds nearly all of it. But the Evidence page shows one row per check, with only its newest result (after a retest, two columns: before and after). Earlier runs are a short list at the bottom of each check's panel. Approvals are on Fixes, Otto's decisions on Advisories, the sign-off and the last download on the Overview. So the record is complete but scattered, and no page lets you read it in order.
+**What I found: you are mostly right.** Almost nothing is thrown away. The app keeps every run, every review, every proof, approval, merge, try, Apply and Roll back, every decision on Otto's proposals, every download and the sign-off, and the signed evidence file you download already holds nearly all of it. Two things are not kept as a history today: the "I own this system" tick (a yes or no that is overwritten, with no time), and changes to the test plan (adding, removing or moving a test overwrites the plan, with no time). But the Evidence page shows one row per check, with only its newest result (after a retest, two columns: before and after). Earlier runs are a short list at the bottom of each check's panel. Approvals are on Fixes, Otto's decisions on Advisories, the sign-off and the last download on the Overview. So the record is complete but scattered, and no page lets you read it in order.
 
 **One correction: no person approves a result.** The separate reviewer decides every result by fixed rules. That is a core rule of the product, and it is what makes the evidence worth trusting. What people approve is what is done about results: a pull request, a server change before Apply, Otto's proposals, the sign-off. The new Evidence shows both side by side: what decided each result (the reviewer), and every decision a person made, with who and when.
 
-**Who is recorded today, and who is not.** Names are kept for pull-request approvals, Apply approvals, Otto's decisions, advisory looks and research runs, Watch list marks, and the sign-off. No name is kept for who started a run, merged, applied or rolled back, marked a result reviewed, confirmed "I own this system", chose a migration option, tied a library, or downloaded the evidence file. The app has one login, so until now it kept no name for these. The design records them from now on (decision I).
+**Who is recorded today, and who is not.** A name comes from three places today. Pull-request and Apply approvals keep the reviewer's label ("You", "Demo reviewer A"). The sign-off keeps the name typed when the assessment is closed. Otto's decisions, advisory looks, research runs and Watch list marks keep the name typed once in Settings (Who decides), or "You". No name is kept for who brought a file in, started a run, merged, applied or rolled back, marked a result reviewed, ticked "I own this system", changed the test plan, chose a migration option, tied a library, or downloaded the evidence file. Nothing records which button started a run either. The design records all of this from now on, from one source (decision I).
 
 **What the design does.** Section 6 has the whole design.
 
@@ -72,7 +72,7 @@ The map after the checks have run, and a system opened from it:
 
 **What it does to the two examples.** The same test result opens at 1,195 pixels in the mockup, with every record one click away. The proposed check says its counts once in the open and once, as a table, inside the proof.
 
-**What does not change.** No result, no check, no test, no rule, no answer key, no evidence file. The reviewer is not touched. Every product rule in `CLAUDE.md` stands: no "secure", no score, no severity, plain words. No record is shortened: what is folded is shown whole when opened.
+**What does not change.** No result, no check, no test, no rule, no answer key. The reviewer is not touched. The signed evidence file changes in one way only, with decision I: it gains the names of who did what. Every product rule in `CLAUDE.md` stands: no "secure", no score, no severity, plain words. No record is shortened: what is folded is shown whole when opened.
 
 **What I need from Kevin.** Two decisions on round 3, H and I, in [section 11](#11-decisions-for-kevin).
 
@@ -407,24 +407,26 @@ Every kind of record is kept. The trouble is where it shows.
 
 | Record | Kept? | Who is recorded | Where you see it today |
 |---|---|---|---|
-| Every run of every check, with the reviewer's review | Yes, every run | Not who started it | Evidence shows the newest result of each check (two columns after a retest). The others are a short list at the bottom of the check's panel. |
+| Every run of every check, with the reviewer's review | Yes, every run | Not who started it, nor with which button | Evidence shows the newest result of each check (two columns after a retest). The others are a short list at the bottom of the check's panel. |
 | Verify runs | Yes | Not who started it | Verify, and Evidence's Verification tab |
 | Proofs of code changes | Yes | Not who started it | Fixes, and Checks' Fix proofs |
-| Pull requests, their approvals, merges | Yes | Approvals: yes, by name. The merge: no | On that fix, on Fixes |
-| Tries on a test copy, Apply approvals, Apply, Roll back | Yes | Approvals: yes, by name. Apply and Roll back: no | On that change, on Fixes or Migration plan |
-| Otto's proposals: every accept, reject, undo and reconsider | Yes | Yes | On the page of each proposal, folded |
+| Pull requests, their approvals, merges | Yes | Approvals: the reviewer's label ("You", "Demo reviewer A"). The merge: no | On that fix, on Fixes |
+| Tries on a test copy, Apply approvals, Apply, Roll back | Yes | Approvals: the reviewer's label. Apply and Roll back: no | On that change, on Fixes or Migration plan |
+| Otto's proposals: every accept, reject, undo and reconsider | Yes (a proposal itself is worked out on every read and not stored) | Yes, the Who decides name | On the page of each proposal, folded |
 | Advisory looks and research runs | Yes | Yes | Advisories |
 | Mark reviewed | Yes | No | On the result |
 | Migration choices, system settings, dependency ties | Yes | No | Migration plan, Dependencies |
 | Evidence downloads, with their fingerprint | Yes | No | Overview (the last one) |
-| The sign-off | Yes | Yes | Overview |
-| Change watch runs | Yes, kept apart by the rules | Not who started them | Change watch |
+| The sign-off | Yes | Yes, the name typed in the Close box | Overview |
+| Change watch runs | Yes, kept apart by the rules | Not who started them | Change watch, and on Checks and Evidence as "Came from: Change watch" |
+| The "I own this system" tick | Only as it stands now: a yes or no, overwritten, with no time | No | Verify |
+| Changes to the test plan (a test added, removed or moved) | Only as the plan stands now: overwritten, with no time | No | Checks |
 
 The signed evidence file already holds nearly all of this: every earlier run, the approvals and the merge, every try, Apply and Roll back, the sign-off, and Otto's decisions. So this round is mostly about showing what is already kept.
 
 ### The design: Evidence is a section of four views
 
-**1. Timeline: everything that happened, in order.** Newest first, one day at a time. Each entry is one sentence: what happened, its result words where it is a run, who did it, and where. Runs started by one press are one entry ("Run all: the 6 tests in the plan"), and the entry opens to list each run with its own result and tag. Two rows of filters: **Where** (Observatory and Verify, Advisories, Checks, Fixes, Migration plan, Dependencies, Change watch, the assessment itself) and **What** (runs and results, what people did, changes to a system, files in and out), and a search. These filter by place and kind, never by what a result rests on.
+**1. Timeline: everything that happened, in order.** Newest first, one day at a time. Each entry is one sentence: what happened, its result words where it is a run, who did it, and where. Runs started by one press are one entry ("Run all: the 6 tests in the plan"), and the entry opens to list each run with its own result and tag. A retest, a proof and a Verify run already have a record that ties their runs together. Which button started a first run does not: that comes with decision I, and older runs are listed one by one. Two rows of filters: **Where** (Observatory and Verify, Advisories, Checks, Fixes, Migration plan, Dependencies, Change watch, the assessment itself) and **What** (runs and results, what people did, changes to a system, files in and out), and a search. These filter by place and kind, never by what a result rests on. Change watch's runs are listed only under Change watch and counted in none of the other numbers. The Timeline and Approvals and decisions are arranged by time and by page, because a record of what happened is read by when and where; the four work groups stay the tabs of Results, as they are on Checks, Fixes and the Overview.
 
 ![The Evidence timeline](design-refactor/mockups/15-evidence-timeline-light.png)
 
@@ -434,7 +436,7 @@ An entry opens a panel with its story: who did it, what it rested on, and what c
 
 **2. Results: what each check shows now, and every version side by side.** This is today's Evidence page, renamed, with the three layers and the parts. A switch, **Now** or **By version**, shows every check of the plan on every version it ran on, side by side: today's before-and-after view, for any number of retests. A server test that ran again on an unchanged server says so ("Tested again as it is").
 
-**3. Approvals and decisions: who decided what.** Every decision a person made in the assessment, one row each: when, the decision (Approved, Merged, Accepted, Not added, Undone, Reconsidered, Applied, Rolled back, Marked reviewed, Confirmed "I own this system", Chose an option, Signed off), what it was on, who, and where. The sign-off is counted at the top ("Not yet" until the assessment is closed). Results are not in this list: the page says why.
+**3. Approvals and decisions: who decided what.** Every decision a person made in the assessment, one row each: when, the decision (Approved, Merged, Accepted, Not added, Undone, Reconsidered, Applied, Rolled back, Marked reviewed, Confirmed "I own this system", Chose an option, Changed a system setting, Tied a library, Stopped or resumed watching, Signed off), what it was on, who, and where. Four counts on top, and the same Where filter as the timeline. The sign-off is counted at the top ("Not yet" until the assessment is closed). Results are not in this list: the page says why.
 
 ![Approvals and decisions](design-refactor/mockups/18-evidence-approvals-and-decisions-dark.png)
 
@@ -444,26 +446,26 @@ An entry opens a panel with its story: who did it, what it rested on, and what c
 
 Every check, fix, change, system and advisory gets a short **History of this** *item* in its panel: what happened to it, newest first, with who did it and what decided it.
 
-A check's history shows each run with the version it ran on, who started it and the reviewer's word, then the person's own decisions about it (Marked reviewed), and the moment the test was locked:
+A check's history shows each run with the version it ran on, who started it and the reviewer's word, then the person's own decisions about it (Marked reviewed), and when the test's details were locked (a locked test is shared by every assessment that runs it, so this is its first lock on this computer). A line on top says who decides a result:
 
 ![Results by version, and one check's history](design-refactor/mockups/17-evidence-results-by-version-dark.png)
 
-A fix's history shows it from Otto's proposal to the retest on the merged code: accepted by, code connected, proof, pull request opened, approved by, merged by, retest.
+A fix's history shows it from Otto's proposal to the retest on the merged code: accepted by, code connected, proof, pull request opened, approved by, merged by, retest. A proposal is worked out from the results and not stored, so it has no time of its own; the first record is its accept.
 
 ![A fix and its history](design-refactor/mockups/19-fixes-a-fix-history-light.png)
 
-**Managing evidence by area.** Every page gets **History of** *that page* in its header (History of Fixes, History of Migration plan, History of Dependencies, History of Checks, History of Advisories). It opens the timeline with that area already chosen. So the record of each area is one click from where you work on it.
+**Managing evidence by area.** Checks, Advisories, Fixes, Migration plan and Dependencies each get **History of** *that page* in their header (History of Fixes, History of Migration plan, History of Dependencies, History of Checks, History of Advisories). It opens the timeline with that area already chosen. So the record of each area is one click from where you work on it.
 
 ### Who decided what, said the same way everywhere
 
 - **A result:** "Decided by the separate reviewer", on every run. For a claim on Verify, "decided by fixed rules". A result never shows a person's name as its decider.
-- **A decision:** the name it was recorded under. The app has one login, so this is the name typed once in Settings (**Who decides**), or "You" until then. The app says so, as it does today.
+- **A decision:** the name it was recorded under. Today that name comes from three places (the reviewer's label on an approval, the name typed at sign-off, the Who decides name on Otto's decisions). With decision I every new record takes its name from one source: the account that was logged in, where the app has one (the hosted app logs in with GitHub); otherwise the name typed once in Settings (**Who decides**), or "You". Demo reviewers stay labelled Demo data. Every record keeps the name it was made under.
 - **What it never does:** word a result, decide anything, or change anything. The timeline and the histories only repeat what the records say. A run made by Change watch is shown as such and never counted with the assessment's own results.
 
 ### What it needs beyond the screens
 
 1. **One read** that lists the records in time order. It reads only. It decides nothing and writes nothing.
-2. **A name for every action that decides or changes something.** Starting a run (Run all, Run, Retest, Measure status, Verify), Connect demo code, Open pull request, Merge, Apply, Roll back, Mark reviewed, "I own this system", a migration choice, a system setting, a dependency tie, and a download. These get a small add-only record: who pressed which button, when, on what. Runs and their fingerprints are not touched. Records from before this change say "Not recorded (before names were kept)", and nothing is filled in after the fact.
+2. **A name for every action that decides or changes something.** Starting an assessment, bringing a file in, adding a dependency list, starting a run (Run all, Run, Retest, Measure status, Verify, with the runs that press queued), a change to the test plan, Connect demo code, Open pull request, Merge, Apply, Roll back, Mark reviewed, ticking or unticking "I own this system", a migration choice, a system setting, a dependency tie, and a download. These get a small add-only record: who pressed which button, when, on what. Runs and their fingerprints are not touched. Records from before this change say "Not recorded (before names were kept)", and nothing is filled in after the fact.
 3. **Those names in the signed evidence file too,** checked by the verify command. This changes the evidence file's format, which is why it is a decision of its own (decision I). A "who approved" that an auditor can't check in the signed file is weaker than one they can.
 
 *Not proposed:* the Otto panel's conversation in the timeline (what was said is kept, but it is conversation, not evidence); editing or removing anything (the record stays add-only, as today).
@@ -530,12 +532,12 @@ A fix's history shows it from Otto's proposal to the retest on the merged code: 
 
 ## 9. Scope: what this is and is not
 
-**Presentation only.** This plan changes where things sit on the screen and whether a second copy is drawn. It does not change:
+**Mostly presentation.** This plan changes where things sit on the screen and whether a second copy is drawn. Three parts go further, and each is said where it comes up: the map's reader and read (section 5), and the record of who did what, with its names in the signed evidence file and the verify command (section 6, decision I). Nothing in this plan changes:
 
 - any result, check, test, verdict or count;
 - the reviewer (`backend/app/engine/reviewer.py`), the runner, or any rule;
 - the answer keys in `demo/`;
-- the signed evidence file, the report, the ledgers or the verify command;
+- the signed evidence file, the report, the ledgers or the verify command, except that decision I adds the names of who did what to the evidence file and has the verify command check them;
 - what Otto may do, and what needs a person's click;
 - `docs/wireframes/` (the folder is not in this repository, so nothing there was read or touched).
 
@@ -552,7 +554,7 @@ A fix's history shows it from Otto's proposal to the retest on the merged code: 
 | Each proposal is decided by itself, and accepting runs nothing | Accept and Reject are on each proposal, with that sentence beside them. |
 | Plain-language text | Layer 1 uses only the app's own plain sentences. |
 
-**What the screens can do alone, and what needs a little more.** "Presentation only" has an edge, and I want to be exact about it.
+**What the screens can do alone, and what needs more.** I want to be exact about where "mostly presentation" ends.
 
 *The screens can do these with what the app already sends:*
 
@@ -584,7 +586,7 @@ A fix's history shows it from Otto's proposal to the retest on the merged code: 
 - The math in symbols. The app says what a test checks in words ("zero or outside the allowed range"). A line of symbols would be new content and would need its source, like every other fact.
 - Merging Checks and Evidence into one page. It would undo the flow in the SPEC.
 - Any change to the Otto panel. Its layout beside a detail panel deserves its own look later.
-- The map in the downloadable report. The signed evidence file stays as it is.
+- The map in the downloadable report.
 - An "Observe again" button, or any other new way to start a check.
 - Showing Change watch's runs on the map. The rules keep them apart from the assessment's own results.
 - The Otto panel's conversation in the timeline, and any way to edit or remove a record.
@@ -607,11 +609,11 @@ A fix's history shows it from Otto's proposal to the retest on the merged code: 
 | 12 | A new page, the Observatory: four counts by tag, the map with its Map and List views, "What your files don't say", and, before any check has run, one line that says so with **Open Verify** (it only opens the page). |
 | 13 | The panel of a box on the map, which opens over the right side of the map. |
 | 14 | "On your map" with **Show on the map** in the first layer of every result. |
-| 15 | Evidence leaves the Test step and becomes its own section with four views: Timeline, Results, Approvals and decisions, Evidence files. Today's Evidence page becomes Results, with **Now** and **By version**. |
-| 16 | A history in the panel of every check, fix, change, system and advisory. |
+| 15 | Evidence leaves the Test step and becomes its own section with four views: Timeline (its Where and What filters with their counts, its search, **Download evidence**, and an entry's panel: Who, What it rested on, What came after), Results (today's Evidence page, with **Now** and **By version**), Approvals and decisions (four counts and the Where filter) and Evidence files. The rule that the four work groups are the same on Evidence then holds for Results; the Timeline and Approvals are arranged by time and page. |
+| 16 | A history in the panel of every check, fix, change, system and advisory, with the line on who decides a result. |
 | 17 | **History of** *that page* in the header of Checks, Advisories, Fixes, Migration plan and Dependencies. |
 | 18 | The sidebar rule: a section's views are listed in the sidebar (Migration plan's three while you are in it); the page has no second tab strip. |
-| 19 | Evidence files: every download with who and its fingerprint, and how to check a file. **Download evidence** moves there (it stays on the Overview's Evidence card too). |
+| 19 | Evidence files: every download with who and its fingerprint, and how to check a file. **Download evidence** is there and in the Timeline's header (and stays on the Overview's Evidence card). |
 
 **A naming note.** The rules say the screening of the asking code is "never called a proof". In the mockups that part sits inside a dropdown named "Cryptanalysis proof". The name describes the whole record, and the sentence that the screen is a filter and not a proof is kept inside it. If that still reads as too close, the dropdown can be named "Cryptanalysis record" at no cost. It is part of decision B.
 
@@ -621,7 +623,7 @@ A fix's history shows it from Otto's proposal to the retest on the merged code: 
 
 One throwaway file, [`design-refactor/mockups/mockups.html`](design-refactor/mockups/mockups.html), holds every screen. It is not the app and is not connected to it. Open it in a browser: the purple bar at the top switches the screen, the dark or light look, and the dropdown open or closed. The pictures below were taken from it with the repo's Playwright, at 1440 pixels wide.
 
-Sentences are the app's own wherever the app has one, read from the existing screenshots and from the app's code, and the demo data is the same. The map's boxes and lines are the demo files' own (`demo/acme-pay-cbom.json` and `demo/dependencies-demo.cdx.json`). The demo server's address is localhost:8450 in these pictures, as in the walk they copy; the demo file itself names localhost:8443, and the walks move the port. A few short lines are stand-ins where I shortened the app's sentence or where the app has no sentence yet (the sentence under each page title, the one-line test descriptions on Checks, the Observatory's own lines, the run record of the observed result, and the timeline's and the histories' sentences); a build would use the app's own words. The names on run starts, merges, connections and Mark reviewed are the new records of decision I.
+Sentences are the app's own wherever the app has one, read from the existing screenshots and from the app's code, and the demo data is the same. The map's boxes and lines are the demo files' own (`demo/acme-pay-cbom.json` and `demo/dependencies-demo.cdx.json`). The demo server's address is localhost:8450 in these pictures, as in the walk they copy; the demo file itself names localhost:8443, and the walks move the port. A few short lines are stand-ins where I shortened the app's sentence or where the app has no sentence yet (the sentence under each page title, the one-line test descriptions on Checks, the Observatory's own lines, the run record of the observed result, and the timeline's and the histories' sentences); a build would use the app's own words. These are new records of decision I, not kept today: the names, and the buttons, on run starts; the names on bringing a file in, starting the assessment, adding the dependency list, connecting code, opening and merging a pull request and Mark reviewed; and the time and name of "I own this system".
 
 | # | Screen | Dark | Light |
 |---|---|---|---|
@@ -675,7 +677,7 @@ The mockups, their pictures and the small script that takes them (`shoot.mjs`) a
 | | Decision | My recommendation |
 |---|---|---|
 | **H** | Evidence as its own section with four views (Timeline, Results with **By version**, Approvals and decisions, Evidence files), a history in every item's panel, and **History of** *that page* on Checks, Advisories, Fixes, Migration plan and Dependencies. With it, one rule for the sidebar: a section's views are listed there, and the only tabs on a page are the four work groups. | Yes. |
-| **I** | Record who did every action that decides or changes something (a small add-only record; runs and their fingerprints untouched), and put those names in the signed evidence file, checked by the verify command. | Yes. Without it, "who approved" stays partly blank, and an auditor could not check it in the signed file. |
+| **I** | Record who did every action that decides or changes something, and which button started each run, from one source (the logged-in account where there is one, else the Who decides name, else "You"), in a small add-only record (runs and their fingerprints untouched); keep the "I own this system" tick and test-plan changes as history too; and put those names in the signed evidence file, checked by the verify command. | Yes. Without it, "who approved" stays partly blank, and an auditor could not check it in the signed file. |
 
 ---
 
@@ -688,9 +690,9 @@ Not started. Each step would get its own short plan, be built, reviewed, and sho
 3. **Observe and test apart in the lists.** The two parts on Checks, Evidence and Fixes, and the six-step sidebar.
 4. **The tabs and the labels.** Counts on the tabs, the three kinds of label.
 5. **The panel header and the trail.**
-6. **Evidence as a section.** Results with **By version**, and the history in each item's panel: both come from records the app already keeps.
+6. **Evidence as a section.** Results with **By version**, and the history in each item's panel, from the records the app already keeps (runs, retests, proofs, approvals, merges, decisions). Who started each run, and with which button, comes with step 7.
 7. **Who did what.** Its own short plan first: the add-only record of who pressed each button, then the timeline, Approvals and decisions, Evidence files, and **History of** *that page*. The names go into the signed evidence file and the verify command in the same step (decision I).
 8. **The Observatory.** Its own plan first. Then the map's read on the server side, the page, a box's panel, Show on the map, and the small map on the Overview.
 9. **The calm pages** (Advisories, Checks, Overview), with the SPEC edits.
 
-After each step: the screen tests, the end-to-end walks, the layout walk at 1440 pixels, and the accuracy check, which must match the answer keys exactly as it does today, because nothing behind the screens will have changed.
+After each step: the screen tests, the end-to-end walks, the layout walk at 1440 pixels, and the accuracy check, which must match the answer keys exactly as it does today, because no result changes. Steps 7 and 8 also change things behind the screens (a record of who did what, the evidence file and the verify command; the map's reader), so each has its own plan and its own tests first.
